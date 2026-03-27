@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/output.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .glass { background: rgba(255,255,255,0.7); backdrop-filter: blur(12px); }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .sidebar-gradient { background: linear-gradient(180deg, #0f172a 0%, #1a2332 50%, #162032 100%); }
+    .tooltip { position: relative; }
+    .tooltip::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); padding: 4px 8px; background: #1e293b; color: white; font-size: 12px; border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+    .tooltip:hover::after { opacity: 1; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+  <div class="flex min-h-screen">
+    <%- include('../partials/sidebar') %>
+    <div class="flex-1 flex flex-col lg:ml-64">
+      <%- include('../partials/topbar') %>
+      <main class="flex-1 p-4 sm:p-6 fade-in">
+        <%- include('../partials/flash') %>
+
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="alert-triangle" class="w-7 h-7 text-brand-500"></i> การทำผิดกฎและข้อบังคับ
+            </h2>
+            <p class="text-slate-500 mt-1">ตรวจสอบและจัดการประวัติการกระทำผิดกฎและข้อบังคับ</p>
+          </div>
+        </div>
+
+        <!-- Dashboard Summary -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+
+          <!-- Top 5 Violators -->
+          <div class="card p-5">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+                <i data-lucide="user-x" class="w-5 h-5 text-red-500"></i>
+              </div>
+              <div>
+                <h3 class="font-semibold text-slate-800 text-sm">ผู้กระทำผิดบ่อยที่สุด</h3>
+                <p class="text-xs text-slate-400">5 อันดับแรก (ทั้งหมด)</p>
+              </div>
+            </div>
+            <% if (topViolators.length > 0) { %>
+              <% const maxVio = topViolators[0].cnt; %>
+              <ol class="space-y-2.5">
+                <% topViolators.forEach(function(v, i) { %>
+                <li class="flex items-center gap-3">
+                  <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                    style="<%= i === 0 ? 'background:#ef4444;color:#fff' : i === 1 ? 'background:#f97316;color:#fff' : i === 2 ? 'background:#f59e0b;color:#fff' : 'background:#e2e8f0;color:#475569' %>">
+                    <%= i + 1 %>
+                  </span>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between mb-0.5">
+                      <span class="text-sm font-medium text-slate-700 truncate"><%= v.first_name %> <%= v.last_name %></span>
+                      <span class="text-xs font-bold text-red-600 ml-2 flex-shrink-0"><%= v.cnt %> ครั้ง</span>
+                    </div>
+                    <div class="text-xs text-slate-400 mb-1"><%= v.id_number %></div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5">
+                      <div class="bg-red-400 h-1.5 rounded-full" style="width:<%= Math.round((v.cnt / maxVio) * 100) %>%"></div>
+                    </div>
+                  </div>
+                </li>
+                <% }); %>
+              </ol>
+            <% } else { %>
+              <div class="text-center text-slate-400 py-6 text-sm">ยังไม่มีข้อมูล</div>
+            <% } %>
+          </div>
+
+          <!-- Top 5 Violated Rules -->
+          <div class="card p-5">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+                <i data-lucide="shield-alert" class="w-5 h-5 text-amber-500"></i>
+              </div>
+              <div>
+                <h3 class="font-semibold text-slate-800 text-sm">กฎที่ถูกละเมิดบ่อยที่สุด</h3>
+                <p class="text-xs text-slate-400">5 อันดับแรก (ทั้งหมด)</p>
+              </div>
+            </div>
+            <% if (topRules.length > 0) { %>
+              <% const maxRule = topRules[0].cnt; %>
+              <ol class="space-y-4">
+                <% topRules.forEach(function(r, i) { %>
+                <li class="flex items-center gap-3">
+                  <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                    style="<%= i === 0 ? 'background:#d97706;color:#fff' : i === 1 ? 'background:#f59e0b;color:#fff' : i === 2 ? 'background:#eab308;color:#fff' : 'background:#e2e8f0;color:#475569' %>">
+                    <%= i + 1 %>
+                  </span>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between mb-1">
+                      <span class="text-sm font-medium text-slate-700 truncate"><%= r.rule_name %></span>
+                      <span class="text-xs font-bold ml-2 flex-shrink-0" style="color:#d97706"><%= r.cnt %> ครั้ง</span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5 mt-2">
+                      <div class="h-1.5 rounded-full" style="background:#f59e0b;width:<%= Math.round((r.cnt / maxRule) * 100) %>%"></div>
+                    </div>
+                  </div>
+                </li>
+                <% }); %>
+              </ol>
+            <% } else { %>
+              <div class="text-center text-slate-400 py-6 text-sm">ยังไม่มีข้อมูล</div>
+            <% } %>
+          </div>
+
+        </div>
+
+
+        <!-- Filters -->
+        <div class="card p-4 mb-6">
+          <form method="GET" action="/violations" class="flex flex-wrap items-end gap-4">
+            <div class="flex-1 min-w-[200px]">
+              <label class="label">ค้นหา</label>
+              <div class="relative">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" name="search" value="<%= search %>" class="input" style="padding-left:2.5rem" placeholder="ชื่อ, รหัส, ป้ายทะเบียน...">
+              </div>
+            </div>
+            <div>
+              <label class="label">กฎและข้อบังคับ</label>
+              <select name="rule_id" class="input">
+                <option value="">ทั้งหมด</option>
+                <% rules.forEach(function(r) { %>
+                <option value="<%= r.id %>" <%= rule_id == r.id ? 'selected' : '' %>><%= r.rule_name %></option>
+                <% }); %>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <i data-lucide="search" class="w-4 h-4"></i> ค้นหา
+            </button>
+          </form>
+        </div>
+
+        <!-- Info -->
+        <p class="text-sm text-slate-500 mb-4">พบ <span class="font-semibold text-slate-700"><%= total %></span> รายการ</p>
+
+        <!-- Table -->
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>รหัส</th>
+                <th>ชื่อ-นามสกุล</th>
+                <th>ป้ายทะเบียน</th>
+                <th>กฎที่ฝ่าฝืน</th>
+                <th>รายละเอียด</th>
+                <th>บันทึกโดย</th>
+                <th>วันที่</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (violations.length > 0) { %>
+                <% violations.forEach(function(v) { %>
+                <tr style="cursor:pointer;" onclick="window.location='/violations/<%= v.id %>'" class="hover:bg-slate-50">
+                  <td class="text-xs"><%= v.id_number %></td>
+                  <td class="font-medium text-slate-800">
+                    <span class="hover:text-brand-600"><%= v.first_name %> <%= v.last_name %></span>
+                  </td>
+                  <td class="font-semibold"><%= v.license_plate %></td>
+                  <td><span class="badge badge-danger"><%= v.rule_name %></span></td>
+                  <td class="max-w-[200px] truncate"><%= v.description || '-' %></td>
+                  <td><%= v.recorded_by_name %></td>
+                  <td class="text-xs text-slate-500"><%= new Date(v.recorded_at).toLocaleDateString('th-TH') %></td>
+                </tr>
+                <% }); %>
+              <% } else { %>
+                <tr><td colspan="7" class="text-center text-slate-400 py-12">ไม่พบข้อมูล</td></tr>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <% if (totalPages > 1) { %>
+        <div class="flex items-center justify-center gap-2 mt-6">
+          <% for (var i = 1; i <= totalPages; i++) { %>
+            <a href="/violations?page=<%= i %>&search=<%= search %>&rule_id=<%= rule_id %>"
+              class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium transition-all
+                     <%= i === currentPage ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' %>">
+              <%= i %>
+            </a>
+          <% } %>
+        </div>
+        <% } %>
+      </main>
+    </div>
+  </div>
+  <script>lucide.createIcons();</script>
+  <script src="/js/table-sort.js"></script>
+</body>
+</html>

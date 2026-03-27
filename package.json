@@ -1,0 +1,36 @@
+{
+  "name": "bu-motospace",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "build:css": "npx @tailwindcss/cli -i ./public/css/input.css -o ./public/css/output.css --minify",
+    "watch:css": "npx @tailwindcss/cli -i ./public/css/input.css -o ./public/css/output.css --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "connect-flash": "^0.1.1",
+    "csv-parser": "^3.2.0",
+    "dotenv": "^17.3.1",
+    "ejs": "^5.0.1",
+    "express": "^5.2.1",
+    "express-ejs-layouts": "^2.5.1",
+    "express-session": "^1.19.0",
+    "json2csv": "^6.0.0-alpha.2",
+    "mariadb": "^3.5.2",
+    "multer": "^2.1.1",
+    "sharp": "^0.34.5",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.2.2",
+    "nodemon": "^3.1.14",
+    "tailwindcss": "^4.2.2"
+  }
+}

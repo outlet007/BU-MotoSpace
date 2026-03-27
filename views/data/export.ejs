@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/output.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .sidebar-gradient { background: linear-gradient(180deg, #0f172a 0%, #1a2332 50%, #162032 100%); }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+  <div class="flex min-h-screen">
+    <%- include('../partials/sidebar') %>
+    <div class="flex-1 flex flex-col lg:ml-64">
+      <%- include('../partials/topbar') %>
+      <main class="flex-1 p-4 sm:p-6 fade-in">
+        <%- include('../partials/flash') %>
+
+        <div class="w-full">
+          <div class="mb-6">
+            <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="file-down" class="w-7 h-7 text-brand-500"></i> ส่งออกข้อมูลทะเบียนรถ
+            </h2>
+            <p class="text-slate-500 mt-1">ดาวน์โหลดข้อมูลจากระบบในรูปแบบไฟล์ CSV</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Export Registrations -->
+            <div class="card p-6 flex flex-col items-center text-center">
+              <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-4 text-blue-500">
+                <i data-lucide="clipboard-list" class="w-8 h-8"></i>
+              </div>
+              <h3 class="font-semibold text-slate-800 mb-2">ข้อมูลทะเบียนรถ</h3>
+              <p class="text-sm text-slate-500 mb-6">ดาวน์โหลดข้อมูลการลงทะเบียนทะเบียนรถจักรยานยนต์ทั้งหมดที่อยู่ในระบบ (รูปแบบไฟล์ .csv)</p>
+              <a href="/data/export/registrations" class="btn btn-primary w-full justify-center mt-auto">
+                <i data-lucide="download" class="w-4 h-4"></i> ดาวน์โหลด CSV
+              </a>
+            </div>
+
+            <!-- Export Violations -->
+            <div class="card p-6 flex flex-col items-center text-center">
+              <div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-4 text-red-500">
+                <i data-lucide="alert-triangle" class="w-8 h-8"></i>
+              </div>
+              <h3 class="font-semibold text-slate-800 mb-2">ข้อมูลการกระทำผิด</h3>
+              <p class="text-sm text-slate-500 mb-6">ดาวน์โหลดประวัติการกระทำผิดกฎและข้อบังคับทั้งหมด (รูปแบบไฟล์ .csv)</p>
+              <a href="/data/export/violations" class="btn btn-secondary w-full justify-center mt-auto">
+                <i data-lucide="download" class="w-4 h-4"></i> ดาวน์โหลด CSV
+              </a>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

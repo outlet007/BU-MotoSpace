@@ -1,0 +1,37 @@
+<% if (typeof success !== 'undefined' && success && success.length > 0) { %>
+  <% success.forEach(msg => { %>
+  <div class="mb-4 flex items-center gap-3 p-4 rounded-xl bg-brand-50 border border-brand-200 text-brand-700 text-sm fade-in" id="flash-msg">
+    <i data-lucide="check-circle-2" class="w-5 h-5 flex-shrink-0"></i>
+    <span class="flex-1"><%= msg %></span>
+    <button onclick="this.parentElement.remove()" class="text-brand-400 hover:text-brand-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+  </div>
+  <% }); %>
+<% } %>
+<% if (typeof error !== 'undefined' && error && error.length > 0) { %>
+  <% error.forEach(msg => { %>
+  <div class="mb-4 flex items-center gap-3 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm fade-in" id="flash-msg">
+    <i data-lucide="alert-circle" class="w-5 h-5 flex-shrink-0"></i>
+    <span class="flex-1"><%= msg %></span>
+    <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+  </div>
+  <% }); %>
+<% } %>
+<% if (typeof warning !== 'undefined' && warning && warning.length > 0) { %>
+  <% warning.forEach(msg => { %>
+  <div class="mb-4 flex items-center gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm fade-in" id="flash-msg">
+    <i data-lucide="alert-triangle" class="w-5 h-5 flex-shrink-0"></i>
+    <span class="flex-1"><%= msg %></span>
+    <button onclick="this.parentElement.remove()" class="text-amber-400 hover:text-amber-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+  </div>
+  <% }); %>
+<% } %>
+<script>
+  setTimeout(() => {
+    document.querySelectorAll('#flash-msg').forEach(el => {
+      el.style.transition = 'opacity 0.3s, transform 0.3s';
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(-8px)';
+      setTimeout(() => el.remove(), 300);
+    });
+  }, 5000);
+</script>

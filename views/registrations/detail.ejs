@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/output.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .glass { background: rgba(255,255,255,0.7); backdrop-filter: blur(12px); }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .sidebar-gradient { background: linear-gradient(180deg, #0f172a 0%, #1a2332 50%, #162032 100%); }
+    .tooltip { position: relative; }
+    .tooltip::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); padding: 4px 8px; background: #1e293b; color: white; font-size: 12px; border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+    .tooltip:hover::after { opacity: 1; }
+    .modal-backdrop { background: rgba(15,23,42,0.5); backdrop-filter: blur(4px); display:none; }
+    .modal-backdrop.active { display: flex; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+  <div class="flex min-h-screen">
+    <%- include('../partials/sidebar') %>
+    <div class="flex-1 flex flex-col lg:ml-64">
+      <%- include('../partials/topbar') %>
+      <main class="flex-1 p-4 sm:p-6 fade-in">
+        <%- include('../partials/flash') %>
+
+        <!-- Back -->
+        <a href="/registrations" class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-brand-600 mb-4">
+          <i data-lucide="arrow-left" class="w-4 h-4"></i> กลับไปรายการ
+        </a>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Left: Info -->
+          <div class="lg:col-span-2 space-y-6">
+            <div class="card p-6">
+              <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center gap-4">
+                  <div class="w-14 h-14 bg-brand-100 rounded-2xl flex items-center justify-center">
+                    <i data-lucide="<%= reg.user_type === 'student' ? 'graduation-cap' : 'briefcase' %>" class="w-7 h-7 text-brand-600"></i>
+                  </div>
+                  <div>
+                    <h2 class="text-xl font-bold text-slate-800"><%= reg.first_name %> <%= reg.last_name %></h2>
+                    <p class="text-sm text-slate-500"><%= reg.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %> · <%= reg.id_number %></p>
+                  </div>
+                </div>
+                <span class="badge text-sm px-3 py-1 <%= reg.status === 'approved' ? 'badge-success' : reg.status === 'pending' ? 'badge-warning' : 'badge-danger' %>">
+                  <%= reg.status === 'approved' ? 'อนุมัติ' : reg.status === 'pending' ? 'รอดำเนินการ' : 'ปฏิเสธ' %>
+                </span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div class="p-3 bg-slate-50 rounded-xl">
+                  <p class="text-xs text-slate-400 mb-1">เบอร์โทรศัพท์</p>
+                  <p class="text-sm font-medium text-slate-700"><%= reg.phone || '-' %></p>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl">
+                  <p class="text-xs text-slate-400 mb-1">ป้ายทะเบียน</p>
+                  <p class="text-sm font-bold text-slate-800"><%= reg.license_plate %></p>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl">
+                  <p class="text-xs text-slate-400 mb-1">จังหวัด</p>
+                  <p class="text-sm font-medium text-slate-700"><%= reg.province %></p>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl">
+                  <p class="text-xs text-slate-400 mb-1">วันที่ลงทะเบียน</p>
+                  <p class="text-sm font-medium text-slate-700"><%= new Date(reg.registered_at).toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric'}) %></p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Photos -->
+            <div class="card p-6">
+              <h3 class="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                <i data-lucide="image" class="w-4 h-4 text-brand-500"></i>
+                รูปภาพ
+              </h3>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <% if (reg.motorcycle_photo) { %>
+                <div>
+                  <p class="text-xs text-slate-400 mb-2">รูปรถจักรยานยนต์</p>
+                  <img src="<%= reg.motorcycle_photo %>" alt="Motorcycle" class="w-full h-40 object-cover rounded-xl border border-slate-200">
+                </div>
+                <% } %>
+                <% if (reg.plate_photo) { %>
+                <div>
+                  <p class="text-xs text-slate-400 mb-2">รูปป้ายทะเบียน</p>
+                  <img src="<%= reg.plate_photo %>" alt="License Plate" class="w-full h-40 object-cover rounded-xl border border-slate-200">
+                </div>
+                <% } %>
+                <% if (reg.id_card_photo) { %>
+                <div>
+                  <p class="text-xs text-slate-400 mb-2">รูปบัตรประจำตัว</p>
+                  <img src="<%= reg.id_card_photo %>" alt="ID Card" class="w-full h-40 object-cover rounded-xl border border-slate-200">
+                </div>
+                <% } %>
+                <% if (!reg.motorcycle_photo && !reg.plate_photo && !reg.id_card_photo) { %>
+                <p class="text-sm text-slate-400 col-span-3 text-center py-4">ไม่มีรูปภาพ</p>
+                <% } %>
+              </div>
+            </div>
+
+            <!-- Violations -->
+            <div id="violations" class="card p-6">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                  <i data-lucide="alert-triangle" class="w-4 h-4 text-red-500"></i>
+                  ประวัติการกระทำผิด
+                </h3>
+                <a href="/violations/create?reg_id=<%= reg.id %>" class="btn btn-danger btn-sm">
+                  <i data-lucide="plus" class="w-3.5 h-3.5"></i> บันทึกผิดกฎ
+                </a>
+              </div>
+
+              <% if (violationCounts.length > 0) { %>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                <% violationCounts.forEach(function(vc) { %>
+                <div class="p-3 rounded-xl border <%= parseInt(vc.cnt) >= parseInt(vc.max_violations) ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50' %>">
+                  <div class="flex justify-between mb-1">
+                    <span class="text-xs font-medium <%= parseInt(vc.cnt) >= parseInt(vc.max_violations) ? 'text-red-700' : 'text-amber-700' %>"><%= vc.rule_name %></span>
+                    <span class="text-xs font-bold"><%= vc.cnt %>/<%= vc.max_violations %></span>
+                  </div>
+                  <div class="w-full bg-white/50 rounded-full h-1.5">
+                    <div class="<%= parseInt(vc.cnt) >= parseInt(vc.max_violations) ? 'bg-red-500' : 'bg-amber-500' %> h-1.5 rounded-full" style="width:<%= Math.min((parseInt(vc.cnt)/parseInt(vc.max_violations))*100, 100) %>%"></div>
+                  </div>
+                </div>
+                <% }); %>
+              </div>
+              <% } %>
+
+              <table class="data-table">
+                <thead><tr><th>กฎ</th><th>รายละเอียด</th><th>บันทึกโดย</th><th>วันที่</th></tr></thead>
+                <tbody>
+                  <% if (violations.length > 0) { %>
+                    <% violations.forEach(function(v) { %>
+                    <tr>
+                      <td><span class="badge badge-danger"><%= v.rule_name %></span></td>
+                      <td><%= v.description || '-' %></td>
+                      <td><%= v.recorded_by_name %></td>
+                      <td class="text-xs"><%= new Date(v.recorded_at).toLocaleDateString('th-TH') %></td>
+                    </tr>
+                    <% }); %>
+                  <% } else { %>
+                    <tr><td colspan="4" class="text-center text-slate-400 py-6">ไม่มีประวัติการกระทำผิด</td></tr>
+                  <% } %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Right: Actions -->
+          <div class="space-y-4">
+            <% if (reg.status === 'pending') { %>
+            <div class="card p-5 space-y-3">
+              <h3 class="text-sm font-semibold text-slate-800">ดำเนินการ</h3>
+              <form method="POST" action="/registrations/<%= reg.id %>/approve">
+                <button type="submit" class="btn btn-primary w-full justify-center">
+                  <i data-lucide="check" class="w-4 h-4"></i> อนุมัติ
+                </button>
+              </form>
+            </div>
+            <% } %>
+
+            <div class="card p-5 space-y-3">
+              <h3 class="text-sm font-semibold text-slate-800 mb-3">จัดการ</h3>
+              <a href="/registrations/<%= reg.id %>/edit" class="btn btn-secondary w-full justify-center">
+                <i data-lucide="pencil" class="w-4 h-4"></i> แก้ไขข้อมูล
+              </a>
+              <form method="POST" action="/registrations/<%= reg.id %>/delete" onsubmit="return confirm('คุณแน่ใจหรือไม่ที่จะลบข้อมูลนี้?')">
+                <button type="submit" class="btn btn-secondary w-full justify-center text-red-500 hover:bg-red-50">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i> ลบข้อมูล
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+
+
+      </main>
+    </div>
+  </div>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

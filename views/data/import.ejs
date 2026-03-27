@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/output.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .sidebar-gradient { background: linear-gradient(180deg, #0f172a 0%, #1a2332 50%, #162032 100%); }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    .import-steps { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; background: white; padding: 1.5rem; border-radius: 1rem; border: 1px solid #e2e8f0; }
+    .import-step { display: flex; align-items: center; gap: 1rem; flex: 1; }
+    .step-number { width: 40px; height: 40px; border-radius: 50%; background: #3b82f6; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.25rem; flex-shrink: 0; }
+    .step-content h4 { font-weight: 600; color: #1e293b; margin-bottom: 0.25rem; }
+    .step-content p { font-size: 0.875rem; color: #64748b; margin: 0; }
+    .step-arrow { color: #cbd5e1; margin: 0 1rem; }
+    
+    .import-card { margin-bottom: 1.5rem; border: 1px solid #e2e8f0; border-radius: 1rem; background: white; overflow: hidden; }
+    .card-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+    .card-header h3 { font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 0.75rem; margin: 0; }
+    .card-body { padding: 1.5rem; }
+    
+    .template-info-list { list-style: none; padding: 0; margin: 1rem 0; }
+    .template-info-list li { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #f8fafc; border-radius: 0.5rem; margin-bottom: 0.5rem; font-size: 0.875rem; color: #475569; }
+    
+    .columns-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem; margin-bottom: 1.5rem; }
+    .column-item { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; font-size: 0.875rem; }
+    .column-item.required { border-color: #fca5a5; background: #fef2f2; }
+    .column-name { font-weight: 500; color: #334155; }
+    .column-badge { padding: 0.25rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+    .column-badge.required { background: #fee2e2; color: #ef4444; }
+    .column-badge.optional { background: #f1f5f9; color: #64748b; }
+    
+    .upload-area { border: 2px dashed #cbd5e1; border-radius: 1rem; padding: 3rem 2rem; text-align: center; cursor: pointer; transition: all 0.2s; background: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; }
+    .upload-area:hover, .upload-area.dragover { border-color: #3b82f6; background: #eff6ff; }
+    .upload-icon { color: #94a3b8; transition: color 0.2s; }
+    .upload-area:hover .upload-icon, .upload-area.dragover .upload-icon { color: #3b82f6; }
+    .upload-text { font-weight: 500; color: #475569; margin: 0; font-size: 1.125rem; }
+    .upload-hint { color: #64748b; font-size: 0.875rem; margin: 0; }
+    .file-input-hidden { display: none; }
+    
+    .selected-file { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 0.75rem; margin-bottom: 1.5rem; }
+    .file-info { display: flex; align-items: center; gap: 1rem; color: #1e3a8a; font-weight: 500; width: 100%; }
+    .btn-remove-file { background: white; border: 1px solid #bfdbfe; color: #ef4444; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; margin-left: auto; }
+    .btn-remove-file:hover { background: #fee2e2; border-color: #fecaca; }
+
+    @media (max-width: 768px) {
+      .import-steps { flex-direction: column; gap: 1rem; align-items: flex-start; }
+      .step-arrow { display: none; }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+  <div class="flex min-h-screen">
+    <%- include('../partials/sidebar') %>
+    <div class="flex-1 flex flex-col lg:ml-64">
+      <%- include('../partials/topbar') %>
+      <main class="flex-1 p-4 sm:p-6 fade-in">
+        <%- include('../partials/flash') %>
+
+        <div class="max-w-5xl mx-auto">
+          
+          <div class="mb-6">
+            <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="file-up" class="w-7 h-7 text-brand-500"></i> นำเข้าข้อมูลทะเบียนรถ
+            </h2>
+            <p class="text-slate-500 mt-1">ดาวน์โหลด Template และนำเข้าข้อมูลทะเบียนรถจากไฟล์ Excel</p>
+          </div>
+
+          <!-- Step Indicators -->
+          <div class="import-steps">
+            <div class="import-step">
+              <div class="step-number">1</div>
+              <div class="step-content">
+                <h4>ดาวน์โหลด Template</h4>
+                <p>ดาวน์โหลดไฟล์ Excel สำหรับกรอกข้อมูล</p>
+              </div>
+            </div>
+            <div class="step-arrow"><i data-lucide="chevron-right"></i></div>
+            <div class="import-step">
+              <div class="step-number">2</div>
+              <div class="step-content">
+                <h4>กรอกข้อมูล</h4>
+                <p>เปิดไฟล์และกรอกข้อมูลตามรูปแบบที่กำหนด</p>
+              </div>
+            </div>
+            <div class="step-arrow"><i data-lucide="chevron-right"></i></div>
+            <div class="import-step">
+              <div class="step-number">3</div>
+              <div class="step-content">
+                <h4>อัปโหลดและนำเข้า</h4>
+                <p>อัปโหลดไฟล์ที่กรอกเสร็จแล้วเข้าสู่ระบบ</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="import-sections">
+            <!-- Section 1: Download Template -->
+            <div class="import-card">
+              <div class="card-header">
+                <h3><i data-lucide="download" class="w-5 h-5"></i> ขั้นตอนที่ 1: ดาวน์โหลด Template</h3>
+              </div>
+              <div class="card-body">
+                <p class="text-slate-600 mb-4">
+                  ดาวน์โหลดไฟล์ Template สำหรับกรอกข้อมูลทะเบียนรถ ไฟล์จะมี 1 Sheet:
+                </p>
+                <ul class="template-info-list">
+                  <li><i data-lucide="table" class="w-4 h-4"></i> <strong>Sheet 1 - ข้อมูลทะเบียนรถ:</strong> กรอกข้อมูลรถและเจ้าของที่ต้องการนำเข้า (มีตัวอย่างการกรอกข้อมูลให้)</li>
+                </ul>
+
+                <div class="template-columns-preview">
+                  <h4 class="font-medium text-slate-700 mt-6 mb-2">คอลัมน์ที่ต้องกรอก:</h4>
+                  <div class="columns-grid">
+                    <div class="column-item required">
+                      <span class="column-name">ประเภท</span>
+                      <span class="column-badge required">จำเป็น</span>
+                    </div>
+                    <div class="column-item required">
+                      <span class="column-name">รหัส</span>
+                      <span class="column-badge required">จำเป็น</span>
+                    </div>
+                    <div class="column-item required">
+                      <span class="column-name">ชื่อ</span>
+                      <span class="column-badge required">จำเป็น</span>
+                    </div>
+                    <div class="column-item required">
+                      <span class="column-name">นามสกุล</span>
+                      <span class="column-badge required">จำเป็น</span>
+                    </div>
+                    <div class="column-item required">
+                      <span class="column-name">ป้ายทะเบียน</span>
+                      <span class="column-badge required">จำเป็น</span>
+                    </div>
+
+                    <div class="column-item required">
+                      <span class="column-name">โทรศัพท์</span>
+                      <span class="column-badge required">จำเป็น</span>
+                    </div>
+                    <div class="column-item required">
+                      <span class="column-name">จังหวัด</span>
+                      <span class="column-badge required">จำเป็น</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mt-6">
+                  <a href="/data/import/template" class="btn btn-primary">
+                    <i data-lucide="download" class="w-5 h-5"></i> ดาวน์โหลด Template Excel
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section 2: Upload File -->
+            <div class="import-card">
+              <div class="card-header">
+                <h3><i data-lucide="upload" class="w-5 h-5"></i> ขั้นตอนที่ 2-3: อัปโหลดและนำเข้าข้อมูล</h3>
+              </div>
+              <div class="card-body">
+                <form action="/data/import/registrations" method="POST" enctype="multipart/form-data" id="import-form">
+                  <div class="upload-area" id="upload-area">
+                    <div class="upload-icon">
+                      <i data-lucide="upload-cloud" class="w-12 h-12"></i>
+                    </div>
+                    <p class="upload-text">ลากไฟล์มาวางที่นี่ หรือคลิกเพื่อเลือกไฟล์</p>
+                    <p class="upload-hint">รองรับไฟล์ .xlsx, .xls และ .csv</p>
+                    <input type="file" name="file" id="file-input" accept=".xlsx,.xls,.csv" class="file-input-hidden" required>
+                  </div>
+
+                  <div class="selected-file" id="selected-file" style="display:none;">
+                    <div class="file-info">
+                      <i data-lucide="file-spreadsheet" class="w-6 h-6"></i>
+                      <span id="file-name"></span>
+                      <button type="button" class="btn-remove-file" id="remove-file">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="mt-6">
+                    <button type="submit" class="btn btn-primary w-full justify-center py-3 text-base" id="import-btn" disabled>
+                      <i data-lucide="database" class="w-5 h-5"></i> นำเข้าข้อมูล
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </main>
+    </div>
+  </div>
+  
+  <script>
+    lucide.createIcons();
+
+    // Drag and drop upload
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('file-input');
+    const selectedFile = document.getElementById('selected-file');
+    const fileName = document.getElementById('file-name');
+    const removeFile = document.getElementById('remove-file');
+    const importBtn = document.getElementById('import-btn');
+
+    uploadArea.addEventListener('click', () => fileInput.click());
+
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        if (e.dataTransfer.files.length) {
+            fileInput.files = e.dataTransfer.files;
+            handleFileSelect();
+        }
+    });
+
+    fileInput.addEventListener('change', handleFileSelect);
+
+    function handleFileSelect() {
+        if (fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            fileName.textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+            selectedFile.style.display = 'flex';
+            uploadArea.style.display = 'none';
+            importBtn.disabled = false;
+        }
+    }
+
+    removeFile.addEventListener('click', () => {
+        fileInput.value = '';
+        selectedFile.style.display = 'none';
+        uploadArea.style.display = 'flex';
+        importBtn.disabled = true;
+    });
+
+    // Loading state on submit
+    document.getElementById('import-form').addEventListener('submit', function () {
+        importBtn.disabled = true;
+        importBtn.innerHTML = '<i data-lucide="loader" class="w-5 h-5 animate-spin"></i> กำลังนำเข้าข้อมูล...';
+    });
+  </script>
+</body>
+</html>

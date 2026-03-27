@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/output.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .glass { background: rgba(255,255,255,0.7); backdrop-filter: blur(12px); }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .sidebar-gradient { background: linear-gradient(180deg, #0f172a 0%, #1a2332 50%, #162032 100%); }
+    .tooltip { position: relative; }
+    .tooltip::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); padding: 4px 8px; background: #1e293b; color: white; font-size: 12px; border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+    .tooltip:hover::after { opacity: 1; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+  <div class="flex min-h-screen">
+    <%- include('../partials/sidebar') %>
+    <div class="flex-1 flex flex-col lg:ml-64">
+      <%- include('../partials/topbar') %>
+      <main class="flex-1 p-4 sm:p-6 fade-in">
+        <%- include('../partials/flash') %>
+
+        <% const isNewPage = currentUrl.includes('status=pending'); %>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="<%= isNewPage ? 'file-check' : 'clipboard-list' %>" class="w-7 h-7 text-brand-500"></i> <%= isNewPage ? 'การลงทะเบียนใหม่' : 'จัดการทะเบียนรถ' %>
+            </h2>
+            <p class="text-slate-500 mt-1"><%= isNewPage ? 'ตรวจสอบรายละเอียด การลงทะเบียนรถจักรยานยนต์ใหม่' : 'ค้นหา จัดการ และตรวจสอบข้อมูลทะเบียนรถจักรยานยนต์ทั้งหมด' %></p>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="card p-4 mb-6">
+          <form method="GET" action="/registrations" class="flex flex-wrap items-end gap-4">
+            <div class="flex-1 min-w-[200px]">
+              <label class="label">ค้นหา</label>
+              <div class="relative">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" name="search" value="<%= search %>" class="input" style="padding-left:2.5rem" placeholder="ชื่อ, รหัส, ป้ายทะเบียน...">
+              </div>
+            </div>
+            <div>
+              <label class="label">ประเภท</label>
+              <select name="type" class="input">
+                <option value="">ทั้งหมด</option>
+                <option value="student" <%= type === 'student' ? 'selected' : '' %>>นักศึกษา</option>
+                <option value="staff" <%= type === 'staff' ? 'selected' : '' %>>บุคลากร</option>
+              </select>
+            </div>
+            <div>
+              <label class="label">สถานะ</label>
+              <select name="status" class="input">
+                <option value="">ทั้งหมด</option>
+                <option value="pending" <%= status === 'pending' ? 'selected' : '' %>>รอดำเนินการ</option>
+                <option value="approved" <%= status === 'approved' ? 'selected' : '' %>>อนุมัติ</option>
+                <option value="rejected" <%= status === 'rejected' ? 'selected' : '' %>>ปฏิเสธ</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <i data-lucide="search" class="w-4 h-4"></i> ค้นหา
+            </button>
+            <% if (!isNewPage) { %>
+            <a href="/registrations/search" class="btn btn-secondary">
+              <i data-lucide="image" class="w-4 h-4"></i> ค้นหาด้วยภาพ
+            </a>
+            <% } %>
+          </form>
+        </div>
+
+        <!-- Results Info -->
+        <div class="flex items-center justify-between mb-4">
+          <p class="text-sm text-slate-500">พบ <span class="font-semibold text-slate-700"><%= total %></span> รายการ</p>
+        </div>
+
+        <!-- Table -->
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>รหัส</th>
+                <th>ชื่อ-นามสกุล</th>
+                <th>ป้ายทะเบียน</th>
+                <th>จังหวัด</th>
+                <th>ประเภท</th>
+                <th>สถานะ</th>
+                <th>วันที่ลงทะเบียน</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (registrations.length > 0) { %>
+                <% registrations.forEach(function(r) { %>
+                <tr>
+                  <td class="text-xs"><%= r.id_number %></td>
+                  <td class="font-medium text-slate-800"><%= r.first_name %> <%= r.last_name %></td>
+                  <td class="font-semibold"><%= r.license_plate %></td>
+                  <td><%= r.province %></td>
+                  <td><span class="badge <%= r.user_type === 'student' ? 'badge-success' : 'badge-info' %>"><%= r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %></span></td>
+                  <td><span class="badge <%= r.status === 'approved' ? 'badge-success' : r.status === 'pending' ? 'badge-warning' : 'badge-danger' %>"><%= r.status === 'approved' ? 'อนุมัติ' : r.status === 'pending' ? 'รอดำเนินการ' : 'ปฏิเสธ' %></span></td>
+                  <td class="text-xs text-slate-500"><%= new Date(r.registered_at).toLocaleDateString('th-TH') %></td>
+                  <td>
+                    <div style="display:flex; gap:6px;">
+                      <a href="/registrations/<%= r.id %>" class="btn btn-secondary btn-sm">
+                        <i data-lucide="eye" class="w-3.5 h-3.5"></i> ดูรายละเอียด
+                      </a>
+                      <% if (!isNewPage) { %>
+                      <a href="/violations/create?reg_id=<%= r.id %>" class="btn btn-danger btn-sm">
+                        <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i> บันทึกการกระทำผิดกฎและข้อบังคับ
+                      </a>
+                      <% } %>
+                    </div>
+                  </td>
+                </tr>
+                <% }); %>
+              <% } else { %>
+                <tr><td colspan="8" class="text-center text-slate-400 py-12">ไม่พบข้อมูล</td></tr>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <% if (totalPages > 1) { %>
+        <div class="flex items-center justify-center gap-2 mt-6">
+          <% for (var i = 1; i <= totalPages; i++) { %>
+            <a href="/registrations?page=<%= i %>&search=<%= search %>&type=<%= type %>&status=<%= status %>"
+              class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium transition-all
+                     <%= i === currentPage ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' %>">
+              <%= i %>
+            </a>
+          <% } %>
+        </div>
+        <% } %>
+
+      </main>
+    </div>
+  </div>
+  <script>lucide.createIcons();</script>
+  <script src="/js/table-sort.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+<header class="sticky top-0 z-30 glass border-b border-slate-200/60 px-4 sm:px-6 py-3">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <!-- Hamburger (mobile) -->
+      <button onclick="toggleSidebar()" class="lg:hidden p-2 -ml-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors">
+        <i data-lucide="menu" class="w-5 h-5"></i>
+      </button>
+      <h2 class="text-base sm:text-lg font-semibold text-slate-800 truncate"><%= typeof title !== 'undefined' ? title.split(' - ')[0] : 'BU MotoSpace' %></h2>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="/register" target="_blank" class="btn btn-secondary btn-sm hidden sm:inline-flex">
+        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+        หน้าลงทะเบียน
+      </a>
+      <a href="/register" target="_blank" class="sm:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors tooltip" data-tip="หน้าลงทะเบียน">
+        <i data-lucide="external-link" class="w-4 h-4"></i>
+      </a>
+    </div>
+  </div>
+</header>

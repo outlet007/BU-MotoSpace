@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/output.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .sidebar-gradient { background: linear-gradient(180deg, #0f172a 0%, #1a2332 50%, #162032 100%); }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    .report-card-header {
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      padding: 14px 24px;
+      border-radius: 16px 16px 0 0;
+    }
+    .report-card-header h2 {
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .report-card-body {
+      padding: 20px 24px;
+    }
+    .search-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .search-row .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .search-row .field label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .search-row .field select,
+    .search-row .field input[type="date"] {
+      padding: 9px 14px;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      background: #f8fafc;
+      color: #334155;
+      min-width: 160px;
+      transition: border-color 0.2s;
+    }
+    .search-row .field select:focus,
+    .search-row .field input[type="date"]:focus {
+      border-color: var(--color-brand-500);
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+    }
+    .btn-search {
+      padding: 9px 20px;
+      background: var(--color-brand-600);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s;
+      height: 40px;
+    }
+    .btn-search:hover { background: var(--color-brand-700); }
+    .btn-export {
+      padding: 9px 20px;
+      background: #059669;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+      transition: background 0.2s;
+      height: 40px;
+    }
+    .btn-export:hover { background: #047857; }
+    .results-badge {
+      background: rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.85);
+      font-size: 0.75rem;
+      padding: 3px 12px;
+      border-radius: 999px;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #94a3b8;
+    }
+    .empty-state i { opacity: 0.3; margin-bottom: 12px; }
+    .stat-box {
+      border-radius: 12px;
+      padding: 18px;
+      text-align: center;
+    }
+    .stat-box .stat-label { font-size: 0.8rem; font-weight: 500; margin-bottom: 4px; }
+    .stat-box .stat-value { font-size: 1.75rem; font-weight: 800; }
+    .progress-bar-bg { background: #f1f5f9; border-radius: 999px; height: 8px; overflow: hidden; }
+    .progress-bar-fill { background: #f87171; height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+    .province-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+    }
+    .province-chip .rank {
+      width: 20px; height: 20px;
+      background: #fff;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.65rem; font-weight: 700; color: #64748b;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+  <div class="flex min-h-screen">
+    <%- include('../partials/sidebar') %>
+    <div class="flex-1 flex flex-col lg:ml-64">
+      <%- include('../partials/topbar') %>
+      <main class="flex-1 p-4 sm:p-6 fade-in">
+        <%- include('../partials/flash') %>
+
+        <!-- Page Title -->
+        <!-- Page Title -->
+        <div class="mb-6">
+          <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+            <i data-lucide="pie-chart" class="w-7 h-7 text-brand-500"></i> รายงานสถิติ
+          </h2>
+          <p class="text-slate-500 mt-1">สรุปข้อมูลและสถิติการใช้งานระบบย้อนหลัง</p>
+        </div>
+
+        <!-- ===== SEARCH CARD ===== -->
+        <div style="background:#fff; border-radius:16px; border:1px solid #e2e8f0; margin-bottom:24px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+          <div class="report-card-header">
+            <h2><i data-lucide="search" class="w-4 h-4"></i> ค้นหารายงาน</h2>
+          </div>
+          <div class="report-card-body">
+            <div class="search-row">
+              <form action="/reports" method="GET" style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; flex:1;">
+                <div class="field" style="flex:1; min-width:200px;">
+                  <label>ประเภทรายงาน</label>
+                  <select name="report_type" required>
+                    <option value="">-- เลือกประเภทรายงาน --</option>
+                    <% Object.entries(reportTypes).forEach(([key, rt]) => { %>
+                      <option value="<%= key %>" <%= selectedType === key ? 'selected' : '' %>><%= rt.label %></option>
+                    <% }) %>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label>ตั้งแต่วันที่</label>
+                  <input type="date" name="start_date" value="<%= start_date %>" max="<%= new Date().toISOString().split('T')[0] %>">
+                </div>
+
+                <div class="field">
+                  <label>ถึงวันที่</label>
+                  <input type="date" name="end_date" value="<%= end_date %>" max="<%= new Date().toISOString().split('T')[0] %>">
+                </div>
+
+                <button type="submit" class="btn-search">
+                  <i data-lucide="search" class="w-4 h-4"></i> ค้นหา
+                </button>
+              </form>
+
+              <% if(searched && selectedType !== 'summary') { %>
+                <a href="/reports/export?report_type=<%= selectedType %>&start_date=<%= start_date %>&end_date=<%= end_date %>" class="btn-export" style="align-self:flex-end;">
+                  <i data-lucide="download" class="w-4 h-4"></i> Export CSV
+                </a>
+              <% } %>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== RESULTS CARD ===== -->
+        <% if(searched && reportData) { %>
+        <div style="background:#fff; border-radius:16px; border:1px solid #e2e8f0; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+          <div class="report-card-header" style="display:flex; align-items:center; justify-content:space-between;">
+            <h2><i data-lucide="<%= selectedTypeIcon %>" class="w-4 h-4"></i> <%= selectedTypeLabel %></h2>
+            <% if(!reportData.isSummary) { %>
+              <span class="results-badge">พบ <%= reportData.rows.length %> รายการ</span>
+            <% } %>
+          </div>
+          <div class="report-card-body">
+
+            <% if(reportData.isSummary) { %>
+              <!-- ===== SUMMARY VIEW ===== -->
+              <%
+                const s = { student: { pending:0, approved:0, rejected:0, total:0 }, staff: { pending:0, approved:0, rejected:0, total:0 }, totalAmount:0 };
+                reportData.regCounts.forEach(r => {
+                  const t = r.user_type; const st = r.status; const c = parseInt(r.cnt);
+                  if(s[t] && s[t][st]!==undefined) { s[t][st]+=c; s[t].total+=c; s.totalAmount+=c; }
+                });
+                const totalVio = reportData.vioCounts.reduce((a,r)=>a+parseInt(r.cnt),0);
+              %>
+
+              <!-- Stat Cards -->
+              <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="stat-box" style="background:#f0fdf4; border:1px solid #bbf7d0;">
+                  <p class="stat-label" style="color:#16a34a;">ลงทะเบียนทั้งหมด</p>
+                  <p class="stat-value" style="color:#15803d;"><%= s.totalAmount %></p>
+                </div>
+                <div class="stat-box" style="background:#fffbeb; border:1px solid #fde68a;">
+                  <p class="stat-label" style="color:#d97706;">รอดำเนินการ</p>
+                  <p class="stat-value" style="color:#b45309;"><%= (s.student.pending||0)+(s.staff.pending||0) %></p>
+                </div>
+                <div class="stat-box" style="background:#f0fdf4; border:1px solid #86efac;">
+                  <p class="stat-label" style="color:#16a34a;">อนุมัติแล้ว</p>
+                  <p class="stat-value" style="color:#15803d;"><%= (s.student.approved||0)+(s.staff.approved||0) %></p>
+                </div>
+                <div class="stat-box" style="background:#fef2f2; border:1px solid #fecaca;">
+                  <p class="stat-label" style="color:#dc2626;">กระทำผิดกฎ</p>
+                  <p class="stat-value" style="color:#b91c1c;"><%= totalVio %></p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Registration Summary Table -->
+                <div>
+                  <h4 style="font-size:0.9rem; font-weight:700; color:#334155; margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+                    <i data-lucide="users" class="w-4 h-4" style="color:var(--color-brand-500);"></i> สรุปการลงทะเบียน
+                  </h4>
+                  <div class="table-container">
+                    <table class="data-table">
+                      <thead><tr><th>ประเภท</th><th style="text-align:center">รอ</th><th style="text-align:center">อนุมัติ</th><th style="text-align:center">ปฏิเสธ</th><th style="text-align:right">รวม</th></tr></thead>
+                      <tbody>
+                        <tr><td style="font-weight:600">นักศึกษา</td><td style="text-align:center"><%= s.student.pending %></td><td style="text-align:center;color:#16a34a"><%= s.student.approved %></td><td style="text-align:center;color:#dc2626"><%= s.student.rejected %></td><td style="text-align:right;font-weight:700"><%= s.student.total %></td></tr>
+                        <tr><td style="font-weight:600">บุคลากร</td><td style="text-align:center"><%= s.staff.pending %></td><td style="text-align:center;color:#16a34a"><%= s.staff.approved %></td><td style="text-align:center;color:#dc2626"><%= s.staff.rejected %></td><td style="text-align:right;font-weight:700"><%= s.staff.total %></td></tr>
+                      </tbody>
+                      <tfoot style="background:#f8fafc; border-top:2px solid #e2e8f0;">
+                        <tr><td style="font-weight:700">ยอดรวม</td><td style="text-align:center;font-weight:700;color:#d97706"><%= (s.student.pending||0)+(s.staff.pending||0) %></td><td style="text-align:center;font-weight:700;color:#16a34a"><%= (s.student.approved||0)+(s.staff.approved||0) %></td><td style="text-align:center;font-weight:700;color:#dc2626"><%= (s.student.rejected||0)+(s.staff.rejected||0) %></td><td style="text-align:right;font-weight:800;color:var(--color-brand-600);font-size:1.1rem"><%= s.totalAmount %></td></tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  <% if(reportData.topProv.length > 0) { %>
+                  <div style="margin-top:16px;">
+                    <p style="font-size:0.7rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px;">Top 5 จังหวัด (อนุมัติ)</p>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                      <% reportData.topProv.forEach((p,i)=>{ %>
+                      <span class="province-chip">
+                        <span class="rank"><%= i+1 %></span>
+                        <span style="font-weight:500; color:#475569;"><%= p.province %></span>
+                        <span style="font-weight:700; color:#2563eb;"><%= p.cnt %></span>
+                      </span>
+                      <% }) %>
+                    </div>
+                  </div>
+                  <% } %>
+                </div>
+
+                <!-- Violation Breakdown -->
+                <div>
+                  <h4 style="font-size:0.9rem; font-weight:700; color:#334155; margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+                    <i data-lucide="shield-alert" class="w-4 h-4" style="color:#ef4444;"></i> สถิติการกระทำผิดกฎ
+                  </h4>
+                  <% if(reportData.vioCounts.length > 0) { %>
+                    <% const maxV = Math.max(...reportData.vioCounts.map(r=>parseInt(r.cnt))); %>
+                    <div style="display:flex; flex-direction:column; gap:14px;">
+                    <% reportData.vioCounts.forEach(v=>{ %>
+                      <div>
+                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:6px;">
+                          <span style="color:#475569; font-weight:500;"><%= v.rule_name %></span>
+                          <span style="font-weight:700; color:#1e293b;"><%= v.cnt %> ครั้ง</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                          <div class="progress-bar-fill" style="width:<%= Math.max((parseInt(v.cnt)/(maxV||1))*100,5) %>%;"></div>
+                        </div>
+                      </div>
+                    <% }) %>
+                    </div>
+                  <% } else { %>
+                    <div class="empty-state" style="padding:40px 20px;">
+                      <i data-lucide="shield-check" class="w-10 h-10" style="display:block; margin:0 auto 8px; color:#22c55e;"></i>
+                      <p>ไม่พบข้อมูลการกระทำผิด</p>
+                    </div>
+                  <% } %>
+                </div>
+              </div>
+
+            <% } else { %>
+              <!-- ===== TABLE VIEW ===== -->
+              <% if(reportData.rows.length > 0) { %>
+              <div class="table-container">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th style="width:50px">#</th>
+                      <% reportData.fields.forEach(f => { %>
+                        <th><%= f.label %></th>
+                      <% }) %>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% reportData.rows.forEach((row, idx) => { %>
+                    <tr>
+                      <td style="color:#94a3b8; font-size:0.75rem;"><%= idx + 1 %></td>
+                      <% reportData.fields.forEach(f => { %>
+                        <td>
+                          <% if(f.key === 'status_label') { %>
+                            <% const st = row['status']; %>
+                            <% if(st==='approved') { %>
+                              <span class="badge badge-success">อนุมัติ</span>
+                            <% } else if(st==='pending') { %>
+                              <span class="badge badge-warning">รอดำเนินการ</span>
+                            <% } else { %>
+                              <span class="badge badge-danger">ปฏิเสธ</span>
+                            <% } %>
+                          <% } else if(f.key === 'user_type_label') { %>
+                            <% if(row['user_type']==='student') { %>
+                              <span class="badge badge-info">นักศึกษา</span>
+                            <% } else { %>
+                              <span class="badge" style="background:#f3e8ff; color:#7c3aed;">บุคลากร</span>
+                            <% } %>
+                          <% } else if(f.key === 'registered_at' || f.key === 'recorded_at') { %>
+                            <span style="font-size:0.8rem; color:#64748b;"><%= row[f.key] ? new Date(row[f.key]).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}) : '-' %></span>
+                          <% } else { %>
+                            <%= row[f.key] || '-' %>
+                          <% } %>
+                        </td>
+                      <% }) %>
+                    </tr>
+                    <% }) %>
+                  </tbody>
+                </table>
+              </div>
+              <% } else { %>
+                <div class="empty-state">
+                  <i data-lucide="inbox" class="w-14 h-14" style="display:block; margin:0 auto;"></i>
+                  <p style="font-size:1.1rem; font-weight:500; color:#64748b; margin-top:8px;">ไม่พบข้อมูล</p>
+                  <p style="font-size:0.85rem; margin-top:4px;">ลองเปลี่ยนช่วงเวลาหรือประเภทรายงาน</p>
+                </div>
+              <% } %>
+            <% } %>
+
+          </div>
+        </div>
+
+        <% } else if(!searched) { %>
+          <!-- Placeholder before search -->
+          <div style="background:#fff; border-radius:16px; border:1px solid #e2e8f0; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+            <div class="report-card-header">
+              <h2><i data-lucide="file-text" class="w-4 h-4"></i> ผลลัพธ์รายงาน</h2>
+            </div>
+            <div class="empty-state">
+              <i data-lucide="search" class="w-16 h-16" style="display:block; margin:0 auto;"></i>
+              <p style="font-size:1.1rem; font-weight:500; color:#64748b; margin-top:12px;">เลือกประเภทรายงาน แล้วกด "ค้นหา"</p>
+              <p style="font-size:0.85rem; margin-top:4px;">ข้อมูลจะแสดงในส่วนนี้</p>
+            </div>
+          </div>
+        <% } %>
+
+      </main>
+    </div>
+  </div>
+  <script>lucide.createIcons();</script>
+  <script src="/js/table-sort.js"></script>
+</body>
+</html>

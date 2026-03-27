@@ -1,0 +1,122 @@
+<!-- Sidebar Overlay (mobile) -->
+<div id="sidebar-overlay" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-30 lg:hidden hidden" onclick="toggleSidebar()"></div>
+
+<aside id="sidebar" class="fixed left-0 top-0 bottom-0 w-64 sidebar-gradient text-white flex flex-col z-40 transition-transform duration-300 -translate-x-full lg:translate-x-0">
+  <!-- Logo -->
+  <div class="p-6 border-b border-white/10 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center shadow-lg shadow-brand-500/30">
+        <i data-lucide="bike" class="w-5 h-5 text-white"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold tracking-tight">MotoSpace</h1>
+        <p class="text-xs text-slate-400">ระบบจัดการรถจักรยานยนต์</p>
+      </div>
+    </div>
+    <!-- Close button (mobile) -->
+    <button onclick="toggleSidebar()" class="lg:hidden text-slate-400 hover:text-white p-1">
+      <i data-lucide="x" class="w-5 h-5"></i>
+    </button>
+  </div>
+
+  <!-- Navigation -->
+  <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+    <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold px-4 mb-2">เมนูหลัก</p>
+
+    <a href="/dashboard" class="sidebar-link <%= currentPath === '/dashboard' ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+      <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+      แดชบอร์ด
+    </a>
+
+    <a href="/registrations?status=pending" class="sidebar-link <%= currentUrl.includes('/registrations') && currentUrl.includes('status=pending') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+      <i data-lucide="file-check" class="w-5 h-5"></i>
+      <span class="flex-1">การลงทะเบียนใหม่</span>
+      <% if (typeof pendingCount !== 'undefined' && pendingCount > 0) { %>
+        <span class="bg-red-500 text-white text-[11px] font-bold w-5 h-5 flex items-center justify-center rounded-full ml-auto"><%= pendingCount %></span>
+      <% } %>
+    </a>
+
+    <a href="/registrations" class="sidebar-link <%= (currentPath.startsWith('/registrations') && currentPath !== '/registrations/search' || currentPath === '/violations/create') && !currentUrl.includes('status=pending') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+      <i data-lucide="clipboard-list" class="w-5 h-5"></i>
+      จัดการทะเบียน
+    </a>
+
+    <a href="/registrations/search" class="sidebar-link <%= currentPath === '/registrations/search' ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+      <i data-lucide="search" class="w-5 h-5"></i>
+      ค้นหาด้วยภาพ
+    </a>
+
+    <a href="/violations" class="sidebar-link <%= currentPath.startsWith('/violations') && currentPath !== '/violations/create' ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+      <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+      การทำผิดกฎและข้อบังคับ
+    </a>
+
+    <% if (admin && (admin.role === 'head' || admin.role === 'superadmin')) { %>
+    <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold px-4 mt-6 mb-2">จัดการ</p>
+
+    <a href="/rules" class="sidebar-link <%= currentPath.startsWith('/rules') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+      <i data-lucide="shield" class="w-5 h-5"></i>
+      กฎและข้อบังคับ
+    </a>
+
+    <a href="/data/import" class="sidebar-link <%= currentPath.startsWith('/data/import') || currentPath === '/data' ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+      <i data-lucide="file-up" class="w-5 h-5"></i>
+      นำเข้าข้อมูล
+    </a>
+
+    <a href="/data/export" class="sidebar-link <%= currentPath.startsWith('/data/export') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+      <i data-lucide="file-down" class="w-5 h-5"></i>
+      ส่งออกข้อมูล
+    </a>
+
+    <a href="/reports" class="sidebar-link <%= currentPath.startsWith('/reports') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+      <i data-lucide="pie-chart" class="w-5 h-5"></i>
+      รายงาน
+    </a>
+    <% } %>
+
+    <% if (admin && admin.role === 'superadmin') { %>
+    <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold px-4 mt-6 mb-2">ระบบ</p>
+
+    <a href="/users" class="sidebar-link <%= currentPath.startsWith('/users') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+      <i data-lucide="users" class="w-5 h-5"></i>
+      จัดการผู้ใช้
+    </a>
+    <% } %>
+  </nav>
+
+  <!-- User info -->
+  <div class="p-4 border-t border-white/10">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 bg-brand-600 rounded-lg flex items-center justify-center text-sm font-bold">
+        <%= admin ? admin.full_name.charAt(0) : '?' %>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-medium truncate"><%= admin ? admin.full_name : '' %></p>
+        <p class="text-xs text-slate-400">
+          <%= admin ? (admin.role === 'superadmin' ? 'ผู้ดูแลระบบ' : admin.role === 'head' ? 'หัวหน้า' : 'เจ้าหน้าที่') : '' %>
+        </p>
+      </div>
+      <a href="/auth/logout" class="text-slate-400 hover:text-white tooltip" data-tip="ออกจากระบบ">
+        <i data-lucide="log-out" class="w-4 h-4"></i>
+      </a>
+    </div>
+  </div>
+</aside>
+
+<script>
+  function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    sidebar.classList.toggle('-translate-x-full');
+    overlay.classList.toggle('hidden');
+  }
+  function closeSidebarOnMobile() {
+    if (window.innerWidth < 1024) {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebar-overlay');
+      sidebar.classList.add('-translate-x-full');
+      overlay.classList.add('hidden');
+    }
+  }
+</script>

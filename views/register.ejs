@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ลงทะเบียนรถจักรยานยนต์ - BU MotoSpace</title>
+  <link rel="stylesheet" href="/css/output.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    .register-bg {
+      background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 50%, #dcfce7 100%);
+      min-height: 100vh;
+    }
+    .glass-card {
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    .fade-in { animation: fadeIn 0.5s ease-out; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+    .tab-btn.active { border-color: #16a34a; color: #16a34a; background: #f0fdf4; }
+    .upload-zone { border: 2px dashed #cbd5e1; transition: all 0.2s; }
+    .upload-zone:hover { border-color: #22c55e; background: #f0fdf4; }
+    .upload-zone.has-file { border-color: #22c55e; background: #f0fdf4; }
+    .preview-img { max-height: 160px; border-radius: 12px; object-fit: cover; }
+    .ocr-loading { display: none; }
+    .ocr-loading.active { display: flex; }
+    .progress-bar { transition: width 0.3s ease; }
+  </style>
+</head>
+<body class="register-bg">
+  <div class="max-w-3xl mx-auto px-4 py-8 fade-in">
+    <!-- Header -->
+    <div class="text-center mb-8">
+      <div class="w-16 h-16 bg-brand-500 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-brand-500/30 mb-4">
+        <i data-lucide="bike" class="w-8 h-8 text-white"></i>
+      </div>
+      <h1 class="text-3xl font-bold text-slate-800">BU MotoSpace</h1>
+      <p class="text-slate-500 mt-2">ระบบลงทะเบียนรถจักรยานยนต์</p>
+    </div>
+
+    <!-- Flash Messages -->
+    <% if (typeof success !== 'undefined' && success && success.length > 0) { %>
+      <% success.forEach(msg => { %>
+      <div class="mb-6 flex items-center gap-3 p-4 rounded-xl bg-brand-50 border border-brand-200 text-brand-700 text-sm">
+        <i data-lucide="check-circle-2" class="w-5 h-5 flex-shrink-0"></i>
+        <span><%= msg %></span>
+      </div>
+      <% }); %>
+    <% } %>
+    <% if (typeof error !== 'undefined' && error && error.length > 0) { %>
+      <% error.forEach(msg => { %>
+      <div class="mb-6 flex items-center gap-3 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+        <i data-lucide="alert-circle" class="w-5 h-5 flex-shrink-0"></i>
+        <span><%= msg %></span>
+      </div>
+      <% }); %>
+    <% } %>
+
+    <!-- Main Card -->
+    <div class="glass-card rounded-3xl shadow-xl shadow-slate-200/50 border border-white/60 overflow-hidden">
+      <!-- Tabs -->
+      <div class="flex border-b border-slate-200">
+        <button type="button" class="tab-btn active flex-1 py-4 px-6 text-sm font-semibold border-b-2 border-transparent transition-all flex items-center justify-center gap-2" onclick="switchTab('student')">
+          <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+          นักศึกษา
+        </button>
+        <button type="button" class="tab-btn flex-1 py-4 px-6 text-sm font-semibold border-b-2 border-transparent text-slate-500 transition-all flex items-center justify-center gap-2" onclick="switchTab('staff')">
+          <i data-lucide="briefcase" class="w-5 h-5"></i>
+          บุคลากร
+        </button>
+      </div>
+
+      <form method="POST" action="/register" enctype="multipart/form-data" class="p-6 md:p-8 space-y-6">
+        <input type="hidden" name="user_type" id="user_type" value="student">
+
+        <!-- OCR Section -->
+        <div class="bg-gradient-to-r from-brand-50 to-emerald-50 rounded-2xl p-5 border border-brand-100">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-brand-100 rounded-xl flex items-center justify-center">
+              <i data-lucide="scan" class="w-5 h-5 text-brand-600"></i>
+            </div>
+            <div>
+              <h3 class="font-semibold text-slate-800">สแกนบัตรอัตโนมัติ</h3>
+              <p class="text-xs text-slate-500">ถ่ายรูปบัตรนักศึกษา/บัตรบุคลากร เพื่อกรอกข้อมูลอัตโนมัติ</p>
+            </div>
+          </div>
+          <div class="flex flex-col sm:flex-row gap-3">
+            <label class="flex-1 upload-zone rounded-xl p-4 text-center cursor-pointer" id="ocr-upload-zone">
+              <i data-lucide="camera" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
+              <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตร</p>
+              <input type="file" name="id_card_photo" id="id_card_input" accept="image/*" capture="environment" class="hidden" onchange="handleIdCard(this)">
+              <img id="ocr-preview" class="preview-img mx-auto mt-3 hidden">
+            </label>
+          </div>
+          <!-- OCR Progress -->
+          <div class="ocr-loading items-center gap-3 mt-3 p-3 bg-white rounded-xl" id="ocr-progress">
+            <div class="animate-spin w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full"></div>
+            <div class="flex-1">
+              <p class="text-sm font-medium text-slate-700">กำลังอ่านข้อมูลจากภาพ...</p>
+              <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1">
+                <div class="bg-brand-500 h-1.5 rounded-full progress-bar" id="ocr-progress-bar" style="width:0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form Fields -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <label class="label" id="id_number_label">รหัสนักศึกษา</label>
+            <div class="relative">
+              <i data-lucide="hash" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input type="text" name="id_number" id="id_number" class="input" style="padding-left:2.75rem" placeholder="กรอกรหัส" required>
+            </div>
+          </div>
+          <div>
+            <label class="label">เบอร์โทรศัพท์</label>
+            <div class="relative">
+              <i data-lucide="phone" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input type="tel" name="phone" id="phone" class="input" style="padding-left:2.75rem" placeholder="0xx-xxx-xxxx">
+            </div>
+          </div>
+          <div>
+            <label class="label">ชื่อ</label>
+            <div class="relative">
+              <i data-lucide="user" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input type="text" name="first_name" id="first_name" class="input" style="padding-left:2.75rem" placeholder="กรอกชื่อ" required>
+            </div>
+          </div>
+          <div>
+            <label class="label">นามสกุล</label>
+            <div class="relative">
+              <i data-lucide="user" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input type="text" name="last_name" id="last_name" class="input" style="padding-left:2.75rem" placeholder="กรอกนามสกุล" required>
+            </div>
+          </div>
+          <div>
+            <label class="label">ป้ายทะเบียน</label>
+            <div class="relative">
+              <i data-lucide="rectangle-horizontal" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input type="text" name="license_plate" id="license_plate" class="input" style="padding-left:2.75rem" placeholder="เช่น กข 1234" required>
+            </div>
+          </div>
+          <div>
+            <label class="label">จังหวัด</label>
+            <div class="relative">
+              <i data-lucide="map-pin" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <select name="province" id="province" class="input" style="padding-left:2.75rem" required>
+                <option value="">เลือกจังหวัด</option>
+                <option value="กรุงเทพมหานคร">กรุงเทพมหานคร</option>
+                <option value="กระบี่">กระบี่</option>
+                <option value="กาญจนบุรี">กาญจนบุรี</option>
+                <option value="กาฬสินธุ์">กาฬสินธุ์</option>
+                <option value="กำแพงเพชร">กำแพงเพชร</option>
+                <option value="ขอนแก่น">ขอนแก่น</option>
+                <option value="จันทบุรี">จันทบุรี</option>
+                <option value="ฉะเชิงเทรา">ฉะเชิงเทรา</option>
+                <option value="ชลบุรี">ชลบุรี</option>
+                <option value="ชัยนาท">ชัยนาท</option>
+                <option value="ชัยภูมิ">ชัยภูมิ</option>
+                <option value="ชุมพร">ชุมพร</option>
+                <option value="เชียงราย">เชียงราย</option>
+                <option value="เชียงใหม่">เชียงใหม่</option>
+                <option value="ตรัง">ตรัง</option>
+                <option value="ตราด">ตราด</option>
+                <option value="ตาก">ตาก</option>
+                <option value="นครนายก">นครนายก</option>
+                <option value="นครปฐม">นครปฐม</option>
+                <option value="นครพนม">นครพนม</option>
+                <option value="นครราชสีมา">นครราชสีมา</option>
+                <option value="นครศรีธรรมราช">นครศรีธรรมราช</option>
+                <option value="นครสวรรค์">นครสวรรค์</option>
+                <option value="นนทบุรี">นนทบุรี</option>
+                <option value="นราธิวาส">นราธิวาส</option>
+                <option value="น่าน">น่าน</option>
+                <option value="บึงกาฬ">บึงกาฬ</option>
+                <option value="บุรีรัมย์">บุรีรัมย์</option>
+                <option value="ปทุมธานี">ปทุมธานี</option>
+                <option value="ประจวบคีรีขันธ์">ประจวบคีรีขันธ์</option>
+                <option value="ปราจีนบุรี">ปราจีนบุรี</option>
+                <option value="ปัตตานี">ปัตตานี</option>
+                <option value="พะเยา">พะเยา</option>
+                <option value="พังงา">พังงา</option>
+                <option value="พัทลุง">พัทลุง</option>
+                <option value="พิจิตร">พิจิตร</option>
+                <option value="พิษณุโลก">พิษณุโลก</option>
+                <option value="เพชรบุรี">เพชรบุรี</option>
+                <option value="เพชรบูรณ์">เพชรบูรณ์</option>
+                <option value="แพร่">แพร่</option>
+                <option value="ภูเก็ต">ภูเก็ต</option>
+                <option value="มหาสารคาม">มหาสารคาม</option>
+                <option value="มุกดาหาร">มุกดาหาร</option>
+                <option value="แม่ฮ่องสอน">แม่ฮ่องสอน</option>
+                <option value="ยโสธร">ยโสธร</option>
+                <option value="ยะลา">ยะลา</option>
+                <option value="ร้อยเอ็ด">ร้อยเอ็ด</option>
+                <option value="ระนอง">ระนอง</option>
+                <option value="ระยอง">ระยอง</option>
+                <option value="ราชบุรี">ราชบุรี</option>
+                <option value="ลพบุรี">ลพบุรี</option>
+                <option value="ลำปาง">ลำปาง</option>
+                <option value="ลำพูน">ลำพูน</option>
+                <option value="เลย">เลย</option>
+                <option value="ศรีสะเกษ">ศรีสะเกษ</option>
+                <option value="สกลนคร">สกลนคร</option>
+                <option value="สงขลา">สงขลา</option>
+                <option value="สตูล">สตูล</option>
+                <option value="สมุทรปราการ">สมุทรปราการ</option>
+                <option value="สมุทรสงคราม">สมุทรสงคราม</option>
+                <option value="สมุทรสาคร">สมุทรสาคร</option>
+                <option value="สระแก้ว">สระแก้ว</option>
+                <option value="สระบุรี">สระบุรี</option>
+                <option value="สิงห์บุรี">สิงห์บุรี</option>
+                <option value="สุโขทัย">สุโขทัย</option>
+                <option value="สุพรรณบุรี">สุพรรณบุรี</option>
+                <option value="สุราษฎร์ธานี">สุราษฎร์ธานี</option>
+                <option value="สุรินทร์">สุรินทร์</option>
+                <option value="หนองคาย">หนองคาย</option>
+                <option value="หนองบัวลำภู">หนองบัวลำภู</option>
+                <option value="อ่างทอง">อ่างทอง</option>
+                <option value="อำนาจเจริญ">อำนาจเจริญ</option>
+                <option value="อุดรธานี">อุดรธานี</option>
+                <option value="อุตรดิตถ์">อุตรดิตถ์</option>
+                <option value="อุทัยธานี">อุทัยธานี</option>
+                <option value="อุบลราชธานี">อุบลราชธานี</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Photo Uploads -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <label class="label">รูปรถจักรยานยนต์</label>
+            <label class="upload-zone rounded-xl p-6 text-center cursor-pointer block" id="moto-upload-zone">
+              <i data-lucide="camera" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
+              <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
+              <input type="file" name="motorcycle_photo" accept="image/*" capture="environment" class="hidden" onchange="previewImage(this, 'moto-preview', 'moto-upload-zone')">
+              <img id="moto-preview" class="preview-img mx-auto mt-3 hidden">
+            </label>
+          </div>
+          <div>
+            <label class="label">รูปป้ายทะเบียน</label>
+            <label class="upload-zone rounded-xl p-6 text-center cursor-pointer block" id="plate-upload-zone">
+              <i data-lucide="rectangle-horizontal" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
+              <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
+              <input type="file" name="plate_photo" accept="image/*" capture="environment" class="hidden" onchange="previewImage(this, 'plate-preview', 'plate-upload-zone')">
+              <img id="plate-preview" class="preview-img mx-auto mt-3 hidden">
+            </label>
+          </div>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" class="btn btn-primary w-full justify-center text-base py-3.5">
+          <i data-lucide="send" class="w-5 h-5"></i>
+          ลงทะเบียน
+        </button>
+      </form>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center mt-6">
+      <a href="/auth/login" class="text-sm text-slate-500 hover:text-brand-600 font-medium inline-flex items-center gap-1">
+        <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+        เข้าสู่ระบบสำหรับเจ้าหน้าที่
+      </a>
+    </div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    // Tab switching
+    function switchTab(type) {
+      document.getElementById('user_type').value = type;
+      document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', (i === 0 && type === 'student') || (i === 1 && type === 'staff'));
+        if (!btn.classList.contains('active')) {
+          btn.classList.add('text-slate-500');
+        } else {
+          btn.classList.remove('text-slate-500');
+        }
+      });
+      document.getElementById('id_number_label').textContent = type === 'student' ? 'รหัสนักศึกษา' : 'รหัสพนักงาน/บุคลากร';
+      document.getElementById('id_number').placeholder = type === 'student' ? 'กรอกรหัสนักศึกษา' : 'กรอกรหัสพนักงาน';
+    }
+
+    // Image preview
+    function previewImage(input, previewId, zoneId) {
+      const preview = document.getElementById(previewId);
+      const zone = document.getElementById(zoneId);
+      if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          preview.src = e.target.result;
+          preview.classList.remove('hidden');
+          zone.classList.add('has-file');
+        };
+        reader.readAsDataURL(input.files[0]);
+      }
+    }
+
+    // OCR Handler
+    async function handleIdCard(input) {
+      if (!input.files || !input.files[0]) return;
+
+      // Show preview
+      const preview = document.getElementById('ocr-preview');
+      const zone = document.getElementById('ocr-upload-zone');
+      const reader = new FileReader();
+      reader.onload = e => {
+        preview.src = e.target.result;
+        preview.classList.remove('hidden');
+        zone.classList.add('has-file');
+      };
+      reader.readAsDataURL(input.files[0]);
+
+      // Show progress
+      const progressDiv = document.getElementById('ocr-progress');
+      const progressBar = document.getElementById('ocr-progress-bar');
+      progressDiv.classList.add('active');
+
+      try {
+        const result = await Tesseract.recognize(input.files[0], 'tha+eng', {
+          logger: m => {
+            if (m.status === 'recognizing text') {
+              progressBar.style.width = Math.round(m.progress * 100) + '%';
+            }
+          }
+        });
+
+        const text = result.data.text;
+        console.log('OCR Result:', text);
+
+        // Try to extract data from Thai ID card / Student card
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+
+        // Try to find student/staff ID (numeric pattern)
+        const idPattern = lines.find(l => /^\d{7,13}$/.test(l.replace(/\s/g, '')));
+        if (idPattern) {
+          document.getElementById('id_number').value = idPattern.replace(/\s/g, '');
+        }
+
+        // Try to find Thai name
+        for (const line of lines) {
+          // Look for Thai name patterns
+          const thaiNameMatch = line.match(/([ก-๙]+)\s+([ก-๙]+)/);
+          if (thaiNameMatch && !document.getElementById('first_name').value) {
+            document.getElementById('first_name').value = thaiNameMatch[1];
+            document.getElementById('last_name').value = thaiNameMatch[2];
+            break;
+          }
+        }
+
+        progressDiv.classList.remove('active');
+      } catch (err) {
+        console.error('OCR Error:', err);
+        progressDiv.classList.remove('active');
+      }
+    }
+  </script>
+</body>
+</html>

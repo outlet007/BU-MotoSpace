@@ -1,0 +1,82 @@
+-- BU MotoSpace Database Schema
+CREATE DATABASE IF NOT EXISTS bu_motospace CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE bu_motospace;
+
+-- ตาราง admins (เจ้าหน้าที่, หัวหน้า, ผู้ดูแลระบบ)
+CREATE TABLE IF NOT EXISTS admins (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(100) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  full_name VARCHAR(200) NOT NULL,
+  role ENUM('officer','head','superadmin') NOT NULL DEFAULT 'officer',
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- ตารางลงทะเบียนรถจักรยานยนต์
+CREATE TABLE IF NOT EXISTS registrations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_type ENUM('student','staff') NOT NULL,
+  id_number VARCHAR(50) NOT NULL,
+  first_name VARCHAR(100) NOT NULL,
+  last_name VARCHAR(100) NOT NULL,
+  phone VARCHAR(20),
+  license_plate VARCHAR(20) NOT NULL,
+  province VARCHAR(100) NOT NULL,
+  motorcycle_photo VARCHAR(500),
+  plate_photo VARCHAR(500),
+  id_card_photo VARCHAR(500),
+  status ENUM('pending','approved','rejected') DEFAULT 'pending',
+  registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  approved_by INT DEFAULT NULL,
+  approved_at TIMESTAMP NULL,
+  notes TEXT,
+  UNIQUE KEY uq_plate (license_plate),
+  INDEX idx_id_number (id_number),
+  INDEX idx_user_type (user_type),
+  INDEX idx_status (status),
+  FOREIGN KEY (approved_by) REFERENCES admins(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- ตารางกฎ/ข้อบังคับ
+CREATE TABLE IF NOT EXISTS rules (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  rule_name VARCHAR(200) NOT NULL,
+  description TEXT,
+  max_violations INT NOT NULL DEFAULT 3,
+  penalty TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_by INT DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- ตารางบันทึกการกระทำผิด
+CREATE TABLE IF NOT EXISTS violations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  registration_id INT NOT NULL,
+  rule_id INT NOT NULL,
+  description TEXT,
+  evidence_photo VARCHAR(500),
+  recorded_by INT NOT NULL,
+  recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
+  FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE CASCADE,
+  FOREIGN KEY (recorded_by) REFERENCES admins(id) ON DELETE CASCADE,
+  INDEX idx_registration (registration_id),
+  INDEX idx_rule (rule_id)
+) ENGINE=InnoDB;
+
+-- ตาราง image fingerprints สำหรับค้นหาด้วยภาพ
+CREATE TABLE IF NOT EXISTS image_hashes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  registration_id INT NOT NULL,
+  image_type ENUM('motorcycle','plate') NOT NULL,
+  phash VARCHAR(64) NOT NULL,
+  file_path VARCHAR(500),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
+  INDEX idx_phash (phash)
+) ENGINE=InnoDB;

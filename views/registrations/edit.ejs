@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/output.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .glass { background: rgba(255,255,255,0.7); backdrop-filter: blur(12px); }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .sidebar-gradient { background: linear-gradient(180deg, #0f172a 0%, #1a2332 50%, #162032 100%); }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+  <div class="flex min-h-screen">
+    <%- include('../partials/sidebar') %>
+    <div class="flex-1 flex flex-col lg:ml-64">
+      <%- include('../partials/topbar') %>
+      <main class="flex-1 p-4 sm:p-6 fade-in">
+        <%- include('../partials/flash') %>
+
+        <!-- Back -->
+        <a href="/registrations/<%= reg.id %>" class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-brand-600 mb-4">
+          <i data-lucide="arrow-left" class="w-4 h-4"></i> กลับไปรายละเอียด
+        </a>
+
+        <div class="max-w-3xl">
+          <div class="card p-6">
+            <div class="flex items-center gap-3 mb-6">
+              <div class="w-12 h-12 bg-brand-100 rounded-2xl flex items-center justify-center">
+                <i data-lucide="pencil" class="w-6 h-6 text-brand-600"></i>
+              </div>
+              <div>
+                <h2 class="text-xl font-bold text-slate-800">แก้ไขข้อมูลทะเบียน</h2>
+                <p class="text-sm text-slate-500"><%= reg.first_name %> <%= reg.last_name %> · <%= reg.license_plate %></p>
+              </div>
+            </div>
+
+            <form method="POST" action="/registrations/<%= reg.id %>/edit" enctype="multipart/form-data" class="space-y-5">
+              <!-- Personal Info -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="label">ประเภท</label>
+                  <select name="user_type" class="input" required>
+                    <option value="student" <%= reg.user_type === 'student' ? 'selected' : '' %>>นักศึกษา</option>
+                    <option value="staff" <%= reg.user_type === 'staff' ? 'selected' : '' %>>บุคลากร</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="label">รหัสนักศึกษา/บุคลากร</label>
+                  <input type="text" name="id_number" value="<%= reg.id_number %>" class="input" required>
+                </div>
+                <div>
+                  <label class="label">ชื่อ</label>
+                  <input type="text" name="first_name" value="<%= reg.first_name %>" class="input" required>
+                </div>
+                <div>
+                  <label class="label">นามสกุล</label>
+                  <input type="text" name="last_name" value="<%= reg.last_name %>" class="input" required>
+                </div>
+                <div>
+                  <label class="label">เบอร์โทรศัพท์</label>
+                  <input type="tel" name="phone" value="<%= reg.phone || '' %>" class="input">
+                </div>
+                <div>
+                  <label class="label">สถานะ</label>
+                  <select name="status" class="input" required>
+                    <option value="pending" <%= reg.status === 'pending' ? 'selected' : '' %>>รอดำเนินการ</option>
+                    <option value="approved" <%= reg.status === 'approved' ? 'selected' : '' %>>อนุมัติ</option>
+                    <option value="rejected" <%= reg.status === 'rejected' ? 'selected' : '' %>>ปฏิเสธ</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Vehicle Info -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="label">ป้ายทะเบียน</label>
+                  <input type="text" name="license_plate" value="<%= reg.license_plate %>" class="input" required>
+                </div>
+                <div>
+                  <label class="label">จังหวัด</label>
+                  <select name="province" class="input" required>
+                    <option value="">เลือกจังหวัด</option>
+                    <% const provinces = ['กรุงเทพมหานคร','กระบี่','กาญจนบุรี','กาฬสินธุ์','กำแพงเพชร','ขอนแก่น','จันทบุรี','ฉะเชิงเทรา','ชลบุรี','ชัยนาท','ชัยภูมิ','ชุมพร','เชียงราย','เชียงใหม่','ตรัง','ตราด','ตาก','นครนายก','นครปฐม','นครพนม','นครราชสีมา','นครศรีธรรมราช','นครสวรรค์','นนทบุรี','นราธิวาส','น่าน','บึงกาฬ','บุรีรัมย์','ปทุมธานี','ประจวบคีรีขันธ์','ปราจีนบุรี','ปัตตานี','พะเยา','พังงา','พัทลุง','พิจิตร','พิษณุโลก','เพชรบุรี','เพชรบูรณ์','แพร่','ภูเก็ต','มหาสารคาม','มุกดาหาร','แม่ฮ่องสอน','ยโสธร','ยะลา','ร้อยเอ็ด','ระนอง','ระยอง','ราชบุรี','ลพบุรี','ลำปาง','ลำพูน','เลย','ศรีสะเกษ','สกลนคร','สงขลา','สตูล','สมุทรปราการ','สมุทรสงคราม','สมุทรสาคร','สระแก้ว','สระบุรี','สิงห์บุรี','สุโขทัย','สุพรรณบุรี','สุราษฎร์ธานี','สุรินทร์','หนองคาย','หนองบัวลำภู','อ่างทอง','อำนาจเจริญ','อุดรธานี','อุตรดิตถ์','อุทัยธานี','อุบลราชธานี']; %>
+                    <% provinces.forEach(function(p) { %>
+                      <option value="<%= p %>" <%= reg.province === p ? 'selected' : '' %>><%= p %></option>
+                    <% }); %>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Current Photos -->
+              <div>
+                <label class="label mb-2">รูปภาพปัจจุบัน</label>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <% if (reg.motorcycle_photo) { %>
+                  <div>
+                    <p class="text-xs text-slate-400 mb-1">รูปรถจักรยานยนต์</p>
+                    <img src="<%= reg.motorcycle_photo %>" alt="Motorcycle" class="w-full h-32 object-cover rounded-xl border border-slate-200">
+                  </div>
+                  <% } %>
+                  <% if (reg.plate_photo) { %>
+                  <div>
+                    <p class="text-xs text-slate-400 mb-1">รูปป้ายทะเบียน</p>
+                    <img src="<%= reg.plate_photo %>" alt="Plate" class="w-full h-32 object-cover rounded-xl border border-slate-200">
+                  </div>
+                  <% } %>
+                  <% if (reg.id_card_photo) { %>
+                  <div>
+                    <p class="text-xs text-slate-400 mb-1">รูปบัตรประจำตัว</p>
+                    <img src="<%= reg.id_card_photo %>" alt="ID Card" class="w-full h-32 object-cover rounded-xl border border-slate-200">
+                  </div>
+                  <% } %>
+                </div>
+              </div>
+
+              <!-- Upload New Photos (optional) -->
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label class="label">เปลี่ยนรูปรถจักรยานยนต์</label>
+                  <input type="file" name="motorcycle_photo" accept="image/*" class="input text-sm">
+                </div>
+                <div>
+                  <label class="label">เปลี่ยนรูปป้ายทะเบียน</label>
+                  <input type="file" name="plate_photo" accept="image/*" class="input text-sm">
+                </div>
+                <div>
+                  <label class="label">เปลี่ยนรูปบัตรประจำตัว</label>
+                  <input type="file" name="id_card_photo" accept="image/*" class="input text-sm">
+                </div>
+              </div>
+
+              <!-- Actions -->
+              <div class="flex gap-3 pt-4 border-t border-slate-100">
+                <a href="/registrations/<%= reg.id %>" class="btn btn-secondary flex-1 justify-center">
+                  <i data-lucide="x" class="w-4 h-4"></i> ยกเลิก
+                </a>
+                <button type="submit" class="btn btn-primary flex-1 justify-center">
+                  <i data-lucide="save" class="w-4 h-4"></i> บันทึกการแก้ไข
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+services:
+  db:
+    image: mariadb:10.11
+    container_name: bu_motospace_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: bu_motospace
+      MYSQL_USER: asset_user
+      MYSQL_PASSWORD: vM7gK9rX4pZ2hT5
+    ports:
+      - "4022:3306"
+    volumes:
+      - bu_motospace_data:/var/lib/mysql
+
+volumes:
+  bu_motospace_data:

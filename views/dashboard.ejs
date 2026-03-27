@@ -1,0 +1,201 @@
+<% var body = '' %>
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/output.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .glass { background: rgba(255,255,255,0.7); backdrop-filter: blur(12px); }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .sidebar-gradient { background: linear-gradient(180deg, #0f172a 0%, #1a2332 50%, #162032 100%); }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .tooltip { position: relative; }
+    .tooltip::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); padding: 4px 8px; background: #1e293b; color: white; font-size: 12px; border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+    .tooltip:hover::after { opacity: 1; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+  <div class="flex min-h-screen">
+    <%- include('partials/sidebar') %>
+    <div class="flex-1 flex flex-col lg:ml-64">
+      <%- include('partials/topbar') %>
+      <main class="flex-1 p-4 sm:p-6 fade-in">
+        <%- include('partials/flash') %>
+
+        <div class="mb-6">
+          <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+            <i data-lucide="layout-dashboard" class="w-7 h-7 text-brand-500"></i> ภาพรวมระบบ
+          </h2>
+          <p class="text-slate-500 mt-1">ข้อมูลสถิติและภาพรวมการทำงานของระบบจัดการยานพาหนะ</p>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
+          <a href="/registrations" class="stat-card block hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer text-left">
+            <div class="w-12 h-12 flex items-center justify-center rounded-xl bg-brand-100">
+              <i data-lucide="clipboard-list" class="w-6 h-6 text-brand-600"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">ทะเบียนทั้งหมด</p>
+              <p class="text-2xl font-bold text-slate-800"><%= stats.total %></p>
+            </div>
+          </a>
+          <a href="/registrations?status=pending" class="stat-card block hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer text-left">
+            <div class="w-12 h-12 flex items-center justify-center rounded-xl bg-amber-100">
+              <i data-lucide="clock" class="w-6 h-6 text-amber-600"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">รอดำเนินการ</p>
+              <p class="text-2xl font-bold text-slate-800"><%= stats.pending %></p>
+            </div>
+          </a>
+          <a href="/registrations?status=approved" class="stat-card block hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer text-left">
+            <div class="w-12 h-12 flex items-center justify-center rounded-xl bg-brand-100">
+              <i data-lucide="check-circle" class="w-6 h-6 text-brand-600"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">อนุมัติแล้ว</p>
+              <p class="text-2xl font-bold text-slate-800"><%= stats.approved %></p>
+            </div>
+          </a>
+          <a href="/violations" class="stat-card block hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer text-left">
+            <div class="w-12 h-12 flex items-center justify-center rounded-xl bg-red-100">
+              <i data-lucide="alert-triangle" class="w-6 h-6 text-red-500"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">กระทำผิดทั้งหมด</p>
+              <p class="text-2xl font-bold text-slate-800"><%= stats.violations %></p>
+            </div>
+          </a>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
+          <div class="card p-5 flex flex-col">
+            <h3 class="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <i data-lucide="pie-chart" class="w-4 h-4 text-brand-500"></i>
+              ประเภทผู้ลงทะเบียน
+            </h3>
+            <div class="flex-1 flex flex-col items-center justify-center">
+              <div class="relative" style="width:11rem;height:11rem">
+                <svg style="width:11rem;height:11rem" class="-rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#e2e8f0" stroke-width="12"/>
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#22c55e" stroke-width="12"
+                    stroke-dasharray="<%= stats.total > 0 ? (stats.students / stats.total * 251.2).toFixed(1) : 0 %> 251.2"
+                    stroke-linecap="round"/>
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#3b82f6" stroke-width="12"
+                    stroke-dasharray="<%= stats.total > 0 ? (stats.staff / stats.total * 251.2).toFixed(1) : 0 %> 251.2"
+                    stroke-dashoffset="-<%= stats.total > 0 ? (stats.students / stats.total * 251.2).toFixed(1) : 0 %>"
+                    stroke-linecap="round"/>
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <span class="text-2xl font-bold text-slate-800"><%= stats.total %></span>
+                </div>
+              </div>
+              <div class="flex items-center gap-6 mt-4">
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-brand-500"></span>
+                  <span class="text-sm text-slate-600">นักศึกษา: <%= stats.students %></span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-blue-500"></span>
+                  <span class="text-sm text-slate-600">บุคลากร: <%= stats.staff %></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card p-5 lg:col-span-2">
+            <h3 class="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <i data-lucide="bar-chart-3" class="w-4 h-4 text-brand-500"></i>
+              กฎที่ถูกฝ่าฝืนมากที่สุด
+            </h3>
+            <div class="space-y-3">
+              <% if (topRules.length > 0) { %>
+                <% var maxCnt = Math.max(...topRules.map(r => parseInt(r.cnt))); %>
+                <% topRules.forEach(function(r) { %>
+                <div>
+                  <div class="flex justify-between text-sm mb-1">
+                    <span class="text-slate-600"><%= r.rule_name %></span>
+                    <span class="font-semibold text-slate-800"><%= r.cnt %> ครั้ง</span>
+                  </div>
+                  <div class="w-full bg-slate-100 rounded-full h-2">
+                    <div class="bg-brand-500 h-2 rounded-full" style="width:<%= Math.min((parseInt(r.cnt) / maxCnt) * 100, 100) %>%"></div>
+                  </div>
+                </div>
+                <% }); %>
+              <% } else { %>
+                <p class="text-sm text-slate-400 text-center py-4">ยังไม่มีข้อมูล</p>
+              <% } %>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Tables -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div class="table-container">
+            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 class="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                <i data-lucide="list" class="w-4 h-4 text-brand-500"></i>
+                ลงทะเบียนล่าสุด
+              </h3>
+              <a href="/registrations" class="text-xs text-brand-600 hover:text-brand-700 font-medium">ดูทั้งหมด →</a>
+            </div>
+            <table class="data-table">
+              <thead><tr><th>ชื่อ</th><th>ป้ายทะเบียน</th><th>ประเภท</th><th>สถานะ</th></tr></thead>
+              <tbody>
+                <% if (recentRegs.length > 0) { %>
+                  <% recentRegs.forEach(function(r) { %>
+                  <tr>
+                    <td class="font-medium text-slate-800"><%= r.first_name %> <%= r.last_name %></td>
+                    <td><%= r.license_plate %></td>
+                    <td><span class="badge <%= r.user_type === 'student' ? 'badge-success' : 'badge-info' %>"><%= r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %></span></td>
+                    <td><span class="badge <%= r.status === 'approved' ? 'badge-success' : r.status === 'pending' ? 'badge-warning' : 'badge-danger' %>"><%= r.status === 'approved' ? 'อนุมัติ' : r.status === 'pending' ? 'รอดำเนินการ' : 'ปฏิเสธ' %></span></td>
+                  </tr>
+                  <% }); %>
+                <% } else { %>
+                  <tr><td colspan="4" class="text-center text-slate-400 py-8">ยังไม่มีข้อมูล</td></tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="table-container">
+            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 class="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-red-500"></i>
+                กระทำผิดล่าสุด
+              </h3>
+              <a href="/violations" class="text-xs text-brand-600 hover:text-brand-700 font-medium">ดูทั้งหมด →</a>
+            </div>
+            <table class="data-table">
+              <thead><tr><th>ชื่อ</th><th>ป้ายทะเบียน</th><th>กฎที่ฝ่าฝืน</th></tr></thead>
+              <tbody>
+                <% if (recentViolations.length > 0) { %>
+                  <% recentViolations.forEach(function(v) { %>
+                  <tr>
+                    <td class="font-medium text-slate-800"><%= v.first_name %> <%= v.last_name %></td>
+                    <td><%= v.license_plate %></td>
+                    <td><span class="badge badge-danger"><%= v.rule_name %></span></td>
+                  </tr>
+                  <% }); %>
+                <% } else { %>
+                  <tr><td colspan="3" class="text-center text-slate-400 py-8">ยังไม่มีข้อมูล</td></tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+  <script>lucide.createIcons();</script>
+  <script src="/js/table-sort.js"></script>
+</body>
+</html>

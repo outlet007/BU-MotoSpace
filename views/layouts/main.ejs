@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= typeof title !== 'undefined' ? title : 'BU MotoSpace' %></title>
+  <meta name="description" content="ระบบลงทะเบียนรถจักรยานยนต์ มหาวิทยาลัย">
+  <link rel="stylesheet" href="/css/output.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .glass { background: rgba(255,255,255,0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .sidebar-gradient { background: linear-gradient(180deg, #0f172a 0%, #1a2332 50%, #162032 100%); }
+    .modal-backdrop { background: rgba(15,23,42,0.5); backdrop-filter: blur(4px); }
+    .stat-icon { @apply w-12 h-12 flex items-center justify-center rounded-xl; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    .tooltip { position: relative; }
+    .tooltip::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); padding: 4px 8px; background: #1e293b; color: white; font-size: 12px; border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+    .tooltip:hover::after { opacity: 1; }
+  </style>
+</head>
+<body class="min-h-screen">
+  <% if (typeof admin !== 'undefined' && admin) { %>
+    <!-- Admin Layout with Sidebar -->
+    <div class="flex min-h-screen">
+      <%- include('partials/sidebar') %>
+      <div class="flex-1 flex flex-col lg:ml-64">
+        <%- include('partials/topbar') %>
+        <main class="flex-1 p-4 sm:p-6 fade-in">
+          <%- include('partials/flash') %>
+          <%- body %>
+        </main>
+      </div>
+    </div>
+  <% } else { %>
+    <!-- Public Layout -->
+    <main class="min-h-screen">
+      <%- include('partials/flash') %>
+      <%- body %>
+    </main>
+  <% } %>
+
+  <script>lucide.createIcons();</script>
+  <script src="/js/table-sort.js"></script>
+</body>
+</html>
