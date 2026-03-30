@@ -14,8 +14,11 @@
     .tooltip { position: relative; }
     .tooltip::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); padding: 4px 8px; background: #1e293b; color: white; font-size: 12px; border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
     .tooltip:hover::after { opacity: 1; }
-    .modal-backdrop { background: rgba(15,23,42,0.5); backdrop-filter: blur(4px); display:none; }
-    .modal-backdrop.active { display: flex; }
+    .modal-backdrop { background: rgba(15,23,42,0.6); backdrop-filter: blur(4px); display:none; }
+    .modal-backdrop.active { display: flex; animation: backdropIn 0.2s ease; }
+    @keyframes backdropIn { from{opacity:0} to{opacity:1} }
+    .modal-panel { animation: modalSlideUp 0.25s cubic-bezier(0.16,1,0.3,1); }
+    @keyframes modalSlideUp { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
   </style>
 </head>
 <body class="min-h-screen bg-slate-50">
@@ -33,7 +36,7 @@
             </h2>
             <p class="text-slate-500 mt-1">เพิ่ม แก้ไข และจัดการสิทธิ์ผู้ใช้งานในระบบ</p>
           </div>
-          <button onclick="document.getElementById('add-user-modal').classList.add('active')" class="btn btn-primary">
+          <button onclick="openModal('add-user-modal')" class="btn btn-primary">
             <i data-lucide="user-plus" class="w-4 h-4"></i> เพิ่มผู้ใช้
           </button>
         </div>
@@ -86,72 +89,102 @@
         </div>
 
         <!-- Add User Modal -->
-        <div id="add-user-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center">
-          <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
-            <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-              <i data-lucide="user-plus" class="w-5 h-5 text-brand-500"></i> เพิ่มผู้ใช้ใหม่
-            </h3>
-            <form method="POST" action="/users" class="space-y-4">
-              <div>
-                <label class="label">ชื่อผู้ใช้</label>
-                <input type="text" name="username" class="input" required placeholder="username">
+        <div id="add-user-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center p-4"
+             onclick="if(event.target===this) closeModal('add-user-modal')">
+          <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-brand-500/10 rounded-lg flex items-center justify-center">
+                  <i data-lucide="user-plus" class="w-4 h-4 text-brand-600"></i>
+                </div>
+                <h3 class="text-base font-semibold text-slate-800">เพิ่มผู้ใช้ใหม่</h3>
               </div>
-              <div>
-                <label class="label">รหัสผ่าน</label>
-                <input type="password" name="password" class="input" required placeholder="กรอกรหัสผ่าน">
-              </div>
-              <div>
-                <label class="label">ชื่อ-นามสกุล</label>
-                <input type="text" name="full_name" class="input" required placeholder="ชื่อ นามสกุล">
-              </div>
-              <div>
-                <label class="label">บทบาท</label>
-                <select name="role" class="input" required>
-                  <option value="officer">เจ้าหน้าที่</option>
-                  <option value="head">หัวหน้า</option>
-                  <option value="superadmin">ผู้ดูแลระบบ</option>
-                </select>
-              </div>
-              <div class="flex gap-3">
-                <button type="button" onclick="document.getElementById('add-user-modal').classList.remove('active')" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
-                <button type="submit" class="btn btn-primary flex-1 justify-center">เพิ่มผู้ใช้</button>
-              </div>
-            </form>
+              <button onclick="closeModal('add-user-modal')"
+                      class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                      aria-label="ปิด">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+            <!-- Body -->
+            <div class="p-6">
+              <form method="POST" action="/users" class="space-y-4">
+                <div>
+                  <label class="label">ชื่อผู้ใช้</label>
+                  <input type="text" name="username" class="input" required placeholder="username">
+                </div>
+                <div>
+                  <label class="label">รหัสผ่าน</label>
+                  <input type="password" name="password" class="input" required placeholder="กรอกรหัสผ่าน">
+                </div>
+                <div>
+                  <label class="label">ชื่อ-นามสกุล</label>
+                  <input type="text" name="full_name" class="input" required placeholder="ชื่อ นามสกุล">
+                </div>
+                <div>
+                  <label class="label">บทบาท</label>
+                  <select name="role" class="input" required>
+                    <option value="officer">เจ้าหน้าที่</option>
+                    <option value="head">หัวหน้า</option>
+                    <option value="superadmin">ผู้ดูแลระบบ</option>
+                  </select>
+                </div>
+                <div class="flex gap-3 pt-1">
+                  <button type="button" onclick="closeModal('add-user-modal')" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
+                  <button type="submit" class="btn btn-primary flex-1 justify-center">เพิ่มผู้ใช้</button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
 
         <!-- Edit User Modal -->
-        <div id="edit-user-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center">
-          <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
-            <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-              <i data-lucide="pencil" class="w-5 h-5 text-brand-500"></i> แก้ไขผู้ใช้
-            </h3>
-            <form id="edit-user-form" method="POST" class="space-y-4">
-              <div>
-                <label class="label">ชื่อ-นามสกุล</label>
-                <input type="text" name="full_name" id="eu-fullname" class="input" required>
-              </div>
-              <div>
-                <label class="label">รหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)</label>
-                <input type="password" name="password" class="input" placeholder="กรอกรหัสผ่านใหม่">
-              </div>
-              <div>
-                <label class="label">บทบาท</label>
-                <select name="role" id="eu-role" class="input" required>
-                  <option value="officer">เจ้าหน้าที่</option>
-                  <option value="head">หัวหน้า</option>
-                  <option value="superadmin">ผู้ดูแลระบบ</option>
-                </select>
-              </div>
+        <div id="edit-user-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center p-4"
+             onclick="if(event.target===this) closeModal('edit-user-modal')">
+          <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div class="flex items-center gap-2">
-                <input type="checkbox" name="is_active" id="eu-active" class="w-4 h-4 rounded text-brand-600">
-                <label for="eu-active" class="text-sm text-slate-600">เปิดใช้งาน</label>
+                <div class="w-8 h-8 bg-brand-500/10 rounded-lg flex items-center justify-center">
+                  <i data-lucide="pencil" class="w-4 h-4 text-brand-600"></i>
+                </div>
+                <h3 class="text-base font-semibold text-slate-800">แก้ไขผู้ใช้</h3>
               </div>
-              <div class="flex gap-3">
-                <button type="button" onclick="document.getElementById('edit-user-modal').classList.remove('active')" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
-                <button type="submit" class="btn btn-primary flex-1 justify-center">อัปเดต</button>
-              </div>
-            </form>
+              <button onclick="closeModal('edit-user-modal')"
+                      class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                      aria-label="ปิด">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+            <!-- Body -->
+            <div class="p-6">
+              <form id="edit-user-form" method="POST" class="space-y-4">
+                <div>
+                  <label class="label">ชื่อ-นามสกุล</label>
+                  <input type="text" name="full_name" id="eu-fullname" class="input" required>
+                </div>
+                <div>
+                  <label class="label">รหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)</label>
+                  <input type="password" name="password" class="input" placeholder="กรอกรหัสผ่านใหม่">
+                </div>
+                <div>
+                  <label class="label">บทบาท</label>
+                  <select name="role" id="eu-role" class="input" required>
+                    <option value="officer">เจ้าหน้าที่</option>
+                    <option value="head">หัวหน้า</option>
+                    <option value="superadmin">ผู้ดูแลระบบ</option>
+                  </select>
+                </div>
+                <div class="flex items-center gap-2">
+                  <input type="checkbox" name="is_active" id="eu-active" class="w-4 h-4 rounded text-brand-600">
+                  <label for="eu-active" class="text-sm text-slate-600">เปิดใช้งาน</label>
+                </div>
+                <div class="flex gap-3 pt-1">
+                  <button type="button" onclick="closeModal('edit-user-modal')" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
+                  <button type="submit" class="btn btn-primary flex-1 justify-center">อัปเดต</button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
 
@@ -160,12 +193,29 @@
   </div>
   <script>
     lucide.createIcons();
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+    function openModal(id) {
+      document.getElementById(id).classList.add('active');
+    }
+
+    // ESC key closes any active modal
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-backdrop.active').forEach(function(m) {
+          m.classList.remove('active');
+        });
+      }
+    });
+
     function editUser(id, fullName, role, active) {
       document.getElementById('edit-user-form').action = '/users/' + id + '/update';
       document.getElementById('eu-fullname').value = fullName;
       document.getElementById('eu-role').value = role;
       document.getElementById('eu-active').checked = active;
-      document.getElementById('edit-user-modal').classList.add('active');
+      openModal('edit-user-modal');
     }
   </script>
   <script src="/js/table-sort.js"></script>

@@ -42,6 +42,10 @@ router.get('/', async (req, res) => {
       [...params, limit, offset]
     );
 
+    // Pick up image search results from session (set by POST /search)
+    const imageSearchResults = req.session.imageSearchResults || null;
+    if (req.session.imageSearchResults) delete req.session.imageSearchResults;
+
     res.render('registrations/index', {
       title: 'จัดการทะเบียน - BU MotoSpace',
       registrations: rows,
@@ -51,6 +55,7 @@ router.get('/', async (req, res) => {
       search: search || '',
       type: type || '',
       status: status || '',
+      imageSearchResults,
     });
   } catch (err) {
     console.error(err);
@@ -61,27 +66,19 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /registrations/search — Image search page
-router.get('/search', async (req, res) => {
-  res.render('registrations/search', {
-    title: 'ค้นหาด้วยภาพ - BU MotoSpace',
-    results: null,
-  });
-});
-
-// POST /registrations/search — Process image search
+// POST /registrations/search — Process image search (called from modal)
 router.post('/search', upload.single('search_image'), async (req, res) => {
   let conn;
   try {
     if (!req.file) {
       req.flash('error', 'กรุณาอัพโหลดภาพ');
-      return res.redirect('/registrations/search');
+      return res.redirect('/registrations');
     }
 
     const searchHash = await generateHash(req.file.path);
     if (!searchHash) {
       req.flash('error', 'ไม่สามารถประมวลผลภาพได้');
-      return res.redirect('/registrations/search');
+      return res.redirect('/registrations');
     }
 
     conn = await pool.getConnection();
@@ -103,15 +100,16 @@ router.post('/search', upload.single('search_image'), async (req, res) => {
     }
     results.sort((a, b) => b.similarity - a.similarity);
 
-    res.render('registrations/search', {
-      title: 'ค้นหาด้วยภาพ - BU MotoSpace',
+    // Redirect to registrations list with search results in flash or session
+    req.session.imageSearchResults = {
       results,
       searchImage: '/uploads/temp/' + req.file.filename,
-    });
+    };
+    res.redirect('/registrations?imageSearch=1');
   } catch (err) {
     console.error(err);
     req.flash('error', 'เกิดข้อผิดพลาด');
-    res.redirect('/registrations/search');
+    res.redirect('/registrations');
   } finally {
     if (conn) conn.release();
   }

@@ -41,10 +41,11 @@
       จัดการทะเบียน
     </a>
 
-    <a href="/registrations/search" class="sidebar-link <%= currentPath === '/registrations/search' ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
-      <i data-lucide="search" class="w-5 h-5"></i>
+    <!-- ค้นหาด้วยภาพ — opens modal instead of navigating -->
+    <button type="button" onclick="openImageSearchModal()" class="sidebar-link w-full text-left">
+      <i data-lucide="image" class="w-5 h-5"></i>
       ค้นหาด้วยภาพ
-    </a>
+    </button>
 
     <a href="/violations" class="sidebar-link <%= currentPath.startsWith('/violations') && currentPath !== '/violations/create' ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
       <i data-lucide="alert-triangle" class="w-5 h-5"></i>
@@ -104,7 +105,122 @@
   </div>
 </aside>
 
+<!-- ======================================================
+     Image Search Modal
+     ====================================================== -->
+<div id="image-search-modal"
+     class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden"
+     aria-modal="true" role="dialog" aria-labelledby="modal-title">
+
+  <!-- Backdrop -->
+  <div id="image-search-backdrop"
+       class="absolute inset-0 bg-slate-900/70 backdrop-blur-sm"
+       onclick="closeImageSearchModal()"></div>
+
+  <!-- Modal Panel -->
+  <div class="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden
+              transition-all duration-300 scale-95 opacity-0"
+       id="image-search-panel">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-brand-500/10 rounded-lg flex items-center justify-center">
+          <i data-lucide="image" class="w-4 h-4 text-brand-600"></i>
+        </div>
+        <h2 id="modal-title" class="text-base font-semibold text-slate-800">ค้นหาด้วยรูปภาพ</h2>
+      </div>
+      <button onclick="closeImageSearchModal()"
+              class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400
+                     hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              aria-label="ปิด">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="p-6">
+      <p class="text-sm text-slate-500 mb-4">อัปโหลดภาพรถจักรยานยนต์หรือป้ายทะเบียน เพื่อค้นหาข้อมูลในระบบ</p>
+
+      <form id="image-search-form" method="POST" action="/registrations/search"
+            enctype="multipart/form-data" class="space-y-4">
+
+        <!-- Upload Zone -->
+        <label id="modal-upload-zone"
+               class="relative flex flex-col items-center justify-center gap-3
+                      border-2 border-dashed border-slate-300 rounded-xl p-8
+                      cursor-pointer transition-all duration-200
+                      hover:border-brand-400 hover:bg-brand-50/40
+                      group"
+               ondragover="modalDragOver(event)"
+               ondragleave="modalDragLeave(event)"
+               ondrop="modalDrop(event)">
+
+          <!-- Default state -->
+          <div id="modal-upload-default" class="flex flex-col items-center gap-2 text-center">
+            <div class="w-14 h-14 rounded-2xl bg-slate-100 group-hover:bg-brand-100
+                        flex items-center justify-center transition-colors">
+              <i data-lucide="upload-cloud" class="w-7 h-7 text-slate-400 group-hover:text-brand-500 transition-colors"></i>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-slate-700">ลากไฟล์มาวาง หรือ คลิกเพื่อเลือก</p>
+              <p class="text-xs text-slate-400 mt-0.5">รองรับ JPG, PNG, WebP (ไม่เกิน 10 MB)</p>
+            </div>
+          </div>
+
+          <!-- Preview -->
+          <img id="modal-preview"
+               class="hidden max-h-52 w-full object-contain rounded-xl"
+               alt="ตัวอย่างรูปภาพที่เลือก">
+
+          <!-- Hidden file input -->
+          <input type="file" id="modal-file-input" name="search_image"
+                 accept="image/*" class="hidden"
+                 onchange="modalFileSelected(this)">
+        </label>
+
+        <!-- Action row: camera + change -->
+        <div class="flex items-center gap-2">
+          <!-- Camera capture -->
+          <label class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl
+                        border border-slate-200 text-sm text-slate-600
+                        hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50
+                        cursor-pointer transition-colors"
+                 title="ถ่ายภาพจากกล้อง">
+            <i data-lucide="camera" class="w-4 h-4"></i>
+            ถ่ายภาพจากกล้อง
+            <input type="file" accept="image/*" capture="environment" class="hidden"
+                   onchange="modalCameraSelected(this)">
+          </label>
+
+          <!-- Change file (shown after preview) -->
+          <button type="button" id="modal-change-btn"
+                  onclick="document.getElementById('modal-file-input').click()"
+                  class="hidden flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl
+                         border border-slate-200 text-sm text-slate-600
+                         hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
+            <i data-lucide="image" class="w-4 h-4"></i>
+            เปลี่ยนรูป
+          </button>
+        </div>
+
+        <!-- Search button -->
+        <button type="submit" id="modal-search-btn"
+                class="w-full flex items-center justify-center gap-2 py-2.5 px-4
+                       bg-brand-500 hover:bg-brand-600 active:scale-[0.98]
+                       text-white font-medium rounded-xl shadow-sm
+                       transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled>
+          <i data-lucide="search" class="w-4 h-4"></i>
+          ค้นหา
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
 <script>
+  /* ── Sidebar helpers ─────────────────────────────────── */
   function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebar-overlay');
@@ -119,4 +235,111 @@
       overlay.classList.add('hidden');
     }
   }
+
+  /* ── Image Search Modal ──────────────────────────────── */
+  function openImageSearchModal() {
+    closeSidebarOnMobile();
+    const modal = document.getElementById('image-search-modal');
+    const panel = document.getElementById('image-search-panel');
+    modal.classList.remove('hidden');
+    // Trigger animation next frame
+    requestAnimationFrame(() => {
+      panel.classList.remove('scale-95', 'opacity-0');
+      panel.classList.add('scale-100', 'opacity-100');
+    });
+    document.addEventListener('keydown', handleModalEsc);
+  }
+
+  function closeImageSearchModal() {
+    const modal = document.getElementById('image-search-modal');
+    const panel = document.getElementById('image-search-panel');
+    panel.classList.add('scale-95', 'opacity-0');
+    panel.classList.remove('scale-100', 'opacity-100');
+    setTimeout(() => {
+      modal.classList.add('hidden');
+      resetModalForm();
+    }, 200);
+    document.removeEventListener('keydown', handleModalEsc);
+  }
+
+  function handleModalEsc(e) {
+    if (e.key === 'Escape') closeImageSearchModal();
+  }
+
+  function resetModalForm() {
+    document.getElementById('modal-file-input').value = '';
+    document.getElementById('modal-preview').classList.add('hidden');
+    document.getElementById('modal-preview').src = '';
+    document.getElementById('modal-upload-default').classList.remove('hidden');
+    document.getElementById('modal-change-btn').classList.add('hidden');
+    document.getElementById('modal-search-btn').disabled = true;
+    const zone = document.getElementById('modal-upload-zone');
+    zone.classList.remove('border-brand-400', 'bg-brand-50/40');
+    zone.classList.add('border-slate-300');
+  }
+
+  function applyModalPreview(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const preview = document.getElementById('modal-preview');
+      preview.src = e.target.result;
+      preview.classList.remove('hidden');
+      document.getElementById('modal-upload-default').classList.add('hidden');
+      document.getElementById('modal-change-btn').classList.remove('hidden');
+      document.getElementById('modal-search-btn').disabled = false;
+      // Style zone
+      const zone = document.getElementById('modal-upload-zone');
+      zone.classList.add('border-brand-400', 'bg-brand-50/20');
+      zone.classList.remove('border-slate-300');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function modalFileSelected(input) {
+    if (input.files && input.files[0]) {
+      // Copy file to the main form input
+      applyModalPreview(input.files[0]);
+    }
+  }
+
+  function modalCameraSelected(input) {
+    if (input.files && input.files[0]) {
+      // Transfer file to the named input so it submits with the form
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(input.files[0]);
+      document.getElementById('modal-file-input').files = dataTransfer.files;
+      applyModalPreview(input.files[0]);
+    }
+  }
+
+  /* Drag & Drop */
+  function modalDragOver(e) {
+    e.preventDefault();
+    const zone = document.getElementById('modal-upload-zone');
+    zone.classList.add('border-brand-400', 'bg-brand-50/40');
+  }
+  function modalDragLeave(e) {
+    const zone = document.getElementById('modal-upload-zone');
+    zone.classList.remove('border-brand-400', 'bg-brand-50/40');
+  }
+  function modalDrop(e) {
+    e.preventDefault();
+    modalDragLeave(e);
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      const input = document.getElementById('modal-file-input');
+      input.files = dataTransfer.files;
+      applyModalPreview(file);
+    }
+  }
+
+  /* Click anywhere on zone opens file picker (but not on button/img) */
+  document.getElementById('modal-upload-zone').addEventListener('click', function(e) {
+    if (e.target === this || e.target.closest('#modal-upload-default')) {
+      document.getElementById('modal-file-input').click();
+    }
+  });
 </script>

@@ -65,9 +65,9 @@
               <i data-lucide="search" class="w-4 h-4"></i> ค้นหา
             </button>
             <% if (!isNewPage) { %>
-            <a href="/registrations/search" class="btn btn-secondary">
+            <button type="button" class="btn btn-secondary" onclick="openImageSearchModal()">
               <i data-lucide="image" class="w-4 h-4"></i> ค้นหาด้วยภาพ
-            </a>
+            </button>
             <% } %>
           </form>
         </div>
@@ -137,9 +137,49 @@
         </div>
         <% } %>
 
+        <!-- Image Search Results (from modal POST) -->
+        <% if (typeof imageSearchResults !== 'undefined' && imageSearchResults && imageSearchResults.results) { %>
+        <div class="card p-6 mt-6">
+          <div class="flex items-center gap-2 mb-4">
+            <i data-lucide="image" class="w-5 h-5 text-brand-500"></i>
+            <h3 class="text-base font-semibold text-slate-800">
+              ผลการค้นหาด้วยรูปภาพ
+              <span class="text-slate-400 font-normal text-sm">(พบ <%= imageSearchResults.results.length %> รายการ)</span>
+            </h3>
+          </div>
+          <% if (imageSearchResults.results.length > 0) { %>
+          <div class="space-y-3">
+            <% imageSearchResults.results.forEach(function(r) { %>
+            <a href="/registrations/<%= r.reg_id %>" class="flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-brand-300 hover:bg-brand-50/40 transition-all">
+              <% if (r.motorcycle_photo) { %>
+              <img src="<%= r.motorcycle_photo %>" alt="Motorcycle" class="w-16 h-16 object-cover rounded-xl border border-slate-200 flex-shrink-0">
+              <% } else { %>
+              <div class="w-16 h-16 rounded-xl border border-slate-200 bg-slate-100 flex items-center justify-center flex-shrink-0">
+                <i data-lucide="image" class="w-6 h-6 text-slate-400"></i>
+              </div>
+              <% } %>
+              <div class="flex-1 min-w-0">
+                <p class="font-semibold text-slate-800"><%= r.first_name %> <%= r.last_name %></p>
+                <p class="text-sm text-slate-500"><%= r.id_number %> · <%= r.license_plate %></p>
+                <p class="text-xs text-slate-400"><%= r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %> · โทร: <%= r.phone || '-' %></p>
+              </div>
+              <span class="badge badge-success text-sm flex-shrink-0">ตรงกัน <%= r.similarity %>%</span>
+            </a>
+            <% }); %>
+          </div>
+          <% } else { %>
+          <div class="text-center py-8">
+            <i data-lucide="search-x" class="w-12 h-12 text-slate-300 mx-auto mb-3"></i>
+            <p class="text-slate-400">ไม่พบข้อมูลที่ตรงกัน</p>
+          </div>
+          <% } %>
+        </div>
+        <% } %>
+
       </main>
     </div>
   </div>
+
   <script>lucide.createIcons();</script>
   <script src="/js/table-sort.js"></script>
 </body>

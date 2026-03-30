@@ -14,8 +14,11 @@
     .tooltip { position: relative; }
     .tooltip::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); padding: 4px 8px; background: #1e293b; color: white; font-size: 12px; border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
     .tooltip:hover::after { opacity: 1; }
-    .modal-backdrop { background: rgba(15,23,42,0.5); backdrop-filter: blur(4px); display:none; }
-    .modal-backdrop.active { display: flex; }
+    .modal-backdrop { background: rgba(15,23,42,0.6); backdrop-filter: blur(4px); display:none; }
+    .modal-backdrop.active { display: flex; animation: backdropIn 0.2s ease; }
+    @keyframes backdropIn { from{opacity:0} to{opacity:1} }
+    .modal-panel { animation: modalSlideUp 0.25s cubic-bezier(0.16,1,0.3,1); }
+    @keyframes modalSlideUp { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
   </style>
 </head>
 <body class="min-h-screen bg-slate-50">
@@ -33,7 +36,7 @@
             </h2>
             <p class="text-slate-500 mt-1">การจัดการกฎ ระเบียบ ข้อบังคับ และบทลงโทษ</p>
           </div>
-          <button onclick="document.getElementById('add-modal').classList.add('active')" class="btn btn-primary">
+          <button onclick="openModal('add-modal')" class="btn btn-primary">
             <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มกฎและข้อบังคับ
           </button>
         </div>
@@ -88,72 +91,102 @@
         <% } %>
 
         <!-- Add Modal -->
-        <div id="add-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center">
-          <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
-            <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-              <i data-lucide="plus" class="w-5 h-5 text-brand-500"></i> เพิ่มกฎใหม่
-            </h3>
-            <form method="POST" action="/rules" class="space-y-4">
-              <div>
-                <label class="label">ชื่อกฎ</label>
-                <input type="text" name="rule_name" class="input" required placeholder="เช่น จอดรถในที่ห้ามจอด">
+        <div id="add-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center p-4"
+             onclick="if(event.target===this) closeModal('add-modal')">
+          <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-brand-500/10 rounded-lg flex items-center justify-center">
+                  <i data-lucide="plus" class="w-4 h-4 text-brand-600"></i>
+                </div>
+                <h3 class="text-base font-semibold text-slate-800">เพิ่มกฎใหม่</h3>
               </div>
-              <div>
-                <label class="label">รายละเอียด</label>
-                <textarea name="description" class="input h-20 resize-none" placeholder="อธิบายรายละเอียดกฎ..."></textarea>
-              </div>
-              <div class="grid grid-cols-2 gap-4">
+              <button onclick="closeModal('add-modal')"
+                      class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                      aria-label="ปิด">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+            <!-- Body -->
+            <div class="p-6">
+              <form method="POST" action="/rules" class="space-y-4">
                 <div>
-                  <label class="label">จำนวนครั้งสูงสุด</label>
-                  <input type="number" name="max_violations" class="input" value="3" min="1" required>
+                  <label class="label">ชื่อกฎ</label>
+                  <input type="text" name="rule_name" class="input" required placeholder="เช่น จอดรถในที่ห้ามจอด">
                 </div>
                 <div>
-                  <label class="label">บทลงโทษ</label>
-                  <input type="text" name="penalty" class="input" placeholder="เช่น ตักเตือน">
+                  <label class="label">รายละเอียด</label>
+                  <textarea name="description" class="input h-20 resize-none" placeholder="อธิบายรายละเอียดกฎ..."></textarea>
                 </div>
-              </div>
-              <div class="flex gap-3">
-                <button type="button" onclick="document.getElementById('add-modal').classList.remove('active')" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
-                <button type="submit" class="btn btn-primary flex-1 justify-center">บันทึก</button>
-              </div>
-            </form>
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="label">จำนวนครั้งสูงสุด</label>
+                    <input type="number" name="max_violations" class="input" value="3" min="1" required>
+                  </div>
+                  <div>
+                    <label class="label">บทลงโทษ</label>
+                    <input type="text" name="penalty" class="input" placeholder="เช่น ตักเตือน">
+                  </div>
+                </div>
+                <div class="flex gap-3 pt-1">
+                  <button type="button" onclick="closeModal('add-modal')" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
+                  <button type="submit" class="btn btn-primary flex-1 justify-center">บันทึก</button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
 
         <!-- Edit Modal -->
-        <div id="edit-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center">
-          <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
-            <h3 class="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-              <i data-lucide="pencil" class="w-5 h-5 text-brand-500"></i> แก้ไขกฎ
-            </h3>
-            <form id="edit-form" method="POST" class="space-y-4">
-              <div>
-                <label class="label">ชื่อกฎ</label>
-                <input type="text" name="rule_name" id="edit-rule-name" class="input" required>
-              </div>
-              <div>
-                <label class="label">รายละเอียด</label>
-                <textarea name="description" id="edit-description" class="input h-20 resize-none"></textarea>
-              </div>
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="label">จำนวนครั้งสูงสุด</label>
-                  <input type="number" name="max_violations" id="edit-max" class="input" min="1" required>
-                </div>
-                <div>
-                  <label class="label">บทลงโทษ</label>
-                  <input type="text" name="penalty" id="edit-penalty" class="input">
-                </div>
-              </div>
+        <div id="edit-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center p-4"
+             onclick="if(event.target===this) closeModal('edit-modal')">
+          <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div class="flex items-center gap-2">
-                <input type="checkbox" name="is_active" id="edit-active" class="w-4 h-4 rounded text-brand-600">
-                <label for="edit-active" class="text-sm text-slate-600">เปิดใช้งาน</label>
+                <div class="w-8 h-8 bg-brand-500/10 rounded-lg flex items-center justify-center">
+                  <i data-lucide="pencil" class="w-4 h-4 text-brand-600"></i>
+                </div>
+                <h3 class="text-base font-semibold text-slate-800">แก้ไขกฎ</h3>
               </div>
-              <div class="flex gap-3">
-                <button type="button" onclick="document.getElementById('edit-modal').classList.remove('active')" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
-                <button type="submit" class="btn btn-primary flex-1 justify-center">อัปเดต</button>
-              </div>
-            </form>
+              <button onclick="closeModal('edit-modal')"
+                      class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                      aria-label="ปิด">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+            <!-- Body -->
+            <div class="p-6">
+              <form id="edit-form" method="POST" class="space-y-4">
+                <div>
+                  <label class="label">ชื่อกฎ</label>
+                  <input type="text" name="rule_name" id="edit-rule-name" class="input" required>
+                </div>
+                <div>
+                  <label class="label">รายละเอียด</label>
+                  <textarea name="description" id="edit-description" class="input h-20 resize-none"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="label">จำนวนครั้งสูงสุด</label>
+                    <input type="number" name="max_violations" id="edit-max" class="input" min="1" required>
+                  </div>
+                  <div>
+                    <label class="label">บทลงโทษ</label>
+                    <input type="text" name="penalty" id="edit-penalty" class="input">
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <input type="checkbox" name="is_active" id="edit-active" class="w-4 h-4 rounded text-brand-600">
+                  <label for="edit-active" class="text-sm text-slate-600">เปิดใช้งาน</label>
+                </div>
+                <div class="flex gap-3 pt-1">
+                  <button type="button" onclick="closeModal('edit-modal')" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
+                  <button type="submit" class="btn btn-primary flex-1 justify-center">อัปเดต</button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
 
@@ -162,6 +195,23 @@
   </div>
   <script>
     lucide.createIcons();
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+    function openModal(id) {
+      document.getElementById(id).classList.add('active');
+    }
+
+    // ESC key closes any active modal
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-backdrop.active').forEach(function(m) {
+          m.classList.remove('active');
+        });
+      }
+    });
+
     function editRule(id, name, desc, max, penalty, active) {
       document.getElementById('edit-form').action = '/rules/' + id + '/update';
       document.getElementById('edit-rule-name').value = name;
@@ -169,7 +219,7 @@
       document.getElementById('edit-max').value = max;
       document.getElementById('edit-penalty').value = penalty;
       document.getElementById('edit-active').checked = active;
-      document.getElementById('edit-modal').classList.add('active');
+      openModal('edit-modal');
     }
   </script>
   <script src="/js/table-sort.js"></script>
