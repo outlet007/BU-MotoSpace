@@ -95,19 +95,19 @@
                 <% if (reg.motorcycle_photo) { %>
                 <div>
                   <p class="text-xs text-slate-400 mb-2">รูปรถจักรยานยนต์</p>
-                  <img src="<%= reg.motorcycle_photo %>" alt="Motorcycle" class="w-full h-40 object-cover rounded-xl border border-slate-200 lightbox-thumb" onclick="openLightbox(0)" data-lightbox-src="<%= reg.motorcycle_photo %>" data-lightbox-caption="รูปรถจักรยานยนต์">
+                  <img src="<%= signedUrl(reg.motorcycle_photo) %>" alt="Motorcycle" class="w-full h-40 object-cover rounded-xl border border-slate-200 lightbox-thumb" onclick="openLightbox(0)" data-lightbox-src="<%= signedUrl(reg.motorcycle_photo) %>" data-lightbox-caption="รูปรถจักรยานยนต์">
                 </div>
                 <% } %>
                 <% if (reg.plate_photo) { %>
                 <div>
                   <p class="text-xs text-slate-400 mb-2">รูปป้ายทะเบียน</p>
-                  <img src="<%= reg.plate_photo %>" alt="License Plate" class="w-full h-40 object-cover rounded-xl border border-slate-200 lightbox-thumb" onclick="openLightbox(1)" data-lightbox-src="<%= reg.plate_photo %>" data-lightbox-caption="รูปป้ายทะเบียน">
+                  <img src="<%= signedUrl(reg.plate_photo) %>" alt="License Plate" class="w-full h-40 object-cover rounded-xl border border-slate-200 lightbox-thumb" onclick="openLightbox(1)" data-lightbox-src="<%= signedUrl(reg.plate_photo) %>" data-lightbox-caption="รูปป้ายทะเบียน">
                 </div>
                 <% } %>
                 <% if (reg.id_card_photo) { %>
                 <div>
                   <p class="text-xs text-slate-400 mb-2">รูปบัตรประจำตัว</p>
-                  <img src="<%= reg.id_card_photo %>" alt="ID Card" class="w-full h-40 object-cover rounded-xl border border-slate-200 lightbox-thumb" onclick="openLightbox(2)" data-lightbox-src="<%= reg.id_card_photo %>" data-lightbox-caption="รูปบัตรประจำตัว">
+                  <img src="<%= signedUrl(reg.id_card_photo) %>" alt="ID Card" class="w-full h-40 object-cover rounded-xl border border-slate-200 lightbox-thumb" onclick="openLightbox(2)" data-lightbox-src="<%= signedUrl(reg.id_card_photo) %>" data-lightbox-caption="รูปบัตรประจำตัว">
                 </div>
                 <% } %>
                 <% if (!reg.motorcycle_photo && !reg.plate_photo && !reg.id_card_photo) { %>

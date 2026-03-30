@@ -66,7 +66,7 @@
               <a href="/registrations/<%= r.reg_id %>" class="block p-4 rounded-xl border border-slate-200 hover:border-brand-300 hover:bg-brand-50/50 transition-all">
                 <div class="flex items-center gap-4">
                   <% if (r.motorcycle_photo) { %>
-                  <img src="<%= r.motorcycle_photo %>" alt="Motorcycle" class="w-20 h-20 object-cover rounded-xl border border-slate-200">
+                  <img src="<%= signedUrl(r.motorcycle_photo) %>" alt="Motorcycle" class="w-20 h-20 object-cover rounded-xl border border-slate-200">
                   <% } %>
                   <div class="flex-1">
                     <p class="font-semibold text-slate-800"><%= r.first_name %> <%= r.last_name %></p>

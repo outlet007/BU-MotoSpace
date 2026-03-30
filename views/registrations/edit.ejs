@@ -99,19 +99,19 @@
                   <% if (reg.motorcycle_photo) { %>
                   <div>
                     <p class="text-xs text-slate-400 mb-1">รูปรถจักรยานยนต์</p>
-                    <img src="<%= reg.motorcycle_photo %>" alt="Motorcycle" class="w-full h-32 object-cover rounded-xl border border-slate-200">
+                    <img src="<%= signedUrl(reg.motorcycle_photo) %>" alt="Motorcycle" class="w-full h-32 object-cover rounded-xl border border-slate-200">
                   </div>
                   <% } %>
                   <% if (reg.plate_photo) { %>
                   <div>
                     <p class="text-xs text-slate-400 mb-1">รูปป้ายทะเบียน</p>
-                    <img src="<%= reg.plate_photo %>" alt="Plate" class="w-full h-32 object-cover rounded-xl border border-slate-200">
+                    <img src="<%= signedUrl(reg.plate_photo) %>" alt="Plate" class="w-full h-32 object-cover rounded-xl border border-slate-200">
                   </div>
                   <% } %>
                   <% if (reg.id_card_photo) { %>
                   <div>
                     <p class="text-xs text-slate-400 mb-1">รูปบัตรประจำตัว</p>
-                    <img src="<%= reg.id_card_photo %>" alt="ID Card" class="w-full h-32 object-cover rounded-xl border border-slate-200">
+                    <img src="<%= signedUrl(reg.id_card_photo) %>" alt="ID Card" class="w-full h-32 object-cover rounded-xl border border-slate-200">
                   </div>
                   <% } %>
                 </div>

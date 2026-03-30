@@ -5,18 +5,19 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 const pool = require('./config/database');
+const { generateSignedUrl, verifySignedUrl, resolveFilePath } = require('./utils/signedUrl');
 
 const app = express();
 const PORT = process.env.APP_PORT || 3000;
 
-// Ensure upload directories exist
+// Ensure upload directories exist (OUTSIDE public/ for PDPA security)
 const uploadDirs = [
-  'public/uploads/motorcycles',
-  'public/uploads/plates',
-  'public/uploads/id-cards',
-  'public/uploads/evidence',
-  'public/uploads/temp',
-  'public/uploads/misc',
+  'uploads/motorcycles',
+  'uploads/plates',
+  'uploads/id-cards',
+  'uploads/evidence',
+  'uploads/temp',
+  'uploads/misc',
 ];
 uploadDirs.forEach(dir => {
   const fullPath = path.join(__dirname, dir);
@@ -46,6 +47,10 @@ app.use(async (req, res, next) => {
   res.locals.error = req.flash('error');
   res.locals.currentPath = req.path;
   res.locals.currentUrl = req.originalUrl;
+
+  // Signed URL helper — available in ALL EJS templates as signedUrl(path)
+  // Each call generates a fresh URL valid for 15 minutes
+  res.locals.signedUrl = (filePath) => filePath ? generateSignedUrl(filePath) : '';
   
   try {
     const rows = await pool.query("SELECT COUNT(*) as count FROM registrations WHERE status = 'pending'");
@@ -56,6 +61,87 @@ app.use(async (req, res, next) => {
   }
   
   next();
+});
+
+// ─── Signed Image Endpoint (PDPA-compliant) ─────────────────────────────────
+// ALL protected images are served via signed, time-limited tokens.
+// URL format: /img/<base64url-path>?exp=<ts>&sig=<hmac>
+// - Requires valid admin session AND a valid, unexpired HMAC token
+// - Even if a URL leaks, it is useless after 15 minutes
+// - Blocks indexing, caching, iframe embedding, MIME sniffing, and referrer leaks
+// ─────────────────────────────────────────────────────────────────────────────
+app.get('/img/:encoded', (req, res) => {
+  // 1. Auth check — must be logged-in admin
+  if (!req.session || !req.session.admin) {
+    return res.status(403).send(`
+      <!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
+      <title>ไม่มีสิทธิ์เข้าถึง</title></head>
+      <body style="font-family:sans-serif;text-align:center;margin-top:80px;">
+        <h2>🔒 403 — ไม่มีสิทธิ์เข้าถึง</h2>
+        <p>คุณต้องเข้าสู่ระบบก่อนถึงจะดูไฟล์นี้ได้</p>
+        <a href="/auth/login">เข้าสู่ระบบ</a>
+      </body></html>`);
+  }
+
+  // 2. Token verification — HMAC + expiry
+  const { encoded } = req.params;
+  const { exp, sig } = req.query;
+  const filePath = verifySignedUrl(encoded, exp, sig);
+
+  if (!filePath) {
+    return res.status(403).send(`
+      <!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
+      <title>ลิงก์หมดอายุ</title></head>
+      <body style="font-family:sans-serif;text-align:center;margin-top:80px;">
+        <h2>⏰ 403 — ลิงก์หมดอายุหรือไม่ถูกต้อง</h2>
+        <p>ลิงก์รูปภาพนี้หมดอายุแล้ว (15 นาที) กรุณาโหลดหน้าใหม่เพื่อรับลิงก์ใหม่</p>
+        <button onclick="history.back()">← กลับ</button>
+      </body></html>`);
+  }
+
+  // 3. Resolve to absolute disk path and serve
+  const absPath = resolveFilePath(filePath, __dirname);
+
+  // Safety check: path must stay within uploads directory
+  const uploadsDir = path.join(__dirname, 'uploads');
+  if (!absPath.startsWith(uploadsDir)) {
+    return res.status(400).end();
+  }
+
+  if (!fs.existsSync(absPath)) {
+    return res.status(404).end();
+  }
+
+  // 4. Set strict security headers before serving
+  const isSensitive = filePath.includes('/id-cards/');
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'DENY');
+  res.set('Content-Security-Policy', "default-src 'none'");
+  res.set('Referrer-Policy', 'no-referrer');
+  res.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+
+  if (isSensitive) {
+    // ID card: force download — never render inline in browser
+    res.set('Content-Disposition', 'attachment');
+  } else {
+    // Other images: allow inline display but still no-store
+    res.set('Content-Disposition', 'inline');
+  }
+
+  res.sendFile(absPath);
+});
+
+// Block direct /uploads/* access entirely (belt-and-suspenders)
+app.use('/uploads', (_req, res) => {
+  res.status(403).send(`
+    <!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
+    <title>ไม่มีสิทธิ์เข้าถึง</title></head>
+    <body style="font-family:sans-serif;text-align:center;margin-top:80px;">
+      <h2>🔒 403 — ไม่อนุญาตให้เข้าถึงโดยตรง</h2>
+      <p>ไฟล์นี้ถูกป้องกันตามนโยบาย PDPA</p>
+    </body></html>`);
 });
 
 // Routes

@@ -152,7 +152,7 @@
             <% imageSearchResults.results.forEach(function(r) { %>
             <a href="/registrations/<%= r.reg_id %>" class="flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-brand-300 hover:bg-brand-50/40 transition-all">
               <% if (r.motorcycle_photo) { %>
-              <img src="<%= r.motorcycle_photo %>" alt="Motorcycle" class="w-16 h-16 object-cover rounded-xl border border-slate-200 flex-shrink-0">
+              <img src="<%= signedUrl(r.motorcycle_photo) %>" alt="Motorcycle" class="w-16 h-16 object-cover rounded-xl border border-slate-200 flex-shrink-0">
               <% } else { %>
               <div class="w-16 h-16 rounded-xl border border-slate-200 bg-slate-100 flex items-center justify-center flex-shrink-0">
                 <i data-lucide="image" class="w-6 h-6 text-slate-400"></i>
