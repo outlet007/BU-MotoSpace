@@ -1,5 +1,5 @@
 node_modules/
-.env
+# .env  (commented out to allow pushing to GitHub)
 .DS_Store
 *.log
 coverage/
