@@ -3,7 +3,7 @@ const path = require('path');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    let folder = 'public/uploads/';
+    let folder = 'uploads/';
     if (file.fieldname === 'motorcycle_photo') folder += 'motorcycles/';
     else if (file.fieldname === 'plate_photo') folder += 'plates/';
     else if (file.fieldname === 'id_card_photo') folder += 'id-cards/';

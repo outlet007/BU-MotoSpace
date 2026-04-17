@@ -9,7 +9,7 @@ services:
       MYSQL_USER: asset_user
       MYSQL_PASSWORD: vM7gK9rX4pZ2hT5
     ports:
-      - "4022:3306"
+      - "4023:3306"
     volumes:
       - bu_motospace_data:/var/lib/mysql
 

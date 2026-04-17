@@ -1,0 +1,20 @@
+ขั้นตอน Deploy บน Server ใหม่ (อ่านจาก .env.example)
+หลังจาก git pull แล้วทำตามนี้:
+
+bash
+# 1. Clone หรือ Pull
+git clone https://github.com/outlet007/BU-MotoSpace.git
+cd BU-MotoSpace
+# 2. ติดตั้ง dependencies
+npm install
+# 3. สร้างไฟล์ .env จาก template
+copy .env.example .env        # Windows
+# หรือ
+cp .env.example .env          # Linux/Mac
+# 4. แก้ไขค่าใน .env ให้ตรงกับ server
+notepad .env                  # Windows
+# หรือ
+nano .env                     # Linux
+# 5. รัน
+npm run dev
+สิ่งสำคัญที่ต้องแก้ใน .env: DB_PASSWORD, SESSION_SECRET, IMAGE_SECRET — ควรสุ่มค่าใหม่ด้วย node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
