@@ -1,9 +1,12 @@
 # ─── BU MotoSpace — Dockerfile ───────────────────────────────────────────────
-# Node.js 20 LTS บน Alpine (เบา + ปลอดภัย)
-FROM node:20-alpine
+# Node.js 20 LTS บน Debian Slim (glibc — ใช้ sharp prebuilt binary ได้ทันที)
+FROM node:20-slim
 
-# ติดตั้ง dependency ของ sharp (native image processing)
-RUN apk add --no-cache python3 make g++ vips-dev
+# ติดตั้ง libvips runtime ที่ sharp ต้องการ + wget สำหรับ healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libvips \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
 
 # ตั้ง working directory
 WORKDIR /app
@@ -11,7 +14,7 @@ WORKDIR /app
 # Copy package files ก่อน (ใช้ Docker layer cache ให้ได้ประโยชน์สูงสุด)
 COPY package*.json ./
 
-# ติดตั้ง production dependencies เท่านั้น
+# ติดตั้ง production dependencies เท่านั้น (sharp ใช้ prebuilt binary อัตโนมัติ)
 RUN npm install --omit=dev
 
 # Copy source code ทั้งหมด
@@ -36,7 +39,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
   CMD wget -qO- http://localhost:8023/ || exit 1
 
 # ใช้ non-root user เพื่อความปลอดภัย
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN groupadd --system appgroup && useradd --system --gid appgroup appuser
 RUN chown -R appuser:appgroup /app
 USER appuser
 
