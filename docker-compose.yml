@@ -12,6 +12,30 @@ services:
       - "4023:3306"
     volumes:
       - bu_motospace_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  app:
+    build: .
+    container_name: bu_motospace_app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+    ports:
+      - "8023:8023"
+    volumes:
+      - bu_motospace_uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   bu_motospace_data:
+  bu_motospace_uploads:
+
