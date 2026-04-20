@@ -28,9 +28,6 @@ RUN mkdir -p uploads/motorcycles \
              uploads/temp \
              uploads/misc
 
-# Build Tailwind CSS (output.css)
-RUN npm run build:css
-
 # Expose port ที่ app ใช้ (ตาม APP_PORT ใน .env)
 EXPOSE 8023
 
