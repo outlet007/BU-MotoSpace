@@ -320,44 +320,117 @@
       // Show progress
       const progressDiv = document.getElementById('ocr-progress');
       const progressBar = document.getElementById('ocr-progress-bar');
+      const progressText = progressDiv.querySelector('p');
       progressDiv.classList.add('active');
+      progressBar.style.width = '0%';
+      progressText.textContent = 'กำลังโหลด OCR engine...';
 
       try {
+        if (typeof Tesseract === 'undefined') {
+          throw new Error('Tesseract.js ยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองอีกครั้ง');
+        }
+
         const result = await Tesseract.recognize(input.files[0], 'tha+eng', {
           logger: m => {
-            if (m.status === 'recognizing text') {
-              progressBar.style.width = Math.round(m.progress * 100) + '%';
+            if (m.status === 'loading tesseract core') {
+              progressText.textContent = 'กำลังโหลด OCR core...';
+              progressBar.style.width = '10%';
+            } else if (m.status === 'initializing tesseract') {
+              progressText.textContent = 'กำลังเตรียม OCR...';
+              progressBar.style.width = '20%';
+            } else if (m.status === 'loading language traineddata') {
+              progressText.textContent = 'กำลังโหลดภาษาไทย/อังกฤษ... (ครั้งแรกอาจใช้เวลา)';
+              progressBar.style.width = '40%';
+            } else if (m.status === 'initializing api') {
+              progressText.textContent = 'กำลังเตรียม API...';
+              progressBar.style.width = '60%';
+            } else if (m.status === 'recognizing text') {
+              progressText.textContent = 'กำลังอ่านตัวอักษร... ' + Math.round(m.progress * 100) + '%';
+              progressBar.style.width = (60 + Math.round(m.progress * 40)) + '%';
             }
           }
         });
 
         const text = result.data.text;
-        console.log('OCR Result:', text);
+        // Debug: เปิด console ของ browser จะเห็นข้อความที่อ่านได้
+        console.log('=== OCR Raw Output ===\n' + text);
+        console.log('=== OCR Words (confidence) ===');
+        console.log(result.data.words?.map(w => `${w.text}(${Math.round(w.confidence)}%)`).join(' | '));
 
-        // Try to extract data from Thai ID card / Student card
-        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        const allText = text.replace(/\s+/g, ' ');
+        let filled = 0;
 
-        // Try to find student/staff ID (numeric pattern)
-        const idPattern = lines.find(l => /^\d{7,13}$/.test(l.replace(/\s/g, '')));
-        if (idPattern) {
-          document.getElementById('id_number').value = idPattern.replace(/\s/g, '');
-        }
-
-        // Try to find Thai name
-        for (const line of lines) {
-          // Look for Thai name patterns
-          const thaiNameMatch = line.match(/([ก-๙]+)\s+([ก-๙]+)/);
-          if (thaiNameMatch && !document.getElementById('first_name').value) {
-            document.getElementById('first_name').value = thaiNameMatch[1];
-            document.getElementById('last_name').value = thaiNameMatch[2];
+        // 1. หา ID — รองรับรหัสนักศึกษา 10 หลัก, บัตรประชาชน 13 หลัก, รหัส BUxxx
+        const idPatterns = [
+          /\bBU\s*\d{3,6}\b/i,   // บุคลากร: BU0001
+          /\b\d{13}\b/,           // บัตรประชาชน 13 หลัก
+          /\b\d{10}\b/,           // รหัสนักศึกษา 10 หลัก
+          /\b\d{8}\b/,            // รหัส 8 หลัก
+          /\b\d{7}\b/,            // รหัส 7 หลัก
+        ];
+        for (const pat of idPatterns) {
+          const match = allText.match(pat);
+          if (match && !document.getElementById('id_number').value) {
+            document.getElementById('id_number').value = match[0].replace(/\s/g, '').toUpperCase();
+            filled++;
+            console.log('✅ ID:', match[0]);
             break;
           }
         }
 
-        progressDiv.classList.remove('active');
+        // 2. หาชื่อ-นามสกุลภาษาไทย (ข้ามคำที่เป็น label)
+        const skipWords = ['มหาวิทยาลัย', 'บัณฑิต', 'นักศึกษา', 'บุคลากร', 'สาขา', 'คณะ',
+                           'ชื่อ', 'นามสกุล', 'ที่อยู่', 'เกิด', 'ไทย', 'ราชอาณาจักร'];
+        const prefixes = ['นาย', 'นาง', 'นางสาว', 'เด็กชาย', 'เด็กหญิง', 'ดร', 'ผศ', 'รศ', 'ศ', 'นส'];
+        const thaiWordPat = /[ก-๙]{2,}/g;
+
+        for (const line of lines) {
+          if (document.getElementById('first_name').value) break;
+          if (skipWords.some(w => line.includes(w))) continue;
+          const matches = line.match(thaiWordPat);
+          if (!matches || matches.length < 2) continue;
+          const words = matches.filter(w => !prefixes.includes(w) && w.length >= 2);
+          if (words.length >= 2) {
+            document.getElementById('first_name').value = words[0];
+            document.getElementById('last_name').value = words[1];
+            filled++;
+            console.log('✅ Name:', words[0], words[1]);
+            break;
+          }
+        }
+
+        // 3. หาเบอร์โทร
+        const phoneMatch = allText.match(/0[6-9]\d[\s-]?\d{3}[\s-]?\d{4}/);
+        if (phoneMatch && !document.getElementById('phone').value) {
+          document.getElementById('phone').value = phoneMatch[0].replace(/[\s-]/g, '');
+          filled++;
+          console.log('✅ Phone:', phoneMatch[0]);
+        }
+
+        progressBar.style.width = '100%';
+        if (filled > 0) {
+          progressText.textContent = `✅ อ่านข้อมูลได้ ${filled} รายการ — กรุณาตรวจสอบก่อนกดลงทะเบียน`;
+          progressDiv.style.background = '#f0fdf4';
+        } else {
+          progressText.textContent = '⚠️ อ่านข้อมูลไม่ได้ — กรุณากรอกข้อมูลเอง (ลองถ่ายภาพให้ชัดและตรงขึ้น)';
+          progressDiv.style.background = '#fefce8';
+        }
+
+        setTimeout(() => {
+          progressDiv.classList.remove('active');
+          progressDiv.style.background = '';
+        }, 5000);
+
       } catch (err) {
         console.error('OCR Error:', err);
-        progressDiv.classList.remove('active');
+        progressText.textContent = '❌ ' + (err.message || 'เกิดข้อผิดพลาดในการอ่านบัตร');
+        progressBar.style.width = '100%';
+        progressBar.style.background = '#fca5a5';
+        setTimeout(() => {
+          progressDiv.classList.remove('active');
+          progressBar.style.background = '';
+        }, 5000);
       }
     }
   </script>
