@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/output.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .sidebar-gradient { background: linear-gradient(180deg,#0f172a 0%,#1a2332 50%,#162032 100%); }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity:0;transform:translateY(8px); } to { opacity:1;transform:translateY(0); } }
+    .info-row { display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:1px solid #f1f5f9; }
+    .info-row:last-child { border-bottom:none; }
+    .info-label { font-size:0.8rem; color:#64748b; font-weight:500; min-width:130px; }
+    .info-value { font-size:0.875rem; color:#1e293b; font-weight:600; text-align:right; }
+    .severity-bar { height:8px; border-radius:999px; overflow:hidden; background:#f1f5f9; }
+    .severity-fill { height:100%; border-radius:999px; transition:width .4s ease; }
+    /* modal */
+    .modal-bg { display:none; position:fixed; inset:0; background:rgba(15,23,42,.6); backdrop-filter:blur(4px); z-index:60; align-items:center; justify-content:center; }
+    .modal-bg.open { display:flex; }
+    .modal-box { background:#fff; border-radius:16px; padding:28px; width:100%; max-width:460px; box-shadow:0 25px 60px rgba(0,0,0,.2); }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+<div class="flex min-h-screen">
+  <%- include('../partials/sidebar') %>
+  <div class="flex-1 flex flex-col lg:ml-64">
+    <%- include('../partials/topbar') %>
+    <main class="flex-1 p-4 sm:p-6 fade-in">
+      <%- include('../partials/flash') %>
+
+      <!-- Back -->
+      <a href="/violation-reports" class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600 mb-5 transition-colors">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i> กลับรายการ
+      </a>
+
+      <!-- Status banner -->
+      <% if (r.status === 'confirmed') { %>
+      <div class="flex items-center gap-3 mb-5 px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-green-800 text-sm font-medium">
+        <i data-lucide="check-circle" class="w-5 h-5 text-green-600 flex-shrink-0"></i>
+        รายการนี้ <strong>ยืนยัน</strong> แล้ว — บันทึกลงประวัติการกระทำผิดเรียบร้อย
+        <% if (r.reviewed_by_name) { %><span class="ml-auto text-xs text-green-600">โดย <%= r.reviewed_by_name %></span><% } %>
+      </div>
+      <% } else if (r.status === 'rejected') { %>
+      <div class="flex items-center gap-3 mb-5 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm font-medium">
+        <i data-lucide="x-circle" class="w-5 h-5 text-red-500 flex-shrink-0"></i>
+        รายการนี้ <strong>ถูกปฏิเสธ</strong>
+        <% if (r.review_note) { %> — "<%= r.review_note %>"<% } %>
+        <% if (r.reviewed_by_name) { %><span class="ml-auto text-xs text-red-500">โดย <%= r.reviewed_by_name %></span><% } %>
+      </div>
+      <% } %>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- LEFT: main info -->
+        <div class="lg:col-span-2 space-y-6">
+
+          <!-- Report card -->
+          <div class="card p-6">
+            <div class="flex items-start gap-4 mb-6">
+              <div style="width:50px;height:50px;background:#fff7ed;border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i data-lucide="clipboard-check" class="w-6 h-6 text-orange-500"></i>
+              </div>
+              <div class="flex-1">
+                <h2 class="text-xl font-bold text-slate-800">รายการแจ้ง #<%= r.id %></h2>
+                <p class="text-sm text-slate-500 mt-0.5">
+                  <%= new Date(r.reported_at).toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'}) %>
+                </p>
+              </div>
+              <% if (r.status === 'pending') { %>
+              <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700 border border-orange-200">
+                <i data-lucide="clock" class="w-3 h-3"></i> รอตรวจสอบ
+              </span>
+              <% } %>
+            </div>
+
+            <!-- Rule violation bar -->
+            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px;margin-bottom:20px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="font-size:0.8rem;font-weight:700;color:#991b1b;">กฎที่ฝ่าฝืน: <%= r.rule_name %></span>
+                <span style="font-size:0.75rem;font-weight:700;color:<%= existingViolationCount >= r.max_violations ? '#dc2626' : '#d97706' %>;">
+                  ครั้งปัจจุบัน <%= existingViolationCount %>/<%= r.max_violations %>
+                </span>
+              </div>
+              <div class="severity-bar">
+                <div class="severity-fill"
+                     style="width:<%= Math.min((existingViolationCount/r.max_violations)*100,100) %>%;
+                            background:<%= existingViolationCount >= r.max_violations ? '#ef4444' : '#f59e0b' %>;"></div>
+              </div>
+              <% if (r.rule_desc) { %>
+              <p style="margin-top:10px;font-size:0.78rem;color:#7c2d12;"><%= r.rule_desc %></p>
+              <% } %>
+              <% if (r.penalty && existingViolationCount >= r.max_violations) { %>
+              <p style="margin-top:8px;font-size:0.8rem;color:#991b1b;font-weight:600;">⚠️ บทลงโทษ: <%= r.penalty %></p>
+              <% } %>
+            </div>
+
+            <!-- Description -->
+            <div class="mb-5">
+              <p class="info-label mb-2">รายละเอียดการกระทำผิด</p>
+              <div style="background:#f8fafc;border-radius:10px;padding:14px;border:1px solid #e2e8f0;">
+                <p style="font-size:0.875rem;color:#334155;line-height:1.7;"><%= r.description || 'ไม่มีรายละเอียดเพิ่มเติม' %></p>
+              </div>
+            </div>
+
+            <!-- Reporter info -->
+            <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:14px;">
+              <p class="info-label" style="margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+                <i data-lucide="user-check" class="w-3.5 h-3.5"></i> แจ้งโดย
+              </p>
+              <div style="background:#f8fafc;border-radius:10px;padding:12px 14px;border:1px solid #e2e8f0;display:flex;flex-direction:column;gap:7px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <i data-lucide="user" class="w-3.5 h-3.5 text-slate-400 flex-shrink-0"></i>
+                  <span style="font-size:0.875rem;font-weight:600;color:#1e293b;"><%= r.reported_by_name %></span>
+                </div>
+                <% if (r.reported_by_email) { %>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <i data-lucide="mail" class="w-3.5 h-3.5 text-slate-400 flex-shrink-0"></i>
+                  <a href="mailto:<%= r.reported_by_email %>" style="font-size:0.8rem;color:#3b82f6;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'"><%= r.reported_by_email %></a>
+                </div>
+                <% } %>
+                <% if (r.reported_by_phone) { %>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <i data-lucide="phone" class="w-3.5 h-3.5 text-slate-400 flex-shrink-0"></i>
+                  <a href="tel:<%= r.reported_by_phone %>" style="font-size:0.8rem;color:#1e293b;text-decoration:none;"><%= r.reported_by_phone %></a>
+                </div>
+                <% } %>
+              </div>
+            </div>
+          </div>
+
+          <!-- Evidence photo -->
+          <div class="card p-6">
+            <h3 style="font-size:0.9rem;font-weight:700;color:#1e293b;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+              <i data-lucide="camera" class="w-4 h-4 text-brand-500"></i> หลักฐาน (ภาพถ่าย)
+            </h3>
+            <% if (r.evidence_photo) { %>
+              <img src="<%= signedUrl(r.evidence_photo) %>" alt="Evidence"
+                   style="max-width:100%;max-height:400px;object-fit:contain;border-radius:12px;border:1px solid #e2e8f0;cursor:pointer;transition:transform .2s;"
+                   onclick="document.getElementById('lightbox').classList.add('active')"
+                   onmouseover="this.style.transform='scale(1.01)'" onmouseout="this.style.transform='scale(1)'">
+              <p style="font-size:0.75rem;color:#94a3b8;margin-top:8px;">คลิกที่ภาพเพื่อขยาย</p>
+            <% } else { %>
+              <div style="text-align:center;padding:40px 20px;background:#f8fafc;border-radius:12px;border:1px dashed #e2e8f0;">
+                <i data-lucide="image-off" class="w-10 h-10" style="display:block;margin:0 auto 8px;color:#cbd5e1;"></i>
+                <p style="color:#94a3b8;font-size:0.875rem;">ไม่มีภาพหลักฐาน</p>
+              </div>
+            <% } %>
+          </div>
+
+        </div>
+
+        <!-- RIGHT: person info + actions -->
+        <div class="space-y-6">
+
+          <!-- Person info -->
+          <div class="card p-5">
+            <h3 style="font-size:0.9rem;font-weight:700;color:#1e293b;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+              <i data-lucide="user" class="w-4 h-4 text-brand-500"></i> ข้อมูลผู้ลงทะเบียน
+            </h3>
+            <div class="info-row">
+              <span class="info-label">รหัสประจำตัว</span>
+              <span class="info-value" style="font-size:0.8rem;"><%= r.id_number %></span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">ชื่อ-นามสกุล</span>
+              <span class="info-value"><%= r.first_name %> <%= r.last_name %></span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">ประเภท</span>
+              <span class="info-value">
+                <% if (r.user_type === 'student') { %>
+                  <span class="badge badge-info">นักศึกษา</span>
+                <% } else { %>
+                  <span class="badge" style="background:#f3e8ff;color:#7c3aed;">บุคลากร</span>
+                <% } %>
+              </span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">ป้ายทะเบียน</span>
+              <span class="info-value" style="font-size:1rem;"><%= r.license_plate %></span>
+            </div>
+            <% if (r.province) { %>
+            <div class="info-row">
+              <span class="info-label">จังหวัด</span>
+              <span class="info-value"><%= r.province %></span>
+            </div>
+            <% } %>
+            <% if (r.phone) { %>
+            <div class="info-row">
+              <span class="info-label">เบอร์โทร</span>
+              <span class="info-value"><%= r.phone %></span>
+            </div>
+            <% } %>
+            <a href="/registrations/<%= r.registration_id %>"
+               class="btn btn-secondary w-full justify-center mt-4" style="font-size:0.8rem;">
+              <i data-lucide="external-link" class="w-3.5 h-3.5"></i> ดูข้อมูลผู้ลงทะเบียน
+            </a>
+          </div>
+
+          <!-- Actions card — only for pending -->
+          <% if (r.status === 'pending') { %>
+          <div class="card p-5">
+            <h3 style="font-size:0.9rem;font-weight:700;color:#1e293b;margin-bottom:14px;display:flex;align-items:center;gap:6px;">
+              <i data-lucide="settings" class="w-4 h-4 text-slate-500"></i> ดำเนินการ
+            </h3>
+
+            <!-- CONFIRM -->
+            <form method="POST" action="/violation-reports/<%= r.id %>/confirm" onsubmit="return confirm('ยืนยันการกระทำผิดและบันทึกลงประวัติ?')">
+              <button type="submit" id="btn-confirm-<%= r.id %>" class="btn w-full justify-center mb-2"
+                      style="background:#16a34a;color:#fff;font-size:0.85rem;gap:6px;">
+                <i data-lucide="check-circle" class="w-4 h-4"></i> ยืนยัน
+              </button>
+            </form>
+
+            <!-- EDIT -->
+            <button type="button" id="btn-edit-<%= r.id %>"
+                    onclick="document.getElementById('edit-modal').classList.add('open')"
+                    class="btn btn-secondary w-full justify-center mb-2" style="font-size:0.85rem;gap:6px;">
+              <i data-lucide="pencil" class="w-4 h-4"></i> แก้ไข
+            </button>
+
+            <!-- REJECT -->
+            <button type="button" id="btn-reject-<%= r.id %>"
+                    onclick="document.getElementById('reject-modal').classList.add('open')"
+                    class="btn w-full justify-center" style="background:#dc2626;color:#fff;font-size:0.85rem;gap:6px;">
+              <i data-lucide="x-circle" class="w-4 h-4"></i> ปฏิเสธ
+            </button>
+          </div>
+          <% } %>
+
+          <!-- Vehicle photos -->
+          <% if (r.motorcycle_photo || r.plate_photo) { %>
+          <div class="card p-5">
+            <h3 style="font-size:0.9rem;font-weight:700;color:#1e293b;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+              <i data-lucide="bike" class="w-4 h-4 text-brand-500"></i> รูปภาพรถ
+            </h3>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <% if (r.motorcycle_photo) { %>
+              <div>
+                <p style="font-size:0.7rem;color:#94a3b8;margin-bottom:4px;text-transform:uppercase;font-weight:600;letter-spacing:.03em;">รูปรถ</p>
+                <img src="<%= signedUrl(r.motorcycle_photo) %>" alt="Motorcycle"
+                     style="width:100%;height:120px;object-fit:cover;border-radius:10px;border:1px solid #e2e8f0;">
+              </div>
+              <% } %>
+              <% if (r.plate_photo) { %>
+              <div>
+                <p style="font-size:0.7rem;color:#94a3b8;margin-bottom:4px;text-transform:uppercase;font-weight:600;letter-spacing:.03em;">ป้ายทะเบียน</p>
+                <img src="<%= signedUrl(r.plate_photo) %>" alt="Plate"
+                     style="width:100%;height:120px;object-fit:cover;border-radius:10px;border:1px solid #e2e8f0;">
+              </div>
+              <% } %>
+            </div>
+          </div>
+          <% } %>
+
+        </div>
+      </div>
+
+      <!-- Lightbox -->
+      <% if (r.evidence_photo) { %>
+      <div id="lightbox" onclick="this.classList.remove('active')"
+           style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.85);z-index:999;align-items:center;justify-content:center;backdrop-filter:blur(4px);"
+           class="active-check">
+        <img src="<%= signedUrl(r.evidence_photo) %>" alt="Evidence Full"
+             style="max-width:90%;max-height:90%;border-radius:12px;box-shadow:0 25px 50px rgba(0,0,0,.3);">
+      </div>
+      <script>
+        document.getElementById('lightbox').style.display = 'flex';
+        document.getElementById('lightbox').style.display = 'none';
+      </script>
+      <% } %>
+
+    </main>
+  </div>
+</div>
+
+<!-- ── EDIT MODAL ────────────────────────────────── -->
+<div id="edit-modal" class="modal-bg" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal-box">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+        <i data-lucide="pencil" class="w-4 h-4 text-brand-500"></i> แก้ไขรายการ
+      </h3>
+      <button onclick="document.getElementById('edit-modal').classList.remove('open')"
+              class="text-slate-400 hover:text-slate-700 transition-colors">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+    <form method="POST" action="/violation-reports/<%= r.id %>/edit" class="space-y-4">
+      <div>
+        <label class="label">กฎที่ฝ่าฝืน</label>
+        <select name="rule_id" class="input" id="edit-rule-id">
+          <!-- Current rule pre-selected; server can enrich if needed -->
+          <option value="<%= r.rule_id %>" selected><%= r.rule_name %></option>
+        </select>
+        <p class="text-xs text-slate-400 mt-1">หากต้องการเปลี่ยนกฎ ให้เลือกจากรายการ (โหลดเมื่อเปิด)</p>
+      </div>
+      <div>
+        <label class="label">รายละเอียด</label>
+        <textarea name="description" rows="4" class="input" style="resize:vertical;"
+                  placeholder="รายละเอียดการกระทำผิด..."><%= r.description || '' %></textarea>
+      </div>
+      <div class="flex gap-3 justify-end pt-2">
+        <button type="button" onclick="document.getElementById('edit-modal').classList.remove('open')"
+                class="btn btn-secondary">ยกเลิก</button>
+        <button type="submit" class="btn btn-primary">
+          <i data-lucide="save" class="w-4 h-4"></i> บันทึก
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── REJECT MODAL ──────────────────────────────── -->
+<div id="reject-modal" class="modal-bg" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal-box">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+        <i data-lucide="x-circle" class="w-4 h-4 text-red-500"></i> ปฏิเสธรายการ
+      </h3>
+      <button onclick="document.getElementById('reject-modal').classList.remove('open')"
+              class="text-slate-400 hover:text-slate-700 transition-colors">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+    <p class="text-sm text-slate-600 mb-4">กรุณาระบุเหตุผลในการปฏิเสธรายการนี้ (ถ้ามี)</p>
+    <form method="POST" action="/violation-reports/<%= r.id %>/reject" class="space-y-4">
+      <div>
+        <label class="label">เหตุผล (ไม่บังคับ)</label>
+        <textarea name="review_note" rows="3" class="input" style="resize:vertical;"
+                  placeholder="เช่น ข้อมูลไม่ถูกต้อง, ไม่มีหลักฐานเพียงพอ..."></textarea>
+      </div>
+      <div class="flex gap-3 justify-end pt-2">
+        <button type="button" onclick="document.getElementById('reject-modal').classList.remove('open')"
+                class="btn btn-secondary">ยกเลิก</button>
+        <button type="submit" class="btn" style="background:#dc2626;color:#fff;">
+          <i data-lucide="x-circle" class="w-4 h-4"></i> ยืนยันการปฏิเสธ
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  lucide.createIcons();
+
+  // Lightbox toggle
+  <% if (r.evidence_photo) { %>
+  const lb = document.getElementById('lightbox');
+  lb.addEventListener('click', () => lb.style.display = 'none');
+  document.querySelector('img[onclick*="lightbox"]')?.addEventListener('click', () => {
+    lb.style.display = 'flex';
+  });
+  <% } %>
+
+  // Load rules into edit modal select when opened
+  document.getElementById('btn-edit-<%= r.id %>')?.addEventListener('click', async () => {
+    const sel = document.getElementById('edit-rule-id');
+    if (sel.options.length <= 1) {
+      try {
+        const res = await fetch('/rules?format=json');
+        if (res.ok) {
+          const rules = await res.json();
+          sel.innerHTML = '';
+          rules.forEach(rule => {
+            const opt = document.createElement('option');
+            opt.value = rule.id;
+            opt.textContent = rule.rule_name;
+            if (rule.id === <%= r.rule_id %>) opt.selected = true;
+            sel.appendChild(opt);
+          });
+        }
+      } catch(e) { /* keep current option */ }
+    }
+  });
+</script>
+</body>
+</html>

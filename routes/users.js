@@ -6,12 +6,30 @@ const { isAuthenticated, isSuperAdmin } = require('../middleware/auth');
 router.use(isAuthenticated);
 router.use(isSuperAdmin);
 
+/* Lazy migration — add email/phone columns if they don't exist yet */
+async function ensureColumns(conn) {
+  await conn.query(`
+    ALTER TABLE admins
+      ADD COLUMN IF NOT EXISTS email VARCHAR(200) DEFAULT NULL,
+      ADD COLUMN IF NOT EXISTS phone VARCHAR(20)  DEFAULT NULL
+  `).catch(() => {
+    // MariaDB < 10.3 doesn't support ADD COLUMN IF NOT EXISTS; try individually
+    return conn.query("ALTER TABLE admins ADD COLUMN email VARCHAR(200) DEFAULT NULL")
+      .catch(() => {}) // already exists
+      .then(() => conn.query("ALTER TABLE admins ADD COLUMN phone VARCHAR(20) DEFAULT NULL"))
+      .catch(() => {}); // already exists
+  });
+}
+
 // GET /users
 router.get('/', async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
-    const users = await conn.query('SELECT id, username, full_name, role, is_active, created_at FROM admins ORDER BY created_at DESC');
+    await ensureColumns(conn);
+    const users = await conn.query(
+      'SELECT id, username, full_name, email, phone, role, is_active, created_at FROM admins ORDER BY created_at DESC'
+    );
     res.render('users/index', { title: 'จัดการผู้ใช้ - BU MotoSpace', users });
   } catch (err) {
     console.error(err);
@@ -24,14 +42,15 @@ router.get('/', async (req, res) => {
 
 // POST /users — Create
 router.post('/', async (req, res) => {
-  const { username, password, full_name, role } = req.body;
+  const { username, password, full_name, email, phone, role } = req.body;
   let conn;
   try {
     conn = await pool.getConnection();
+    await ensureColumns(conn);
     const hashedPw = await bcrypt.hash(password, 10);
     await conn.query(
-      'INSERT INTO admins (username, password, full_name, role) VALUES (?, ?, ?, ?)',
-      [username, hashedPw, full_name, role]
+      'INSERT INTO admins (username, password, full_name, email, phone, role) VALUES (?, ?, ?, ?, ?, ?)',
+      [username, hashedPw, full_name, email || null, phone || null, role]
     );
     req.flash('success', 'เพิ่มผู้ใช้เรียบร้อยแล้ว');
   } catch (err) {
@@ -49,20 +68,21 @@ router.post('/', async (req, res) => {
 
 // POST /users/:id/update
 router.post('/:id/update', async (req, res) => {
-  const { full_name, role, is_active, password } = req.body;
+  const { full_name, email, phone, role, is_active, password } = req.body;
   let conn;
   try {
     conn = await pool.getConnection();
+    await ensureColumns(conn);
     if (password && password.trim()) {
       const hashedPw = await bcrypt.hash(password, 10);
       await conn.query(
-        'UPDATE admins SET full_name = ?, role = ?, is_active = ?, password = ? WHERE id = ?',
-        [full_name, role, is_active === 'on' ? 1 : 0, hashedPw, req.params.id]
+        'UPDATE admins SET full_name = ?, email = ?, phone = ?, role = ?, is_active = ?, password = ? WHERE id = ?',
+        [full_name, email || null, phone || null, role, is_active === 'on' ? 1 : 0, hashedPw, req.params.id]
       );
     } else {
       await conn.query(
-        'UPDATE admins SET full_name = ?, role = ?, is_active = ? WHERE id = ?',
-        [full_name, role, is_active === 'on' ? 1 : 0, req.params.id]
+        'UPDATE admins SET full_name = ?, email = ?, phone = ?, role = ?, is_active = ? WHERE id = ?',
+        [full_name, email || null, phone || null, role, is_active === 'on' ? 1 : 0, req.params.id]
       );
     }
     req.flash('success', 'อัปเดตผู้ใช้เรียบร้อยแล้ว');

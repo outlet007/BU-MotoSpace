@@ -7,7 +7,7 @@ const fs = require('fs');
 const xlsx = require('xlsx');
 const csvParser = require('csv-parser');
 
-router.use(isAuthenticated);
+router.use(isAuthenticated, isHead);
 
 // Redirect /data to /data/import
 router.get('/', (req, res) => {

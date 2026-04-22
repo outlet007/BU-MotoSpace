@@ -4,7 +4,12 @@ const pool = require('../config/database');
 
 // GET /auth/login
 router.get('/login', (req, res) => {
-  if (req.session.admin) return res.redirect('/dashboard');
+  if (req.session.admin) {
+    if (req.session.admin.role === 'officer') {
+      return res.redirect('/violations');
+    }
+    return res.redirect('/dashboard');
+  }
   res.render('login', { title: 'เข้าสู่ระบบ - BU MotoSpace' });
 });
 
@@ -32,7 +37,11 @@ router.post('/login', async (req, res) => {
       role: admin.role,
     };
     req.flash('success', `ยินดีต้อนรับ ${admin.full_name}`);
-    res.redirect('/dashboard');
+    if (admin.role === 'officer') {
+      res.redirect('/violations');
+    } else {
+      res.redirect('/dashboard');
+    }
   } catch (err) {
     console.error(err);
     req.flash('error', 'เกิดข้อผิดพลาดในระบบ');

@@ -1,13 +1,13 @@
 const router = require('express').Router();
 const pool = require('../config/database');
 const upload = require('../middleware/upload');
-const { isAuthenticated } = require('../middleware/auth');
+const { isAuthenticated, isHead } = require('../middleware/auth');
 const { generateHash, compareHashes } = require('../utils/imageHash');
 
 router.use(isAuthenticated);
 
 // GET /registrations
-router.get('/', async (req, res) => {
+router.get('/', isHead, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -19,15 +19,22 @@ router.get('/', async (req, res) => {
     const params = [];
 
     if (search) {
-      // Use FULLTEXT for 3+ chars, prefix LIKE for shorter
-      if (search.length >= 3) {
-        where += ' AND MATCH(id_number, first_name, last_name, license_plate, phone) AGAINST(? IN BOOLEAN MODE)';
-        params.push(`*${search}*`);
-      } else {
-        where += ' AND (id_number LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR license_plate LIKE ? OR phone LIKE ?)';
-        const s = `${search}%`;
-        params.push(s, s, s, s, s);
-      }
+      // Normalize: trim and collapse multiple spaces for reliable matching
+      const searchTrimmed = search.trim().replace(/\s+/g, ' ');
+      const s = `%${searchTrimmed}%`;
+      // Also search by combined full name (first_name + space + last_name)
+      const sName = `%${searchTrimmed}%`;
+      where += ` AND (
+        id_number LIKE ? OR
+        first_name LIKE ? OR
+        last_name LIKE ? OR
+        CONCAT(first_name, ' ', last_name) LIKE ? OR
+        license_plate LIKE ? OR
+        REPLACE(license_plate, ' ', '') LIKE ? OR
+        phone LIKE ?
+      )`;
+      const sNoSpace = `%${searchTrimmed.replace(/\s+/g, '')}%`;
+      params.push(s, s, s, sName, s, sNoSpace, s);
     }
     if (type) { where += ' AND user_type = ?'; params.push(type); }
     if (status) { where += ' AND status = ?'; params.push(status); }
@@ -58,9 +65,20 @@ router.get('/', async (req, res) => {
       imageSearchResults,
     });
   } catch (err) {
-    console.error(err);
-    req.flash('error', 'ไม่สามารถโหลดข้อมูลได้');
-    res.redirect('/dashboard');
+    console.error('GET /registrations error:', err);
+    req.flash('error', 'ไม่สามารถโหลดข้อมูลได้: ' + err.message);
+    // Render page with empty data instead of redirecting
+    return res.render('registrations/index', {
+      title: 'จัดการทะเบียน - BU MotoSpace',
+      registrations: [],
+      total: 0,
+      totalPages: 0,
+      currentPage: 1,
+      search: req.query.search || '',
+      type: req.query.type || '',
+      status: req.query.status || '',
+      imageSearchResults: null,
+    });
   } finally {
     if (conn) conn.release();
   }
@@ -105,18 +123,61 @@ router.post('/search', upload.single('search_image'), async (req, res) => {
       results,
       searchImage: '/uploads/temp/' + req.file.filename,
     };
+    if (req.headers.referer && req.headers.referer.includes('/violations')) {
+      return res.redirect('/violations?imageSearch=1');
+    }
     res.redirect('/registrations?imageSearch=1');
   } catch (err) {
     console.error(err);
     req.flash('error', 'เกิดข้อผิดพลาด');
+    if (req.headers.referer && req.headers.referer.includes('/violations')) {
+      return res.redirect('/violations');
+    }
     res.redirect('/registrations');
   } finally {
     if (conn) conn.release();
   }
 });
 
+// GET /registrations/api/search — AJAX JSON search (for live search / autocomplete)
+router.get('/api/search', isHead, async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const { q } = req.query;
+    if (!q || !q.trim()) return res.json([]);
+
+    const searchTrimmed = q.trim().replace(/\s+/g, ' ');
+    const s = `%${searchTrimmed}%`;
+    const sNoSpace = `%${searchTrimmed.replace(/\s+/g, '')}%`;
+
+    const rows = await conn.query(
+      `SELECT id, id_number, user_type, first_name, last_name, phone, license_plate, province, status
+       FROM registrations
+       WHERE (
+         id_number LIKE ? OR
+         first_name LIKE ? OR
+         last_name LIKE ? OR
+         CONCAT(first_name, ' ', last_name) LIKE ? OR
+         license_plate LIKE ? OR
+         REPLACE(license_plate, ' ', '') LIKE ? OR
+         phone LIKE ?
+       )
+       ORDER BY registered_at DESC LIMIT 10`,
+      [s, s, s, s, s, sNoSpace, s]
+    );
+    return res.json(rows);
+  } catch (err) {
+    console.error('AJAX search error:', err);
+    return res.status(500).json({ error: err.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 // GET /registrations/:id
-router.get('/:id', async (req, res) => {
+
+router.get('/:id', isHead, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -127,10 +188,14 @@ router.get('/:id', async (req, res) => {
     }
 
     const violations = await conn.query(
-      `SELECT v.*, ru.rule_name, ru.max_violations, a.full_name as recorded_by_name
+      `SELECT v.*, ru.rule_name, ru.max_violations, 
+              a.full_name as recorded_by_name,
+              rpa.full_name as reported_by_name
        FROM violations v
        JOIN rules ru ON v.rule_id = ru.id
        JOIN admins a ON v.recorded_by = a.id
+       LEFT JOIN violation_reports vr ON vr.violation_id = v.id
+       LEFT JOIN admins rpa ON vr.reported_by = rpa.id
        WHERE v.registration_id = ?
        ORDER BY v.recorded_at DESC`,
       [req.params.id]
@@ -161,7 +226,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /registrations/:id/approve
-router.post('/:id/approve', async (req, res) => {
+router.post('/:id/approve', isHead, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -180,7 +245,7 @@ router.post('/:id/approve', async (req, res) => {
 });
 
 // POST /registrations/:id/reject
-router.post('/:id/reject', async (req, res) => {
+router.post('/:id/reject', isHead, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -199,7 +264,7 @@ router.post('/:id/reject', async (req, res) => {
 });
 
 // GET /registrations/:id/edit
-router.get('/:id/edit', async (req, res) => {
+router.get('/:id/edit', isHead, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -222,7 +287,7 @@ router.get('/:id/edit', async (req, res) => {
 });
 
 // POST /registrations/:id/edit
-router.post('/:id/edit', upload.fields([
+router.post('/:id/edit', isHead, upload.fields([
   { name: 'motorcycle_photo', maxCount: 1 },
   { name: 'plate_photo', maxCount: 1 },
   { name: 'id_card_photo', maxCount: 1 },
@@ -271,7 +336,7 @@ router.post('/:id/edit', upload.fields([
 });
 
 // POST /registrations/:id/delete
-router.post('/:id/delete', async (req, res) => {
+router.post('/:id/delete', isHead, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();

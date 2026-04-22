@@ -27,12 +27,13 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
-              <i data-lucide="alert-triangle" class="w-7 h-7 text-brand-500"></i> การทำผิดกฎและข้อบังคับ
+              <i data-lucide="alert-triangle" class="w-7 h-7 text-brand-500"></i> แจ้งการทำผิดกฎและข้อบังคับ
             </h2>
-            <p class="text-slate-500 mt-1">ตรวจสอบและจัดการประวัติการกระทำผิดกฎและข้อบังคับ</p>
+            <p class="text-slate-500 mt-1">แจ้งข้อมูลเพื่อตรวจสอบการกระทำผิดกฎและข้อบังคับ</p>
           </div>
         </div>
 
+        <% if (admin && (admin.role === 'head' || admin.role === 'superadmin')) { %>
         <!-- Dashboard Summary -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
 
@@ -112,6 +113,7 @@
           </div>
 
         </div>
+        <% } %>
 
 
         <!-- Filters -->
@@ -121,26 +123,20 @@
               <label class="label">ค้นหา</label>
               <div class="relative">
                 <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                <input type="text" name="search" value="<%= search %>" class="input" style="padding-left:2.5rem" placeholder="ชื่อ, รหัส, ป้ายทะเบียน...">
+                <input type="text" name="reg_search" value="<%= typeof regSearch !== 'undefined' ? regSearch : '' %>" class="input" style="padding-left:2.5rem" placeholder="ชื่อ, รหัส, ป้ายทะเบียน...">
               </div>
-            </div>
-            <div>
-              <label class="label">กฎและข้อบังคับ</label>
-              <select name="rule_id" class="input">
-                <option value="">ทั้งหมด</option>
-                <% rules.forEach(function(r) { %>
-                <option value="<%= r.id %>" <%= rule_id == r.id ? 'selected' : '' %>><%= r.rule_name %></option>
-                <% }); %>
-              </select>
             </div>
             <button type="submit" class="btn btn-primary">
               <i data-lucide="search" class="w-4 h-4"></i> ค้นหา
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="openImageSearchModal()">
+              <i data-lucide="image" class="w-4 h-4"></i> ค้นหาด้วยภาพ
             </button>
           </form>
         </div>
 
         <!-- Info -->
-        <p class="text-sm text-slate-500 mb-4">พบ <span class="font-semibold text-slate-700"><%= total %></span> รายการ</p>
+        <p class="text-sm text-slate-500 mb-4">พบข้อมูลผู้ลงทะเบียน <span class="font-semibold text-slate-700"><%= typeof regTotal !== 'undefined' ? regTotal : 0 %></span> รายการ</p>
 
         <!-- Table -->
         <div class="table-container">
@@ -150,25 +146,29 @@
                 <th>รหัส</th>
                 <th>ชื่อ-นามสกุล</th>
                 <th>ป้ายทะเบียน</th>
-                <th>กฎที่ฝ่าฝืน</th>
-                <th>รายละเอียด</th>
-                <th>บันทึกโดย</th>
-                <th>วันที่</th>
+                <th>จังหวัด</th>
+                <th>ประเภท</th>
+                <th>วันที่ลงทะเบียน</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              <% if (violations.length > 0) { %>
-                <% violations.forEach(function(v) { %>
-                <tr style="cursor:pointer;" onclick="window.location='/violations/<%= v.id %>'" class="hover:bg-slate-50">
-                  <td class="text-xs"><%= v.id_number %></td>
-                  <td class="font-medium text-slate-800">
-                    <span class="hover:text-brand-600"><%= v.first_name %> <%= v.last_name %></span>
+              <% if (typeof approvedRegistrations !== 'undefined' && approvedRegistrations.length > 0) { %>
+                <% approvedRegistrations.forEach(function(r) { %>
+                <tr class="hover:bg-slate-50 cursor-pointer transition-colors" onclick="window.location='/violations/create?reg_id=<%= r.id %>'">
+                  <td class="text-xs"><%= r.id_number %></td>
+                  <td class="font-medium text-slate-800"><%= r.first_name %> <%= r.last_name %></td>
+                  <td class="font-semibold"><%= r.license_plate %></td>
+                  <td><%= r.province %></td>
+                  <td><span class="badge <%= r.user_type === 'student' ? 'badge-success' : 'badge-info' %>"><%= r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %></span></td>
+                  <td class="text-xs text-slate-500"><%= new Date(r.registered_at).toLocaleDateString('th-TH') %></td>
+                  <td onclick="event.stopPropagation()">
+                    <div style="display:flex; justify-content: flex-end;">
+                      <a href="/violations/create?reg_id=<%= r.id %>" class="btn btn-sm inline-flex items-center gap-1" style="background:#ea580c;color:#fff;font-size:0.75rem;">
+                        <i data-lucide="send" class="w-3.5 h-3.5"></i> แจ้งการกระทำผิด
+                      </a>
+                    </div>
                   </td>
-                  <td class="font-semibold"><%= v.license_plate %></td>
-                  <td><span class="badge badge-danger"><%= v.rule_name %></span></td>
-                  <td class="max-w-[200px] truncate"><%= v.description || '-' %></td>
-                  <td><%= v.recorded_by_name %></td>
-                  <td class="text-xs text-slate-500"><%= new Date(v.recorded_at).toLocaleDateString('th-TH') %></td>
                 </tr>
                 <% }); %>
               <% } else { %>
@@ -178,13 +178,52 @@
           </table>
         </div>
 
+        <!-- Image Search Results (from modal POST) -->
+        <% if (typeof imageSearchResults !== 'undefined' && imageSearchResults && imageSearchResults.results) { %>
+        <div class="card p-6 mt-6">
+          <div class="flex items-center gap-2 mb-4">
+            <i data-lucide="image" class="w-5 h-5 text-brand-500"></i>
+            <h3 class="text-base font-semibold text-slate-800">
+              ผลการค้นหาด้วยรูปภาพ
+              <span class="text-slate-400 font-normal text-sm">(พบ <%= imageSearchResults.results.length %> รายการ)</span>
+            </h3>
+          </div>
+          <% if (imageSearchResults.results.length > 0) { %>
+          <div class="space-y-3">
+            <% imageSearchResults.results.forEach(function(r) { %>
+            <a href="/violations/create?reg_id=<%= r.reg_id %>" class="flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-brand-300 hover:bg-brand-50/40 transition-all">
+              <% if (r.motorcycle_photo) { %>
+              <img src="<%= signedUrl(r.motorcycle_photo) %>" alt="Motorcycle" class="w-16 h-16 object-cover rounded-xl border border-slate-200 flex-shrink-0">
+              <% } else { %>
+              <div class="w-16 h-16 rounded-xl border border-slate-200 bg-slate-100 flex items-center justify-center flex-shrink-0">
+                <i data-lucide="image" class="w-6 h-6 text-slate-400"></i>
+              </div>
+              <% } %>
+              <div class="flex-1 min-w-0">
+                <p class="font-semibold text-slate-800"><%= r.first_name %> <%= r.last_name %></p>
+                <p class="text-sm text-slate-500"><%= r.id_number %> · <%= r.license_plate %></p>
+                <p class="text-xs text-slate-400"><%= r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %> · โทร: <%= r.phone || '-' %></p>
+              </div>
+              <span class="badge badge-success text-sm flex-shrink-0">ตรงกัน <%= r.similarity %>%</span>
+            </a>
+            <% }); %>
+          </div>
+          <% } else { %>
+          <div class="text-center py-8">
+            <i data-lucide="search-x" class="w-12 h-12 text-slate-300 mx-auto mb-3"></i>
+            <p class="text-slate-400">ไม่พบข้อมูลที่ตรงกัน</p>
+          </div>
+          <% } %>
+        </div>
+        <% } %>
+
         <!-- Pagination -->
-        <% if (totalPages > 1) { %>
+        <% if (typeof regTotalPages !== 'undefined' && regTotalPages > 1) { %>
         <div class="flex items-center justify-center gap-2 mt-6">
-          <% for (var i = 1; i <= totalPages; i++) { %>
-            <a href="/violations?page=<%= i %>&search=<%= search %>&rule_id=<%= rule_id %>"
+          <% for (var i = 1; i <= regTotalPages; i++) { %>
+            <a href="/violations?reg_page=<%= i %>&reg_search=<%= typeof regSearch !== 'undefined' ? regSearch : '' %>"
               class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium transition-all
-                     <%= i === currentPage ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' %>">
+                     <%= i === regCurrentPage ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' %>">
               <%= i %>
             </a>
           <% } %>

@@ -2,9 +2,9 @@ const router = require('express').Router();
 const pool = require('../config/database');
 const { isAuthenticated, isHead } = require('../middleware/auth');
 
-router.use(isAuthenticated);
+router.use(isAuthenticated, isHead);
 
-// GET /rules
+// GET /rules?format=json  — lightweight JSON list for dropdowns
 router.get('/', async (req, res) => {
   let conn;
   try {
@@ -16,9 +16,13 @@ router.get('/', async (req, res) => {
        LEFT JOIN admins a ON r.created_by = a.id
        ORDER BY r.created_at DESC`
     );
+    if (req.query.format === 'json') {
+      return res.json(rules.map(r => ({ id: r.id, rule_name: r.rule_name })));
+    }
     res.render('rules/index', { title: 'จัดการกฎ - BU MotoSpace', rules });
   } catch (err) {
     console.error(err);
+    if (req.query.format === 'json') return res.json([]);
     req.flash('error', 'ไม่สามารถโหลดข้อมูลได้');
     res.redirect('/dashboard');
   } finally {

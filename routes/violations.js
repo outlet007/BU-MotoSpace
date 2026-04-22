@@ -19,9 +19,18 @@ router.get('/', async (req, res) => {
     let where = 'WHERE 1=1';
     const params = [];
     if (search) {
-      where += ' AND (r.id_number LIKE ? OR r.first_name LIKE ? OR r.last_name LIKE ? OR r.license_plate LIKE ?)';
-      const s = `%${search}%`;
-      params.push(s, s, s, s);
+      const searchTrimmed = search.trim().replace(/\s+/g, ' ');
+      const s = `%${searchTrimmed}%`;
+      const sNoSpace = `%${searchTrimmed.replace(/\s+/g, '')}%`;
+      where += ` AND (
+        r.id_number LIKE ? OR
+        r.first_name LIKE ? OR
+        r.last_name LIKE ? OR
+        CONCAT(r.first_name, ' ', r.last_name) LIKE ? OR
+        r.license_plate LIKE ? OR
+        REPLACE(r.license_plate, ' ', '') LIKE ?
+      )`;
+      params.push(s, s, s, s, s, sNoSpace);
     }
     if (rule_id) { where += ' AND v.rule_id = ?'; params.push(rule_id); }
 
@@ -65,8 +74,48 @@ router.get('/', async (req, res) => {
        LIMIT 5`
     )).map(row => ({ ...row, cnt: Number(row.cnt) }));
 
+    // --- Approved Registrations list (for recording violations) ---
+    const regSearch = req.query.reg_search || '';
+    const regPage = parseInt(req.query.reg_page) || 1;
+    const regLimit = 20;
+    const regOffset = (regPage - 1) * regLimit;
+
+    let regWhere = "WHERE r.status = 'approved'";
+    const regParams = [];
+    if (regSearch) {
+      const st = regSearch.trim().replace(/\s+/g, ' ');
+      const rs = `%${st}%`;
+      const rsNoSpace = `%${st.replace(/\s+/g, '')}%`;
+      regWhere += ` AND (
+        r.id_number LIKE ? OR
+        r.first_name LIKE ? OR
+        r.last_name LIKE ? OR
+        CONCAT(r.first_name, ' ', r.last_name) LIKE ? OR
+        r.license_plate LIKE ? OR
+        REPLACE(r.license_plate, ' ', '') LIKE ?
+      )`;
+      regParams.push(rs, rs, rs, rs, rs, rsNoSpace);
+    }
+
+    const [regCountResult] = await conn.query(
+      `SELECT COUNT(*) as cnt FROM registrations r ${regWhere}`, regParams
+    );
+    const regTotal = parseInt(regCountResult.cnt);
+    const regTotalPages = Math.ceil(regTotal / regLimit);
+
+    const approvedRegistrations = await conn.query(
+      `SELECT r.* FROM registrations r ${regWhere} ORDER BY r.registered_at DESC LIMIT ? OFFSET ?`,
+      [...regParams, regLimit, regOffset]
+    );
+
+    let imageSearchResults = null;
+    if (req.query.imageSearch && req.session.imageSearchResults) {
+      imageSearchResults = req.session.imageSearchResults;
+      delete req.session.imageSearchResults;
+    }
+
     res.render('violations/index', {
-      title: 'บันทึกการกระทำผิด - BU MotoSpace',
+      title: 'แจ้งการทำผิดกฎและข้อบังคับ - BU MotoSpace',
       violations,
       rules,
       total,
@@ -76,11 +125,34 @@ router.get('/', async (req, res) => {
       rule_id: rule_id || '',
       topViolators,
       topRules,
+      approvedRegistrations,
+      regTotal,
+      regTotalPages,
+      regCurrentPage: regPage,
+      regSearch,
+      imageSearchResults,
     });
   } catch (err) {
-    console.error(err);
-    req.flash('error', 'ไม่สามารถโหลดข้อมูลได้');
-    res.redirect('/dashboard');
+    console.error('GET /violations error:', err);
+    req.flash('error', 'ไม่สามารถโหลดข้อมูลได้: ' + err.message);
+    return res.render('violations/index', {
+      title: 'แจ้งการทำผิดกฎและข้อบังคับ - BU MotoSpace',
+      violations: [],
+      rules: [],
+      total: 0,
+      totalPages: 0,
+      currentPage: 1,
+      search: req.query.search || '',
+      rule_id: req.query.rule_id || '',
+      topViolators: [],
+      topRules: [],
+      approvedRegistrations: [],
+      regTotal: 0,
+      regTotalPages: 0,
+      regCurrentPage: 1,
+      regSearch: '',
+      imageSearchResults: null,
+    });
   } finally {
     if (conn) conn.release();
   }
@@ -105,7 +177,7 @@ router.get('/create', async (req, res) => {
     }
 
     res.render('violations/create', {
-      title: 'บันทึกการกระทำผิด - BU MotoSpace',
+      title: 'แจ้งการทำผิดกฎและข้อบังคับ - BU MotoSpace',
       rules,
       reg_id,
       selectedReg,
@@ -162,44 +234,54 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /violations
+// POST /violations — บันทึกเป็น "รายงานรอตรวจสอบ" ใน violation_reports (pending)
+// ไม่บันทึกลง violations โดยตรง — ต้องรอผู้ดูแลระบบยืนยันก่อน
 router.post('/', upload.single('evidence_photo'), async (req, res) => {
   const { registration_id, rule_id, description } = req.body;
   let conn;
   try {
     conn = await pool.getConnection();
 
-    // Check violation limit
-    const [rule] = await conn.query('SELECT * FROM rules WHERE id = ?', [rule_id]);
-    const [countResult] = await conn.query(
-      'SELECT COUNT(*) as cnt FROM violations WHERE registration_id = ? AND rule_id = ?',
-      [registration_id, rule_id]
-    );
-    const currentCount = parseInt(countResult.cnt);
-
-    if (currentCount >= rule.max_violations) {
-      req.flash('error', `ผู้นี้ครบจำนวนครั้งที่กำหนด (${rule.max_violations} ครั้ง) สำหรับกฎ "${rule.rule_name}" แล้ว`);
-      return res.redirect('/violations/create');
-    }
+    // Ensure violation_reports table exists
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS violation_reports (
+        id             INT AUTO_INCREMENT PRIMARY KEY,
+        registration_id INT NOT NULL,
+        rule_id        INT NOT NULL,
+        description    TEXT,
+        evidence_photo VARCHAR(500),
+        reported_by    INT NOT NULL,
+        reported_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        status         ENUM('pending','confirmed','rejected') NOT NULL DEFAULT 'pending',
+        reviewed_by    INT DEFAULT NULL,
+        reviewed_at    TIMESTAMP NULL,
+        review_note    TEXT,
+        violation_id   INT DEFAULT NULL,
+        FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
+        FOREIGN KEY (rule_id)         REFERENCES rules(id)          ON DELETE CASCADE,
+        FOREIGN KEY (reported_by)     REFERENCES admins(id)         ON DELETE CASCADE,
+        FOREIGN KEY (reviewed_by)     REFERENCES admins(id)         ON DELETE SET NULL,
+        INDEX idx_vr_registration (registration_id),
+        INDEX idx_vr_status (status)
+      ) ENGINE=InnoDB
+    `);
 
     const evidencePhoto = req.file ? '/uploads/evidence/' + req.file.filename : null;
 
+    // Save as pending report — NOT into violations table yet
     await conn.query(
-      'INSERT INTO violations (registration_id, rule_id, description, evidence_photo, recorded_by) VALUES (?, ?, ?, ?, ?)',
-      [registration_id, rule_id, description, evidencePhoto, req.session.admin.id]
+      `INSERT INTO violation_reports
+         (registration_id, rule_id, description, evidence_photo, reported_by, status)
+       VALUES (?, ?, ?, ?, ?, 'pending')`,
+      [registration_id, rule_id, description || null, evidencePhoto, req.session.admin.id]
     );
 
-    const remaining = rule.max_violations - currentCount - 1;
-    if (remaining <= 0) {
-      req.flash('warning', `⚠️ ผู้นี้ครบจำนวนครั้งที่กำหนดแล้ว — บทลงโทษ: ${rule.penalty}`);
-    } else {
-      req.flash('success', `บันทึกเรียบร้อย (เหลือโอกาสอีก ${remaining} ครั้ง)`);
-    }
-    res.redirect('/registrations/' + registration_id);
+    req.flash('success', '📋 แจ้งรายการกระทำผิดเรียบร้อยแล้ว — รอการตรวจสอบและยืนยันจากผู้ดูแลระบบก่อนจึงจะบันทึกลงประวัติ');
+    res.redirect('/violations');
   } catch (err) {
-    console.error(err);
+    console.error('POST /violations error:', err);
     req.flash('error', 'เกิดข้อผิดพลาด: ' + err.message);
-    res.redirect('/violations/create?reg_id=' + registration_id);
+    res.redirect('/violations/create?reg_id=' + (registration_id || ''));
   } finally {
     if (conn) conn.release();
   }

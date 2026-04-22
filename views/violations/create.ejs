@@ -29,15 +29,9 @@
         <%- include('../partials/flash') %>
 
         <!-- Back Button -->
-        <% if (selectedReg) { %>
-          <a href="/registrations/<%= selectedReg.id %>" class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-brand-600 mb-4">
-            <i data-lucide="arrow-left" class="w-4 h-4"></i> กลับไปรายละเอียดผู้ลงทะเบียน
-          </a>
-        <% } else { %>
-          <a href="/registrations" class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-brand-600 mb-4">
-            <i data-lucide="arrow-left" class="w-4 h-4"></i> กลับไปจัดการทะเบียน
-          </a>
-        <% } %>
+        <a href="/violations" class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-brand-600 mb-4">
+          <i data-lucide="arrow-left" class="w-4 h-4"></i> กลับไปหน้าแจ้งการทำผิดกฎ
+        </a>
 
         <div class="max-w-2xl space-y-6">
 
@@ -74,16 +68,39 @@
 
           <!-- Violation Form Card -->
           <div class="card p-6">
-            <h2 class="text-lg font-semibold text-slate-800 mb-6 flex items-center gap-2">
-              <i data-lucide="shield-alert" class="w-5 h-5 text-red-500"></i>
-              บันทึกการกระทำผิดกฎและข้อบังคับ
+            <h2 class="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <i data-lucide="shield-alert" class="w-5 h-5 text-orange-500"></i>
+              แจ้งการกระทำผิดกฎและข้อบังคับ
             </h2>
+            <!-- Workflow notice -->
+            <div style="display:flex;align-items:flex-start;gap:10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 14px;margin-bottom:20px;">
+              <i data-lucide="info" class="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5"></i>
+              <p style="font-size:0.8rem;color:#9a3412;line-height:1.6;">
+                รายการที่แจ้งจะถูกส่งไปยัง <strong>หน้าตรวจสอบการกระทำผิด</strong> เพื่อรอการยืนยันจากผู้ดูแลระบบก่อน
+                จึงจะถูกบันทึกลงประวัติของผู้ลงทะเบียน
+              </p>
+            </div>
 
             <form method="POST" action="/violations" enctype="multipart/form-data" class="space-y-5">
               <% if (selectedReg) { %>
                 <!-- Hidden field with the registration ID -->
                 <input type="hidden" name="registration_id" value="<%= selectedReg.id %>">
+              <% } else { %>
+                <!-- Live search for registrant -->
+                <div>
+                  <label class="label">ค้นหาผู้ลงทะเบียน</label>
+                  <div class="relative" id="live-search-container">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                    <input type="text" id="reg-search-input" class="input" style="padding-left:2.5rem"
+                      placeholder="พิมพ์ชื่อ, รหัส, ป้ายทะเบียน..." autocomplete="off">
+                    <div id="reg-search-results" class="hidden absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto"></div>
+                  </div>
+                  <input type="hidden" name="registration_id" id="selected-reg-id" required>
+                  <div id="selected-reg-preview" class="hidden mt-2 p-3 bg-slate-50 rounded-xl border border-slate-200 text-sm text-slate-700"></div>
+                  <p id="search-hint" class="text-xs text-slate-400 mt-1">พิมพ์อย่างน้อย 1 ตัวอักษร เพื่อค้นหา</p>
+                </div>
               <% } %>
+
 
               <div>
                 <label class="label">กฎที่ฝ่าฝืน</label>
@@ -110,8 +127,8 @@
                 </label>
               </div>
 
-              <button type="submit" class="btn btn-danger w-full justify-center">
-                <i data-lucide="save" class="w-4 h-4"></i> บันทึกการกระทำผิดกฎและข้อบังคับ
+              <button type="submit" class="btn w-full justify-center" style="background:#ea580c;color:#fff;gap:8px;">
+                <i data-lucide="send" class="w-4 h-4"></i> ส่งแจ้งการกระทำผิด (รอการตรวจสอบ)
               </button>
             </form>
           </div>
@@ -130,6 +147,79 @@
         reader.readAsDataURL(input.files[0]);
       }
     }
+
+    // ---- Live search for registrant (only when no pre-selected reg) ----
+    const searchInput = document.getElementById('reg-search-input');
+    const resultsBox = document.getElementById('reg-search-results');
+    const hiddenId = document.getElementById('selected-reg-id');
+    const preview = document.getElementById('selected-reg-preview');
+
+    if (searchInput) {
+      let debounceTimer;
+      searchInput.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        const q = this.value.trim();
+        if (!q) { resultsBox.classList.add('hidden'); resultsBox.innerHTML = ''; return; }
+        debounceTimer = setTimeout(() => fetchResults(q), 250);
+      });
+
+      searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') { resultsBox.classList.add('hidden'); }
+      });
+
+      document.addEventListener('click', function(e) {
+        if (!e.target.closest('#live-search-container')) resultsBox.classList.add('hidden');
+      });
+    }
+
+    function fetchResults(q) {
+      fetch('/registrations/api/search?q=' + encodeURIComponent(q))
+        .then(r => r.json())
+        .then(data => {
+          resultsBox.innerHTML = '';
+          if (!data.length) {
+            resultsBox.innerHTML = '<div class="px-4 py-3 text-sm text-slate-400">ไม่พบข้อมูล</div>';
+          } else {
+            data.forEach(r => {
+              const item = document.createElement('div');
+              item.className = 'px-4 py-3 hover:bg-brand-50 cursor-pointer border-b border-slate-100 last:border-0';
+              const typeLabel = r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร';
+              const statusColor = r.status === 'approved' ? '#22c55e' : r.status === 'pending' ? '#f59e0b' : '#ef4444';
+              item.innerHTML = `
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="font-semibold text-slate-800 text-sm">${r.first_name} ${r.last_name}</p>
+                    <p class="text-xs text-slate-500">${r.id_number} · ${r.license_plate} · ${typeLabel}</p>
+                  </div>
+                  <span style="font-size:10px;padding:2px 8px;border-radius:999px;background:${statusColor}20;color:${statusColor};font-weight:600;">${r.status}</span>
+                </div>`;
+              item.addEventListener('click', () => selectReg(r));
+              resultsBox.appendChild(item);
+            });
+          }
+          resultsBox.classList.remove('hidden');
+        })
+        .catch(() => { resultsBox.innerHTML = '<div class="px-4 py-3 text-sm text-red-400">เกิดข้อผิดพลาด</div>'; resultsBox.classList.remove('hidden'); });
+    }
+
+    function selectReg(r) {
+      hiddenId.value = r.id;
+      searchInput.value = `${r.first_name} ${r.last_name} (${r.id_number}, ${r.license_plate})`;
+      preview.innerHTML = `
+        <div class="flex items-center gap-3">
+          <div style="width:36px;height:36px;background:#eff6ff;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="2"/></svg>
+          </div>
+          <div>
+            <p class="font-semibold text-slate-800">${r.first_name} ${r.last_name}</p>
+            <p class="text-xs text-slate-500">${r.id_number} · ${r.license_plate} · ${r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร'}</p>
+          </div>
+        </div>`;
+      preview.classList.remove('hidden');
+      resultsBox.classList.add('hidden');
+      document.getElementById('search-hint').classList.add('hidden');
+    }
   </script>
 </body>
 </html>
+

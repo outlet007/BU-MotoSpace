@@ -1,8 +1,8 @@
 const router = require('express').Router();
 const pool = require('../config/database');
-const { isAuthenticated } = require('../middleware/auth');
+const { isAuthenticated, isHead } = require('../middleware/auth');
 
-router.use(isAuthenticated);
+router.use(isAuthenticated, isHead);
 
 // GET /dashboard
 router.get('/', async (req, res) => {

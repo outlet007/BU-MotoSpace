@@ -23,6 +23,7 @@
   <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
     <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold px-4 mb-2">เมนูหลัก</p>
 
+    <% if (admin && (admin.role === 'head' || admin.role === 'superadmin')) { %>
     <a href="/dashboard" class="sidebar-link <%= currentPath === '/dashboard' ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
       <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
       แดชบอร์ด
@@ -40,6 +41,7 @@
       <i data-lucide="clipboard-list" class="w-5 h-5"></i>
       จัดการทะเบียน
     </a>
+    <% } %>
 
     <!-- ค้นหาด้วยภาพ — opens modal instead of navigating -->
     <button type="button" onclick="openImageSearchModal()" class="sidebar-link w-full text-left">
@@ -49,10 +51,18 @@
 
     <a href="/violations" class="sidebar-link <%= currentPath.startsWith('/violations') && currentPath !== '/violations/create' ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
       <i data-lucide="alert-triangle" class="w-5 h-5"></i>
-      การทำผิดกฎและข้อบังคับ
+      แจ้งการทำผิดกฎ
     </a>
 
     <% if (admin && (admin.role === 'head' || admin.role === 'superadmin')) { %>
+    <a href="/violation-reports" class="sidebar-link <%= currentPath.startsWith('/violation-reports') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+      <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+      <span class="flex-1">ตรวจสอบการกระทำผิดกฎ</span>
+      <% if (typeof pendingReportsCount !== 'undefined' && pendingReportsCount > 0) { %>
+        <span style="background:#f97316;color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;border-radius:9999px;padding:0 4px;flex-shrink:0;"><%= pendingReportsCount %></span>
+      <% } %>
+    </a>
+
     <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold px-4 mt-6 mb-2">จัดการ</p>
 
     <a href="/rules" class="sidebar-link <%= currentPath.startsWith('/rules') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">

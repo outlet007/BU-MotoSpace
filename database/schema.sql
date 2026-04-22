@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS admins (
   username VARCHAR(100) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
   full_name VARCHAR(200) NOT NULL,
+  email VARCHAR(200) DEFAULT NULL,
+  phone VARCHAR(20) DEFAULT NULL,
   role ENUM('officer','head','superadmin') NOT NULL DEFAULT 'officer',
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -7,6 +7,8 @@ const pool = mariadb.createPool({
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'bu_motospace',
+  timezone: '+07:00',
+  dateStrings: true,
   connectionLimit: 10,
   acquireTimeout: 30000,
 });

@@ -4,6 +4,9 @@ const flash = require('connect-flash');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
+
+// ตั้งค่า Timezone ของระบบเป็นประเทศไทย (UTC+7)
+process.env.TZ = 'Asia/Bangkok';
 const pool = require('./config/database');
 const { generateSignedUrl, verifySignedUrl, resolveFilePath } = require('./utils/signedUrl');
 
@@ -59,7 +62,15 @@ app.use(async (req, res, next) => {
     console.error('Error fetching pendingCount:', e);
     res.locals.pendingCount = 0;
   }
-  
+
+  try {
+    const vrRows = await pool.query("SELECT COUNT(*) as count FROM violation_reports WHERE status = 'pending'");
+    res.locals.pendingReportsCount = Number(vrRows[0].count);
+  } catch(e) {
+    // Table may not exist yet on first boot — silently ignore
+    res.locals.pendingReportsCount = 0;
+  }
+
   next();
 });
 
@@ -150,6 +161,7 @@ app.use('/register', require('./routes/register'));
 app.use('/dashboard', require('./routes/dashboard'));
 app.use('/registrations', require('./routes/registrations'));
 app.use('/violations', require('./routes/violations'));
+app.use('/violation-reports', require('./routes/violation-reports'));
 app.use('/rules', require('./routes/rules'));
 app.use('/users', require('./routes/users'));
 app.use('/data', require('./routes/data'));

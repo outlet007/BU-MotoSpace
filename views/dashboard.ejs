@@ -151,7 +151,7 @@
               <tbody>
                 <% if (recentRegs.length > 0) { %>
                   <% recentRegs.forEach(function(r) { %>
-                  <tr>
+                  <tr class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.location='/registrations/<%= r.id %>'">
                     <td class="font-medium text-slate-800"><%= r.first_name %> <%= r.last_name %></td>
                     <td><%= r.license_plate %></td>
                     <td><span class="badge <%= r.user_type === 'student' ? 'badge-success' : 'badge-info' %>"><%= r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %></span></td>
@@ -178,7 +178,7 @@
               <tbody>
                 <% if (recentViolations.length > 0) { %>
                   <% recentViolations.forEach(function(v) { %>
-                  <tr>
+                  <tr class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.location='/registrations/<%= v.registration_id %>'">
                     <td class="font-medium text-slate-800"><%= v.first_name %> <%= v.last_name %></td>
                     <td><%= v.license_plate %></td>
                     <td><span class="badge badge-danger"><%= v.rule_name %></span></td>

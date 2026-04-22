@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <meta name="description" content="ตรวจสอบรายการการกระทำผิดกฎและข้อบังคับที่ถูกแจ้งมา สำหรับผู้ดูแลระบบ BU MotoSpace">
+  <link rel="stylesheet" href="/css/output.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .sidebar-gradient { background: linear-gradient(180deg, #0f172a 0%, #1a2332 50%, #162032 100%); }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .tooltip { position: relative; }
+    .tooltip::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); padding: 4px 8px; background: #1e293b; color: white; font-size: 12px; border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+    .tooltip:hover::after { opacity: 1; }
+    .status-pending   { background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; }
+    .status-confirmed { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
+    .status-rejected  { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
+    .row-hover:hover { background:#f8fafc; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+  <div class="flex min-h-screen">
+    <%- include('../partials/sidebar') %>
+    <div class="flex-1 flex flex-col lg:ml-64">
+      <%- include('../partials/topbar') %>
+      <main class="flex-1 p-4 sm:p-6 fade-in">
+        <%- include('../partials/flash') %>
+
+        <!-- Page Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="clipboard-check" class="w-7 h-7 text-orange-500"></i>
+              ตรวจสอบการกระทำผิดกฎ
+            </h2>
+            <p class="text-slate-500 mt-1">รายการการกระทำผิดกฎที่ถูกแจ้งและรอการดำเนินการ</p>
+          </div>
+          <!-- Summary badges -->
+          <div class="flex items-center gap-3 flex-shrink-0">
+            <div class="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-xl px-4 py-2">
+              <i data-lucide="clock" class="w-4 h-4 text-orange-500"></i>
+              <span class="text-sm font-semibold text-orange-700"><%= pendingReportsCount %> รายการรอตรวจสอบ</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="card p-4 mb-6">
+          <form method="GET" action="/violation-reports" class="flex flex-wrap items-end gap-4">
+            <!-- Search -->
+            <div class="flex-1 min-w-[200px]">
+              <label class="label">ค้นหา</label>
+              <div class="relative">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" name="search" id="search-input" value="<%= search %>"
+                       class="input" style="padding-left:2.5rem"
+                       placeholder="ชื่อ, รหัส, ป้ายทะเบียน, กฎ...">
+              </div>
+            </div>
+            <!-- Status filter -->
+            <div>
+              <label class="label">สถานะ</label>
+              <select name="status_filter" id="status-filter" class="input">
+                <option value="all"      <%= status_filter === 'all'       ? 'selected' : '' %>>ทั้งหมด</option>
+                <option value="pending"  <%= status_filter === 'pending'   ? 'selected' : '' %>>รอตรวจสอบ</option>
+                <option value="confirmed"<%= status_filter === 'confirmed' ? 'selected' : '' %>>ยืนยันแล้ว</option>
+                <option value="rejected" <%= status_filter === 'rejected'  ? 'selected' : '' %>>ปฏิเสธแล้ว</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary" id="filter-btn">
+              <i data-lucide="search" class="w-4 h-4"></i> ค้นหา
+            </button>
+          </form>
+        </div>
+
+        <!-- Result count -->
+        <p class="text-sm text-slate-500 mb-4">
+          พบ <span class="font-semibold text-slate-700"><%= total %></span> รายการ
+        </p>
+
+        <!-- Table -->
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>วันที่</th>
+                <th>รหัส</th>
+                <th>ชื่อ-นามสกุล</th>
+                <th>ป้ายทะเบียน</th>
+                <th>กฎที่ฝ่าฝืน</th>
+                <th>รายละเอียด</th>
+                <th>บันทึกโดย</th>
+                <th>สถานะ</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (reports && reports.length > 0) { %>
+                <% reports.forEach(function(rpt) { %>
+                <tr class="row-hover cursor-pointer" onclick="window.location='/violation-reports/<%= rpt.id %>'">
+                  <!-- วันที่ -->
+                  <td class="text-xs text-slate-500 whitespace-nowrap">
+                    <%= new Date(rpt.reported_at).toLocaleDateString('th-TH', {
+                          year:'numeric', month:'short', day:'numeric'
+                        }) %>
+                  </td>
+                  <!-- รหัส -->
+                  <td class="text-xs font-mono text-slate-600"><%= rpt.id_number %></td>
+                  <!-- ชื่อ-นามสกุล -->
+                  <td class="font-medium text-slate-800">
+                    <%= rpt.first_name %> <%= rpt.last_name %>
+                    <div class="text-xs text-slate-400 mt-0.5">
+                      <%= rpt.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %>
+                    </div>
+                  </td>
+                  <!-- ป้ายทะเบียน -->
+                  <td class="font-semibold text-slate-700"><%= rpt.license_plate %></td>
+                  <!-- กฎที่ฝ่าฝืน -->
+                  <td>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-red-50 text-red-700 text-xs font-semibold border border-red-100">
+                      <i data-lucide="shield-alert" class="w-3 h-3"></i>
+                      <%= rpt.rule_name %>
+                    </span>
+                  </td>
+                  <!-- รายละเอียด -->
+                  <td class="text-sm text-slate-600 max-w-[180px] truncate" title="<%= rpt.description || '' %>">
+                    <% if (rpt.description) { %>
+                      <%= rpt.description %>
+                    <% } %>
+                  </td>
+                  <!-- บันทึกโดย -->
+                  <td class="text-xs text-slate-500"><%= rpt.reported_by_name %></td>
+                  <!-- สถานะ -->
+                  <td>
+                    <% if (rpt.status === 'pending') { %>
+                      <span class="status-pending inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full">
+                        <i data-lucide="clock" class="w-3 h-3"></i> รอตรวจสอบ
+                      </span>
+                    <% } else if (rpt.status === 'confirmed') { %>
+                      <span class="status-confirmed inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full">
+                        <i data-lucide="check-circle" class="w-3 h-3"></i> ยืนยันแล้ว
+                      </span>
+                    <% } else { %>
+                      <span class="status-rejected inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full">
+                        <i data-lucide="x-circle" class="w-3 h-3"></i> ปฏิเสธแล้ว
+                      </span>
+                    <% } %>
+                  </td>
+                  <!-- ปุ่มดูรายละเอียด -->
+                  <td class="text-right" onclick="event.stopPropagation()">
+                    <a href="/violation-reports/<%= rpt.id %>"
+                       class="btn btn-secondary btn-sm inline-flex items-center gap-1"
+                       id="view-report-<%= rpt.id %>">
+                      <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                      ดูรายละเอียด
+                    </a>
+                  </td>
+                </tr>
+                <% }); %>
+              <% } else { %>
+              <tr>
+                <td colspan="9" class="text-center py-14">
+                  <div class="flex flex-col items-center gap-3 text-slate-400">
+                    <i data-lucide="clipboard-x" class="w-12 h-12 text-slate-300"></i>
+                    <p class="text-sm font-medium">ไม่พบรายการ</p>
+                    <p class="text-xs">ลองเปลี่ยนเงื่อนไขการค้นหาหรือตัวกรองสถานะ</p>
+                  </div>
+                </td>
+              </tr>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <% if (totalPages > 1) { %>
+        <div class="flex items-center justify-center gap-2 mt-6">
+          <% for (var i = 1; i <= totalPages; i++) { %>
+            <a href="/violation-reports?page=<%= i %>&search=<%= encodeURIComponent(search) %>&status_filter=<%= status_filter %>"
+               class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium transition-all
+                      <%= i === currentPage ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' %>">
+              <%= i %>
+            </a>
+          <% } %>
+        </div>
+        <% } %>
+
+      </main>
+    </div>
+  </div>
+  <script>lucide.createIcons();</script>
+  <script src="/js/table-sort.js"></script>
+</body>
+</html>

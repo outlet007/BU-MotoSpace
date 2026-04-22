@@ -123,9 +123,6 @@
                   <i data-lucide="alert-triangle" class="w-4 h-4 text-red-500"></i>
                   ประวัติการกระทำผิด
                 </h3>
-                <a href="/violations/create?reg_id=<%= reg.id %>" class="btn btn-danger btn-sm">
-                  <i data-lucide="plus" class="w-3.5 h-3.5"></i> บันทึกผิดกฎ
-                </a>
               </div>
 
               <% if (violationCounts.length > 0) { %>
@@ -145,19 +142,20 @@
               <% } %>
 
               <table class="data-table">
-                <thead><tr><th>กฎ</th><th>รายละเอียด</th><th>บันทึกโดย</th><th>วันที่</th></tr></thead>
+                <thead><tr><th>กฎ</th><th>รายละเอียด</th><th>แจ้งโดย</th><th>ยืนยันโดย</th><th>วันที่</th></tr></thead>
                 <tbody>
                   <% if (violations.length > 0) { %>
                     <% violations.forEach(function(v) { %>
                     <tr>
                       <td><span class="badge badge-danger"><%= v.rule_name %></span></td>
                       <td><%= v.description || '-' %></td>
-                      <td><%= v.recorded_by_name %></td>
+                      <td class="text-xs text-slate-600"><%= v.reported_by_name || v.recorded_by_name %></td>
+                      <td class="text-xs font-medium text-brand-600"><%= v.recorded_by_name %></td>
                       <td class="text-xs"><%= new Date(v.recorded_at).toLocaleDateString('th-TH') %></td>
                     </tr>
                     <% }); %>
                   <% } else { %>
-                    <tr><td colspan="4" class="text-center text-slate-400 py-6">ไม่มีประวัติการกระทำผิด</td></tr>
+                    <tr><td colspan="5" class="text-center text-slate-400 py-6">ไม่มีประวัติการกระทำผิด</td></tr>
                   <% } %>
                 </tbody>
               </table>
