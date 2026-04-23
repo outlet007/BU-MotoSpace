@@ -261,8 +261,23 @@
           </div>
         </div>
 
+        <!-- PDPA Consent -->
+        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200">
+          <div class="flex items-center gap-2 mb-3">
+            <i data-lucide="shield-check" class="w-5 h-5 text-brand-500 flex-shrink-0"></i>
+            <h4 class="font-semibold text-slate-800 text-sm">ข้อตกลงการยินยอมข้อมูลส่วนบุคคล (PDPA)</h4>
+          </div>
+          <div class="text-xs text-slate-600 leading-relaxed bg-white rounded-xl p-4 border border-slate-100 mb-4">
+            ข้าพเจ้ายินยอมให้มีการเก็บรวบรวม ใช้ และเปิดเผยข้อมูลส่วนบุคคลที่ได้ให้ไว้ในระบบนี้ เพื่อวัตถุประสงค์ในการลงทะเบียนและบริหารจัดการข้อมูลรถจักรยานยนต์ รวมถึงการตรวจสอบสิทธิ์และการติดต่อประสานงานที่เกี่ยวข้อง ทั้งนี้ ข้อมูลจะถูกเก็บรักษาอย่างเหมาะสมตามมาตรการความปลอดภัยของหน่วยงาน และจะไม่นำไปใช้เพื่อวัตถุประสงค์อื่นนอกเหนือจากที่กำหนดโดยไม่ได้รับความยินยอมจากข้าพเจ้า
+          </div>
+          <label class="flex items-start gap-3 cursor-pointer group">
+            <input type="checkbox" id="pdpa_consent" name="pdpa_consent" class="mt-0.5 w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer" onchange="toggleSubmitBtn()">
+            <span class="text-sm text-slate-700 group-hover:text-slate-900 transition-colors">ข้าพเจ้าได้อ่านและยอมรับเงื่อนไขการใช้ข้อมูลส่วนบุคคลแล้ว</span>
+          </label>
+        </div>
+
         <!-- Submit -->
-        <button type="submit" class="btn btn-primary w-full justify-center text-base py-3.5">
+        <button type="submit" id="submit-btn" class="btn btn-primary w-full justify-center text-base py-3.5 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
           <i data-lucide="send" class="w-5 h-5"></i>
           ลงทะเบียน
         </button>
@@ -314,6 +329,13 @@
       }
     }
 
+
+    // PDPA consent toggle
+    function toggleSubmitBtn() {
+      const checkbox = document.getElementById('pdpa_consent');
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = !checkbox.checked;
+    }
 
   </script>
 </body>
