@@ -6,7 +6,7 @@
   <title>ลงทะเบียนรถจักรยานยนต์ - BU MotoSpace</title>
   <link rel="stylesheet" href="/css/output.css">
   <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
   <style>
     .register-bg {
       background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 50%, #dcfce7 100%);
@@ -24,9 +24,8 @@
     .upload-zone:hover { border-color: #22c55e; background: #f0fdf4; }
     .upload-zone.has-file { border-color: #22c55e; background: #f0fdf4; }
     .preview-img { max-height: 160px; border-radius: 12px; object-fit: cover; }
-    .ocr-loading { display: none; }
-    .ocr-loading.active { display: flex; }
-    .progress-bar { transition: width 0.3s ease; }
+    .id-card-section { display: none; }
+    .id-card-section.active { display: block; }
   </style>
 </head>
 <body class="register-bg">
@@ -68,40 +67,22 @@
         </button>
         <button type="button" class="tab-btn flex-1 py-4 px-6 text-sm font-semibold border-b-2 border-transparent text-slate-500 transition-all flex items-center justify-center gap-2" onclick="switchTab('staff')">
           <i data-lucide="briefcase" class="w-5 h-5"></i>
-          บุคลากร
+          อาจารย์/บุคลากร
         </button>
       </div>
 
       <form method="POST" action="/register" enctype="multipart/form-data" class="p-6 md:p-8 space-y-6">
         <input type="hidden" name="user_type" id="user_type" value="student">
 
-        <!-- OCR Section -->
+        <!-- Header Notice -->
         <div class="bg-gradient-to-r from-brand-50 to-emerald-50 rounded-2xl p-5 border border-brand-100">
-          <div class="flex items-center gap-3 mb-3">
-            <div class="w-10 h-10 bg-brand-100 rounded-xl flex items-center justify-center">
-              <i data-lucide="scan" class="w-5 h-5 text-brand-600"></i>
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center flex-shrink-0">
+              <i data-lucide="clipboard-list" class="w-5 h-5 text-white"></i>
             </div>
             <div>
-              <h3 class="font-semibold text-slate-800">สแกนบัตรอัตโนมัติ</h3>
-              <p class="text-xs text-slate-500">ถ่ายรูปบัตรนักศึกษา/บัตรบุคลากร เพื่อกรอกข้อมูลอัตโนมัติ</p>
-            </div>
-          </div>
-          <div class="flex flex-col sm:flex-row gap-3">
-            <label class="flex-1 upload-zone rounded-xl p-4 text-center cursor-pointer" id="ocr-upload-zone">
-              <i data-lucide="camera" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
-              <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตร</p>
-              <input type="file" name="id_card_photo" id="id_card_input" accept="image/*" capture="environment" class="hidden" onchange="handleIdCard(this)">
-              <img id="ocr-preview" class="preview-img mx-auto mt-3 hidden">
-            </label>
-          </div>
-          <!-- OCR Progress -->
-          <div class="ocr-loading items-center gap-3 mt-3 p-3 bg-white rounded-xl" id="ocr-progress">
-            <div class="animate-spin w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full"></div>
-            <div class="flex-1">
-              <p class="text-sm font-medium text-slate-700">กำลังอ่านข้อมูลจากภาพ...</p>
-              <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1">
-                <div class="bg-brand-500 h-1.5 rounded-full progress-bar" id="ocr-progress-bar" style="width:0%"></div>
-              </div>
+              <h3 class="font-semibold text-slate-800 text-base">กรุณากรอกข้อมูลเพื่อระบบลงทะเบียนรถจักรยานยนต์</h3>
+              <p class="text-xs text-slate-500 mt-0.5">กรอกข้อมูลให้ครบถ้วนและถูกต้อง เพื่อการลงทะเบียนที่สมบูรณ์</p>
             </div>
           </div>
         </div>
@@ -136,6 +117,33 @@
               <input type="text" name="last_name" id="last_name" class="input" style="padding-left:2.75rem" placeholder="กรอกนามสกุล" required>
             </div>
           </div>
+        </div>
+
+        <!-- ID Card Photo Upload (switches by tab) -->
+        <div class="id-card-section active" id="student-card-section">
+          <label class="label">รูปถ่ายบัตรนักศึกษา</label>
+          <label class="upload-zone rounded-xl p-5 text-center cursor-pointer block" id="student-card-zone">
+            <i data-lucide="id-card" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
+            <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตรนักศึกษา</p>
+            <p class="text-xs text-slate-400 mt-1">รองรับไฟล์ JPG, PNG</p>
+            <input type="file" name="id_card_photo" id="student_card_input" accept="image/*" class="hidden" onchange="previewImage(this, 'student-card-preview', 'student-card-zone')">
+            <img id="student-card-preview" class="preview-img mx-auto mt-3 hidden">
+          </label>
+        </div>
+
+        <div class="id-card-section" id="staff-card-section">
+          <label class="label">รูปถ่ายบัตรอาจารย์/บุคลากร</label>
+          <label class="upload-zone rounded-xl p-5 text-center cursor-pointer block" id="staff-card-zone">
+            <i data-lucide="id-card" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
+            <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตรอาจารย์/บุคลากร</p>
+            <p class="text-xs text-slate-400 mt-1">รองรับไฟล์ JPG, PNG</p>
+            <input type="file" name="id_card_photo" id="staff_card_input" accept="image/*" class="hidden" onchange="previewImage(this, 'staff-card-preview', 'staff-card-zone')">
+            <img id="staff-card-preview" class="preview-img mx-auto mt-3 hidden">
+          </label>
+        </div>
+
+        <!-- Photo Uploads (motorcycle & plate) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
             <label class="label">ป้ายทะเบียน</label>
             <div class="relative">
@@ -230,14 +238,15 @@
           </div>
         </div>
 
-        <!-- Photo Uploads -->
+
+        <!-- Motorcycle & Plate Photos -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
             <label class="label">รูปรถจักรยานยนต์</label>
             <label class="upload-zone rounded-xl p-6 text-center cursor-pointer block" id="moto-upload-zone">
               <i data-lucide="camera" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
               <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
-              <input type="file" name="motorcycle_photo" accept="image/*" capture="environment" class="hidden" onchange="previewImage(this, 'moto-preview', 'moto-upload-zone')">
+              <input type="file" name="motorcycle_photo" accept="image/*" class="hidden" onchange="previewImage(this, 'moto-preview', 'moto-upload-zone')">
               <img id="moto-preview" class="preview-img mx-auto mt-3 hidden">
             </label>
           </div>
@@ -246,7 +255,7 @@
             <label class="upload-zone rounded-xl p-6 text-center cursor-pointer block" id="plate-upload-zone">
               <i data-lucide="rectangle-horizontal" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
               <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
-              <input type="file" name="plate_photo" accept="image/*" capture="environment" class="hidden" onchange="previewImage(this, 'plate-preview', 'plate-upload-zone')">
+              <input type="file" name="plate_photo" accept="image/*" class="hidden" onchange="previewImage(this, 'plate-preview', 'plate-upload-zone')">
               <img id="plate-preview" class="preview-img mx-auto mt-3 hidden">
             </label>
           </div>
@@ -283,8 +292,11 @@
           btn.classList.remove('text-slate-500');
         }
       });
-      document.getElementById('id_number_label').textContent = type === 'student' ? 'รหัสนักศึกษา' : 'รหัสพนักงาน/บุคลากร';
-      document.getElementById('id_number').placeholder = type === 'student' ? 'กรอกรหัสนักศึกษา' : 'กรอกรหัสพนักงาน';
+      document.getElementById('id_number_label').textContent = type === 'student' ? 'รหัสนักศึกษา' : 'รหัสอาจารย์/บุคลากร';
+      document.getElementById('id_number').placeholder = type === 'student' ? 'กรอกรหัสนักศึกษา' : 'กรอกรหัสอาจารย์/บุคลากร';
+      // Toggle ID card sections
+      document.getElementById('student-card-section').classList.toggle('active', type === 'student');
+      document.getElementById('staff-card-section').classList.toggle('active', type === 'staff');
     }
 
     // Image preview
@@ -302,137 +314,7 @@
       }
     }
 
-    // OCR Handler
-    async function handleIdCard(input) {
-      if (!input.files || !input.files[0]) return;
 
-      // Show preview
-      const preview = document.getElementById('ocr-preview');
-      const zone = document.getElementById('ocr-upload-zone');
-      const reader = new FileReader();
-      reader.onload = e => {
-        preview.src = e.target.result;
-        preview.classList.remove('hidden');
-        zone.classList.add('has-file');
-      };
-      reader.readAsDataURL(input.files[0]);
-
-      // Show progress
-      const progressDiv = document.getElementById('ocr-progress');
-      const progressBar = document.getElementById('ocr-progress-bar');
-      const progressText = progressDiv.querySelector('p');
-      progressDiv.classList.add('active');
-      progressBar.style.width = '0%';
-      progressText.textContent = 'กำลังโหลด OCR engine...';
-
-      try {
-        if (typeof Tesseract === 'undefined') {
-          throw new Error('Tesseract.js ยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองอีกครั้ง');
-        }
-
-        const result = await Tesseract.recognize(input.files[0], 'tha+eng', {
-          logger: m => {
-            if (m.status === 'loading tesseract core') {
-              progressText.textContent = 'กำลังโหลด OCR core...';
-              progressBar.style.width = '10%';
-            } else if (m.status === 'initializing tesseract') {
-              progressText.textContent = 'กำลังเตรียม OCR...';
-              progressBar.style.width = '20%';
-            } else if (m.status === 'loading language traineddata') {
-              progressText.textContent = 'กำลังโหลดภาษาไทย/อังกฤษ... (ครั้งแรกอาจใช้เวลา)';
-              progressBar.style.width = '40%';
-            } else if (m.status === 'initializing api') {
-              progressText.textContent = 'กำลังเตรียม API...';
-              progressBar.style.width = '60%';
-            } else if (m.status === 'recognizing text') {
-              progressText.textContent = 'กำลังอ่านตัวอักษร... ' + Math.round(m.progress * 100) + '%';
-              progressBar.style.width = (60 + Math.round(m.progress * 40)) + '%';
-            }
-          }
-        });
-
-        const text = result.data.text;
-        // Debug: เปิด console ของ browser จะเห็นข้อความที่อ่านได้
-        console.log('=== OCR Raw Output ===\n' + text);
-        console.log('=== OCR Words (confidence) ===');
-        console.log(result.data.words?.map(w => `${w.text}(${Math.round(w.confidence)}%)`).join(' | '));
-
-        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        const allText = text.replace(/\s+/g, ' ');
-        let filled = 0;
-
-        // 1. หา ID — รองรับรหัสนักศึกษา 10 หลัก, บัตรประชาชน 13 หลัก, รหัส BUxxx
-        const idPatterns = [
-          /\bBU\s*\d{3,6}\b/i,   // บุคลากร: BU0001
-          /\b\d{13}\b/,           // บัตรประชาชน 13 หลัก
-          /\b\d{10}\b/,           // รหัสนักศึกษา 10 หลัก
-          /\b\d{8}\b/,            // รหัส 8 หลัก
-          /\b\d{7}\b/,            // รหัส 7 หลัก
-        ];
-        for (const pat of idPatterns) {
-          const match = allText.match(pat);
-          if (match && !document.getElementById('id_number').value) {
-            document.getElementById('id_number').value = match[0].replace(/\s/g, '').toUpperCase();
-            filled++;
-            console.log('✅ ID:', match[0]);
-            break;
-          }
-        }
-
-        // 2. หาชื่อ-นามสกุลภาษาไทย (ข้ามคำที่เป็น label)
-        const skipWords = ['มหาวิทยาลัย', 'บัณฑิต', 'นักศึกษา', 'บุคลากร', 'สาขา', 'คณะ',
-                           'ชื่อ', 'นามสกุล', 'ที่อยู่', 'เกิด', 'ไทย', 'ราชอาณาจักร'];
-        const prefixes = ['นาย', 'นาง', 'นางสาว', 'เด็กชาย', 'เด็กหญิง', 'ดร', 'ผศ', 'รศ', 'ศ', 'นส'];
-        const thaiWordPat = /[ก-๙]{2,}/g;
-
-        for (const line of lines) {
-          if (document.getElementById('first_name').value) break;
-          if (skipWords.some(w => line.includes(w))) continue;
-          const matches = line.match(thaiWordPat);
-          if (!matches || matches.length < 2) continue;
-          const words = matches.filter(w => !prefixes.includes(w) && w.length >= 2);
-          if (words.length >= 2) {
-            document.getElementById('first_name').value = words[0];
-            document.getElementById('last_name').value = words[1];
-            filled++;
-            console.log('✅ Name:', words[0], words[1]);
-            break;
-          }
-        }
-
-        // 3. หาเบอร์โทร
-        const phoneMatch = allText.match(/0[6-9]\d[\s-]?\d{3}[\s-]?\d{4}/);
-        if (phoneMatch && !document.getElementById('phone').value) {
-          document.getElementById('phone').value = phoneMatch[0].replace(/[\s-]/g, '');
-          filled++;
-          console.log('✅ Phone:', phoneMatch[0]);
-        }
-
-        progressBar.style.width = '100%';
-        if (filled > 0) {
-          progressText.textContent = `✅ อ่านข้อมูลได้ ${filled} รายการ — กรุณาตรวจสอบก่อนกดลงทะเบียน`;
-          progressDiv.style.background = '#f0fdf4';
-        } else {
-          progressText.textContent = '⚠️ อ่านข้อมูลไม่ได้ — กรุณากรอกข้อมูลเอง (ลองถ่ายภาพให้ชัดและตรงขึ้น)';
-          progressDiv.style.background = '#fefce8';
-        }
-
-        setTimeout(() => {
-          progressDiv.classList.remove('active');
-          progressDiv.style.background = '';
-        }, 5000);
-
-      } catch (err) {
-        console.error('OCR Error:', err);
-        progressText.textContent = '❌ ' + (err.message || 'เกิดข้อผิดพลาดในการอ่านบัตร');
-        progressBar.style.width = '100%';
-        progressBar.style.background = '#fca5a5';
-        setTimeout(() => {
-          progressDiv.classList.remove('active');
-          progressBar.style.background = '';
-        }, 5000);
-      }
-    }
   </script>
 </body>
 </html>
