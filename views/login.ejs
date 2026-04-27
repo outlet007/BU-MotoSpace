@@ -70,6 +70,7 @@
 
     <!-- Login Form -->
     <form method="POST" action="/auth/login" class="space-y-5">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div>
         <label class="label">ชื่อผู้ใช้</label>
         <div class="relative">

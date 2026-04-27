@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool = require('../config/database');
 const upload = require('../middleware/upload');
 const { isAuthenticated } = require('../middleware/auth');
+const { verifyCsrf } = require('../middleware/csrf');
 const { generateHash, compareHashes } = require('../utils/imageHash');
 const path = require('path');
 
@@ -236,7 +237,7 @@ router.get('/:id', async (req, res) => {
 
 // POST /violations — บันทึกเป็น "รายงานรอตรวจสอบ" ใน violation_reports (pending)
 // ไม่บันทึกลง violations โดยตรง — ต้องรอผู้ดูแลระบบยืนยันก่อน
-router.post('/', upload.single('evidence_photo'), async (req, res) => {
+router.post('/', upload.single('evidence_photo'), verifyCsrf, async (req, res) => {
   const { registration_id, rule_id, description } = req.body;
   let conn;
   try {

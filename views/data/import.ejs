@@ -164,6 +164,7 @@
               </div>
               <div class="card-body">
                 <form action="/data/import/registrations" method="POST" enctype="multipart/form-data" id="import-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                   <div class="upload-area" id="upload-area">
                     <div class="upload-icon">
                       <i data-lucide="upload-cloud" class="w-12 h-12"></i>

@@ -6,6 +6,13 @@
   <title>ลงทะเบียนรถจักรยานยนต์ - BU MotoSpace</title>
   <link rel="stylesheet" href="/css/output.css">
   <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- reCAPTCHA v3 -->
+  <script src="https://www.google.com/recaptcha/api.js?render=<%= recaptchaSiteKey %>" async defer></script>
+  <style>
+    /* Badge reCAPTCHA ให้เล็กลง / ไม่บังเนื้อหา */
+    .grecaptcha-badge { opacity: 0.6; transition: opacity 0.3s; }
+    .grecaptcha-badge:hover { opacity: 1; }
+  </style>
 
   <style>
     .register-bg {
@@ -19,10 +26,12 @@
     }
     .fade-in { animation: fadeIn 0.5s ease-out; }
     @keyframes fadeIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+    .tab-btn { cursor: pointer; }
     .tab-btn.active { border-color: #16a34a; color: #16a34a; background: #f0fdf4; }
-    .upload-zone { border: 2px dashed #cbd5e1; transition: all 0.2s; }
+    .upload-zone { border: 2px dashed #cbd5e1; transition: all 0.2s; position: relative; overflow: hidden; }
     .upload-zone:hover { border-color: #22c55e; background: #f0fdf4; }
     .upload-zone.has-file { border-color: #22c55e; background: #f0fdf4; }
+    .upload-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
     .preview-img { max-height: 160px; border-radius: 12px; object-fit: cover; }
     .id-card-section { display: none; }
     .id-card-section.active { display: block; }
@@ -61,18 +70,26 @@
     <div class="glass-card rounded-3xl shadow-xl shadow-slate-200/50 border border-white/60 overflow-hidden">
       <!-- Tabs -->
       <div class="flex border-b border-slate-200">
-        <button type="button" class="tab-btn active flex-1 py-4 px-6 text-sm font-semibold border-b-2 border-transparent transition-all flex items-center justify-center gap-2" onclick="switchTab('student')">
+        <button type="button" class="tab-btn active flex-1 py-4 px-6 text-sm font-semibold border-b-2 border-transparent transition-all flex items-center justify-center gap-2" data-tab="student">
           <i data-lucide="graduation-cap" class="w-5 h-5"></i>
           นักศึกษา
         </button>
-        <button type="button" class="tab-btn flex-1 py-4 px-6 text-sm font-semibold border-b-2 border-transparent text-slate-500 transition-all flex items-center justify-center gap-2" onclick="switchTab('staff')">
+        <button type="button" class="tab-btn flex-1 py-4 px-6 text-sm font-semibold border-b-2 border-transparent text-slate-500 transition-all flex items-center justify-center gap-2" data-tab="staff">
           <i data-lucide="briefcase" class="w-5 h-5"></i>
           อาจารย์/บุคลากร
         </button>
       </div>
 
-      <form method="POST" action="/register" enctype="multipart/form-data" class="p-6 md:p-8 space-y-6">
+      <form method="POST" action="/register" enctype="multipart/form-data" class="p-6 md:p-8 space-y-6" id="register-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <input type="hidden" name="user_type" id="user_type" value="student">
+        <!-- reCAPTCHA v3 token (เติมโดย JS ก่อน submit) -->
+        <input type="hidden" name="recaptcha_token" id="recaptcha_token">
+        <!-- Honeypot: ซ่อนจากผู้ใช้จริง — bot มักกรอก field นี้โดยอัตโนมัติ -->
+        <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;width:0;height:0;overflow:hidden;">
+          <label for="website">Website (leave blank)</label>
+          <input type="text" name="website" id="website" tabindex="-1" autocomplete="off">
+        </div>
 
         <!-- Header Notice -->
         <div class="bg-gradient-to-r from-brand-50 to-emerald-50 rounded-2xl p-5 border border-brand-100">
@@ -122,24 +139,24 @@
         <!-- ID Card Photo Upload (switches by tab) -->
         <div class="id-card-section active" id="student-card-section">
           <label class="label">รูปถ่ายบัตรนักศึกษา</label>
-          <label class="upload-zone rounded-xl p-5 text-center cursor-pointer block" id="student-card-zone">
+          <div class="upload-zone rounded-xl p-5 text-center cursor-pointer block" id="student-card-zone" role="button" tabindex="0" data-file-target="student_card_input">
             <i data-lucide="id-card" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
             <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตรนักศึกษา</p>
             <p class="text-xs text-slate-400 mt-1">รองรับไฟล์ JPG, PNG</p>
-            <input type="file" name="id_card_photo" id="student_card_input" accept="image/*" class="hidden" onchange="previewImage(this, 'student-card-preview', 'student-card-zone')">
+            <input type="file" name="id_card_photo" id="student_card_input" accept="image/*" class="upload-input" aria-label="เลือกรูปถ่ายบัตรนักศึกษา" onchange="previewImage(this, 'student-card-preview', 'student-card-zone')">
             <img id="student-card-preview" class="preview-img mx-auto mt-3 hidden">
-          </label>
+          </div>
         </div>
 
         <div class="id-card-section" id="staff-card-section">
           <label class="label">รูปถ่ายบัตรอาจารย์/บุคลากร</label>
-          <label class="upload-zone rounded-xl p-5 text-center cursor-pointer block" id="staff-card-zone">
+          <div class="upload-zone rounded-xl p-5 text-center cursor-pointer block" id="staff-card-zone" role="button" tabindex="0" data-file-target="staff_card_input">
             <i data-lucide="id-card" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
             <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตรอาจารย์/บุคลากร</p>
             <p class="text-xs text-slate-400 mt-1">รองรับไฟล์ JPG, PNG</p>
-            <input type="file" name="id_card_photo" id="staff_card_input" accept="image/*" class="hidden" onchange="previewImage(this, 'staff-card-preview', 'staff-card-zone')">
+            <input type="file" name="id_card_photo" id="staff_card_input" accept="image/*" class="upload-input" aria-label="เลือกรูปถ่ายบัตรอาจารย์หรือบุคลากร" onchange="previewImage(this, 'staff-card-preview', 'staff-card-zone')">
             <img id="staff-card-preview" class="preview-img mx-auto mt-3 hidden">
-          </label>
+          </div>
         </div>
 
         <!-- Photo Uploads (motorcycle & plate) -->
@@ -243,21 +260,21 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
             <label class="label">รูปรถจักรยานยนต์</label>
-            <label class="upload-zone rounded-xl p-6 text-center cursor-pointer block" id="moto-upload-zone">
+            <div class="upload-zone rounded-xl p-6 text-center cursor-pointer block" id="moto-upload-zone" role="button" tabindex="0" data-file-target="motorcycle_photo_input">
               <i data-lucide="camera" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
               <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
-              <input type="file" name="motorcycle_photo" accept="image/*" class="hidden" onchange="previewImage(this, 'moto-preview', 'moto-upload-zone')">
+              <input type="file" name="motorcycle_photo" id="motorcycle_photo_input" accept="image/*" class="upload-input" aria-label="เลือกรูปรถจักรยานยนต์" onchange="previewImage(this, 'moto-preview', 'moto-upload-zone')">
               <img id="moto-preview" class="preview-img mx-auto mt-3 hidden">
-            </label>
+            </div>
           </div>
           <div>
             <label class="label">รูปป้ายทะเบียน</label>
-            <label class="upload-zone rounded-xl p-6 text-center cursor-pointer block" id="plate-upload-zone">
+            <div class="upload-zone rounded-xl p-6 text-center cursor-pointer block" id="plate-upload-zone" role="button" tabindex="0" data-file-target="plate_photo_input">
               <i data-lucide="rectangle-horizontal" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
               <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
-              <input type="file" name="plate_photo" accept="image/*" class="hidden" onchange="previewImage(this, 'plate-preview', 'plate-upload-zone')">
+              <input type="file" name="plate_photo" id="plate_photo_input" accept="image/*" class="upload-input" aria-label="เลือกรูปป้ายทะเบียน" onchange="previewImage(this, 'plate-preview', 'plate-upload-zone')">
               <img id="plate-preview" class="preview-img mx-auto mt-3 hidden">
-            </label>
+            </div>
           </div>
         </div>
 
@@ -278,9 +295,15 @@
 
         <!-- Submit -->
         <button type="submit" id="submit-btn" class="btn btn-primary w-full justify-center text-base py-3.5 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-          <i data-lucide="send" class="w-5 h-5"></i>
-          ลงทะเบียน
+          <i data-lucide="send" class="w-5 h-5" id="submit-icon"></i>
+          <span id="submit-label">ลงทะเบียน</span>
         </button>
+        <!-- reCAPTCHA Notice -->
+        <p class="text-center text-xs text-slate-400 mt-2">
+          เว็บไซต์นี้ได้รับการป้องกันโดย reCAPTCHA และนโยบาย
+          <a href="https://policies.google.com/privacy" target="_blank" class="underline hover:text-slate-600">ความเป็นส่วนตัว</a>
+          และ <a href="https://policies.google.com/terms" target="_blank" class="underline hover:text-slate-600">ข้อกำหนดการใช้งาน</a> ของ Google มีผลบังคับใช้
+        </p>
       </form>
     </div>
 
@@ -294,13 +317,15 @@
   </div>
 
   <script>
-    lucide.createIcons();
+    if (window.lucide) {
+      lucide.createIcons();
+    }
 
     // Tab switching
     function switchTab(type) {
       document.getElementById('user_type').value = type;
-      document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-        btn.classList.toggle('active', (i === 0 && type === 'student') || (i === 1 && type === 'staff'));
+      document.querySelectorAll('.tab-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.tab === type);
         if (!btn.classList.contains('active')) {
           btn.classList.add('text-slate-500');
         } else {
@@ -312,23 +337,73 @@
       // Toggle ID card sections
       document.getElementById('student-card-section').classList.toggle('active', type === 'student');
       document.getElementById('staff-card-section').classList.toggle('active', type === 'staff');
+
+      // Only submit the visible ID-card input.
+      document.getElementById('student_card_input').disabled = type !== 'student';
+      document.getElementById('staff_card_input').disabled = type !== 'staff';
     }
+
+    window.switchTab = switchTab;
+
+    document.querySelectorAll('.tab-btn[data-tab]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        switchTab(button.dataset.tab);
+      });
+    });
+
+    switchTab(document.getElementById('user_type').value || 'student');
+
+    document.querySelectorAll('.upload-zone[data-file-target]').forEach(function(zone) {
+      const input = document.getElementById(zone.dataset.fileTarget);
+      const openPicker = function() {
+        if (input && !input.disabled) input.click();
+      };
+
+      if (input) {
+        input.addEventListener('click', function(e) {
+          e.stopPropagation();
+        });
+
+        input.addEventListener('change', function() {
+          var previewId = '';
+          if (input.id === 'student_card_input') previewId = 'student-card-preview';
+          if (input.id === 'staff_card_input') previewId = 'staff-card-preview';
+          if (input.id === 'motorcycle_photo_input') previewId = 'moto-preview';
+          if (input.id === 'plate_photo_input') previewId = 'plate-preview';
+          if (previewId) previewImage(input, previewId, zone.id);
+        });
+      }
+
+      zone.addEventListener('click', function(e) {
+        if (e.target === input) return;
+        openPicker();
+      });
+      zone.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openPicker();
+        }
+      });
+    });
 
     // Image preview
     function previewImage(input, previewId, zoneId) {
       const preview = document.getElementById(previewId);
       const zone = document.getElementById(zoneId);
       if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = e => {
-          preview.src = e.target.result;
-          preview.classList.remove('hidden');
-          zone.classList.add('has-file');
-        };
-        reader.readAsDataURL(input.files[0]);
+        if (preview.dataset.objectUrl) {
+          URL.revokeObjectURL(preview.dataset.objectUrl);
+        }
+
+        const objectUrl = URL.createObjectURL(input.files[0]);
+        preview.dataset.objectUrl = objectUrl;
+        preview.src = objectUrl;
+        preview.alt = input.files[0].name;
+        preview.classList.remove('hidden');
+        preview.style.display = 'block';
+        if (zone) zone.classList.add('has-file');
       }
     }
-
 
     // PDPA consent toggle
     function toggleSubmitBtn() {
@@ -336,6 +411,46 @@
       const btn = document.getElementById('submit-btn');
       btn.disabled = !checkbox.checked;
     }
+
+    // ─── reCAPTCHA v3 + Form Submit ─────────────────────────────────────────
+    const RECAPTCHA_SITE_KEY = '<%= recaptchaSiteKey %>';
+
+    document.getElementById('register-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const btn = document.getElementById('submit-btn');
+      const label = document.getElementById('submit-label');
+
+      // UI: กำลังดำเนินการ
+      btn.disabled = true;
+      label.textContent = 'กำลังตรวจสอบ...';
+
+      try {
+        // รับ reCAPTCHA token จาก Google
+        const token = await new Promise((resolve, reject) => {
+          if (typeof grecaptcha === 'undefined') {
+            // fallback ถ้า reCAPTCHA โหลดไม่ได้ (network issue)
+            return resolve('');
+          }
+          grecaptcha.ready(() => {
+            grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'register' })
+              .then(resolve)
+              .catch(reject);
+          });
+        });
+
+        // ใส่ token ลงใน hidden input
+        document.getElementById('recaptcha_token').value = token;
+
+        // Submit form จริง
+        label.textContent = 'กำลังส่งข้อมูล...';
+        this.submit();
+      } catch (err) {
+        console.error('reCAPTCHA error:', err);
+        // ให้ submit ผ่านโดยไม่มี token (server จะ handle)
+        document.getElementById('recaptcha_token').value = '';
+        this.submit();
+      }
+    });
 
   </script>
 </body>

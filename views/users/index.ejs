@@ -36,12 +36,84 @@
             </h2>
             <p class="text-slate-500 mt-1">เพิ่ม แก้ไข และจัดการสิทธิ์ผู้ใช้งานในระบบ</p>
           </div>
-          <button onclick="openModal('add-user-modal')" class="btn btn-primary">
+          <button id="btn-open-add" class="btn btn-primary">
             <i data-lucide="user-plus" class="w-4 h-4"></i> เพิ่มผู้ใช้
           </button>
         </div>
 
+        <!-- Search bar -->
+        <div class="card p-4 mb-5">
+          <form method="GET" action="/users" class="flex flex-wrap items-end gap-3">
+            <!-- ช่องค้นหา -->
+            <div class="flex-1 min-w-[200px]">
+              <label class="label">ค้นหาผู้ใช้</label>
+              <div class="relative">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                <input type="text" name="search" id="user-search-input"
+                       value="<%= search %>"
+                       class="input" style="padding-left:2.5rem"
+                       placeholder="ชื่อ, ชื่อผู้ใช้, อีเมล, เบอร์โทร...">
+              </div>
+            </div>
+            <!-- กรองบทบาท -->
+            <div class="min-w-[160px]">
+              <label class="label">บทบาท</label>
+              <select name="role_filter" id="role-filter-select" class="input">
+                <option value="" <%= role_filter === '' ? 'selected' : '' %>>ทุกบทบาท</option>
+                <option value="officer"    <%= role_filter === 'officer'    ? 'selected' : '' %>>เจ้าหน้าที่</option>
+                <option value="head"       <%= role_filter === 'head'       ? 'selected' : '' %>>หัวหน้า</option>
+                <option value="superadmin" <%= role_filter === 'superadmin' ? 'selected' : '' %>>ผู้ดูแลระบบ</option>
+              </select>
+            </div>
+            <!-- กรองสถานะ -->
+            <div class="min-w-[140px]">
+              <label class="label">สถานะ</label>
+              <select name="status_filter" id="status-filter-select" class="input">
+                <option value=""         <%= status_filter === ''         ? 'selected' : '' %>>ทุกสถานะ</option>
+                <option value="active"   <%= status_filter === 'active'   ? 'selected' : '' %>>ใช้งาน</option>
+                <option value="inactive" <%= status_filter === 'inactive' ? 'selected' : '' %>>ระงับ</option>
+              </select>
+            </div>
+            <!-- ปุ่ม -->
+            <div class="flex gap-2">
+              <button type="submit" id="btn-search-user" class="btn btn-primary">
+                <i data-lucide="search" class="w-4 h-4"></i> ค้นหา
+              </button>
+              <% if (search || role_filter || status_filter) { %>
+              <a href="/users" class="btn btn-secondary">
+                <i data-lucide="x" class="w-4 h-4"></i> ล้าง
+              </a>
+              <% } %>
+            </div>
+          </form>
+        </div>
+
+        <!-- Result count -->
+        <p class="text-sm text-slate-500 mb-3">
+          <% if (search || role_filter || status_filter) { %>
+            ค้นพบ <span class="font-semibold text-slate-700"><%= users.length %></span> รายการ
+            <% if (search) { %> สำหรับ "<span class="font-semibold text-brand-600"><%= search %></span>"<% } %>
+            <% if (role_filter) { %>
+              <% const roleLabel = role_filter === 'superadmin' ? 'ผู้ดูแลระบบ' : role_filter === 'head' ? 'หัวหน้า' : 'เจ้าหน้าที่'; %>
+              บทบาท: <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold
+                <%= role_filter === 'superadmin' ? 'bg-purple-100 text-purple-700' : role_filter === 'head' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700' %>">
+                <%= roleLabel %>
+              </span>
+            <% } %>
+            <% if (status_filter) { %>
+              <% const statusLabel = status_filter === 'active' ? 'ใช้งาน' : 'ระงับ'; %>
+              สถานะ: <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold
+                <%= status_filter === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' %>">
+                <%= statusLabel %>
+              </span>
+            <% } %>
+          <% } else { %>
+            ผู้ใช้ทั้งหมด <span class="font-semibold text-slate-700"><%= users.length %></span> คน
+          <% } %>
+        </p>
+
         <!-- Table -->
+
         <div class="table-container">
           <table class="data-table">
             <thead>
@@ -58,7 +130,10 @@
             </thead>
             <tbody>
               <% users.forEach(function(u) { %>
-              <tr>
+              <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors"
+                  data-uid="<%= u.id %>" data-fullname="<%= u.full_name %>"
+                  data-email="<%= (u.email || '') %>" data-phone="<%= (u.phone || '') %>"
+                  data-role="<%= u.role %>" data-active="<%= u.is_active ? '1' : '0' %>">
                 <td class="text-sm"><%= u.username %></td>
                 <td class="font-medium text-slate-800"><%= u.full_name %></td>
                 <td class="text-sm text-slate-600">
@@ -84,15 +159,45 @@
                   <span class="badge <%= u.is_active ? 'badge-success' : 'badge-danger' %>"><%= u.is_active ? 'ใช้งาน' : 'ระงับ' %></span>
                 </td>
                 <td class="text-xs text-slate-500"><%= new Date(u.created_at).toLocaleDateString('th-TH') %></td>
-                <td>
+                <td data-no-nav>
                   <div class="flex items-center gap-1">
-                    <button onclick="editUser(<%= u.id %>, '<%= u.full_name %>', '<%= (u.email || '') %>', '<%= (u.phone || '') %>', '<%= u.role %>', <%= u.is_active ? 'true' : 'false' %>)"
-                            class="p-1.5 text-slate-400 hover:text-brand-600 rounded-lg hover:bg-brand-50 transition-all">
+                    <button class="btn-edit-user p-1.5 text-slate-400 hover:text-brand-600 rounded-lg hover:bg-brand-50 transition-all"
+                            data-no-nav>
                       <i data-lucide="pencil" class="w-4 h-4"></i>
                     </button>
                     <% if (u.id !== admin.id) { %>
-                    <form method="POST" action="/users/<%= u.id %>/delete" onsubmit="return confirm('คุณแน่ใจหรือไม่?')" class="inline">
-                      <button type="submit" class="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-all">
+                    <% if (u.is_active) { %>
+                    <!-- ปุ่มปิดสถานะ (เปิด confirm dialog) -->
+                    <button type="button" class="btn-deactivate-user p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-all"
+                            data-no-nav data-uid="<%= u.id %>" data-name="<%= u.full_name %>">
+                      <i data-lucide="user-x" class="w-4 h-4"></i>
+                    </button>
+                    <% } else { %>
+                    <!-- ปุ่มกู้คืน -->
+                    <form method="POST" action="/users/<%= u.id %>/restore" class="inline" data-no-nav>
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button type="submit"
+                              class="p-1.5 text-slate-400 hover:text-green-600 rounded-lg hover:bg-green-50 transition-all"
+                              title="กู้คืนผู้ใช้">
+                        <i data-lucide="user-check" class="w-4 h-4"></i>
+                      </button>
+                    </form>
+                    <% } %>
+                    <form method="POST"
+                          action="/users/<%= u.id %>/delete"
+                          class="inline"
+                          data-no-nav
+                          data-delete-confirm
+                          data-delete-title="ยืนยันการลบผู้ใช้ถาวร"
+                          data-delete-lead="คุณกำลังจะลบผู้ใช้ออกจากระบบจริง:"
+                          data-delete-item="<%= u.full_name %> (@<%= u.username %>)"
+                          data-delete-detail="บทบาท: <%= u.role === 'superadmin' ? 'ผู้ดูแลระบบ' : u.role === 'head' ? 'หัวหน้า' : 'เจ้าหน้าที่' %> · สถานะ: <%= u.is_active ? 'ใช้งาน' : 'ระงับ' %>"
+                          data-delete-warning="คำเตือน: การลบถาวรจะลบบัญชีผู้ใช้ออกจากฐานข้อมูลจริง และอาจส่งผลต่อประวัติการกระทำที่ผู้ใช้นี้เคยบันทึกหรือรายงานไว้"
+                          data-delete-confirm-text="ลบผู้ใช้ถาวร">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button type="submit"
+                              class="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all"
+                              title="ลบผู้ใช้ถาวร">
                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                       </button>
                     </form>
@@ -117,7 +222,7 @@
                 </div>
                 <h3 class="text-base font-semibold text-slate-800">เพิ่มผู้ใช้ใหม่</h3>
               </div>
-              <button onclick="closeModal('add-user-modal')"
+              <button id="btn-close-add"
                       class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
                       aria-label="ปิด">
                 <i data-lucide="x" class="w-4 h-4"></i>
@@ -126,6 +231,7 @@
             <!-- Body -->
             <div class="p-6 overflow-y-auto max-h-[80vh]">
               <form method="POST" action="/users" class="space-y-4">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <div>
                   <label class="label">ชื่อผู้ใช้ <span class="text-red-500">*</span></label>
                   <input type="text" name="username" class="input" required placeholder="username">
@@ -161,7 +267,7 @@
                   </select>
                 </div>
                 <div class="flex gap-3 pt-1">
-                  <button type="button" onclick="closeModal('add-user-modal')" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
+                  <button type="button" id="btn-cancel-add" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
                   <button type="submit" class="btn btn-primary flex-1 justify-center">เพิ่มผู้ใช้</button>
                 </div>
               </form>
@@ -181,7 +287,7 @@
                 </div>
                 <h3 class="text-base font-semibold text-slate-800">แก้ไขผู้ใช้</h3>
               </div>
-              <button onclick="closeModal('edit-user-modal')"
+              <button id="btn-close-edit"
                       class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
                       aria-label="ปิด">
                 <i data-lucide="x" class="w-4 h-4"></i>
@@ -190,6 +296,7 @@
             <!-- Body -->
             <div class="p-6 overflow-y-auto max-h-[80vh]">
               <form id="edit-user-form" method="POST" class="space-y-4">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <div>
                   <label class="label">ชื่อ-นามสกุล <span class="text-red-500">*</span></label>
                   <input type="text" name="full_name" id="eu-fullname" class="input" required>
@@ -225,7 +332,7 @@
                   <label for="eu-active" class="text-sm text-slate-600">เปิดใช้งาน</label>
                 </div>
                 <div class="flex gap-3 pt-1">
-                  <button type="button" onclick="closeModal('edit-user-modal')" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
+                  <button type="button" id="btn-cancel-edit" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
                   <button type="submit" class="btn btn-primary flex-1 justify-center">อัปเดต</button>
                 </div>
               </form>
@@ -236,34 +343,161 @@
       </main>
     </div>
   </div>
+
+  <!-- ── DEACTIVATE CONFIRM MODAL ───────────────────────────── -->
+  <div id="deactivate-modal"
+       style="display:none; position:fixed; inset:0; background:rgba(15,23,42,.6); backdrop-filter:blur(4px); z-index:9999; align-items:center; justify-content:center; padding:1rem;">
+    <div style="background:#fff; border-radius:16px; padding:28px; width:100%; max-width:420px; box-shadow:0 25px 60px rgba(0,0,0,.2);">
+      <!-- Icon + Title -->
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+        <div style="width:48px; height:48px; background:#fef2f2; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:1.5rem;">
+          ⚠️
+        </div>
+        <div>
+          <h3 style="font-size:1rem; font-weight:700; color:#1e293b; margin:0;"> ยืนยันการปิดผู้ใช้</h3>
+          <p style="font-size:0.75rem; color:#94a3b8; margin:2px 0 0;">สามารถกู้คืนได้ภายหลัง</p>
+        </div>
+      </div>
+      <!-- Body -->
+      <p style="font-size:0.875rem; color:#475569; margin-bottom:8px;">
+        คุณต้องการปิดการใช้งาน "<strong id="deactivate-username" style="color:#1e293b;"></strong>" หรือไม่?
+      </p>
+      <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:24px;">
+        <i data-lucide="info" style="width:14px; height:14px; display:inline; vertical-align:middle;"></i>
+        ผู้ใช้จะไม่สามารถเข้าสู่ระบบได้จนกว่าจะถูกกู้คืน — ประวัติและข้อมูลยังคงอยู่
+      </p>
+      <!-- Hidden form -->
+      <form id="deactivate-form" method="POST" action="">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div style="display:flex; gap:12px;">
+          <button type="button" id="btn-cancel-deactivate"
+                  style="flex:1; padding:10px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; border-radius:10px; font-size:0.875rem; font-weight:500; cursor:pointer;">
+            ยกเลิก
+          </button>
+          <button type="submit"
+                  style="flex:1; padding:10px; background:#dc2626; color:#fff; border:none; border-radius:10px; font-size:0.875rem; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+            <i data-lucide="user-x" style="width:16px; height:16px;"></i> ปิดการใช้งาน
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
   <script>
     lucide.createIcons();
 
-    function closeModal(id) {
-      document.getElementById(id).classList.remove('active');
-    }
+    // ── Modal helpers (ใช้ style.display โดยตรง แทน classList เพื่อความน่าเชื่อถือ) ──
     function openModal(id) {
-      document.getElementById(id).classList.add('active');
+      var el = document.getElementById(id);
+      if (el) el.style.display = 'flex';
+    }
+    function closeModal(id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = 'none';
     }
 
-    // ESC key closes any active modal
+    // ปิด modal เมื่อคลิก backdrop
+    ['add-user-modal', 'edit-user-modal'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('click', function(e) {
+        if (e.target === el) closeModal(id);
+      });
+    });
+
+    // ESC key
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
-        document.querySelectorAll('.modal-backdrop.active').forEach(function(m) {
-          m.classList.remove('active');
-        });
+        closeModal('add-user-modal');
+        closeModal('edit-user-modal');
+        closeModal('deactivate-modal');
       }
     });
 
-    function editUser(id, fullName, email, phone, role, active) {
+    // ── เปิด modal เพิ่มผู้ใช้ ──
+    var btnOpenAdd = document.getElementById('btn-open-add');
+    if (btnOpenAdd) {
+      btnOpenAdd.addEventListener('click', function(e) {
+        e.stopPropagation();
+        openModal('add-user-modal');
+      });
+    }
+
+    // ── ปุ่มปิด Add modal ──
+    ['btn-close-add', 'btn-cancel-add'].forEach(function(bid) {
+      var b = document.getElementById(bid);
+      if (b) b.addEventListener('click', function() { closeModal('add-user-modal'); });
+    });
+
+    // ── ปุ่มปิด Edit modal ──
+    ['btn-close-edit', 'btn-cancel-edit'].forEach(function(bid) {
+      var b = document.getElementById(bid);
+      if (b) b.addEventListener('click', function() { closeModal('edit-user-modal'); });
+    });
+
+    // ── ฟังก์ชันเปิด Edit modal พร้อมข้อมูล ──
+    function openEditModal(tr) {
+      var id       = tr.dataset.uid;
+      var fullName = tr.dataset.fullname;
+      var email    = tr.dataset.email;
+      var phone    = tr.dataset.phone;
+      var role     = tr.dataset.role;
+      var active   = tr.dataset.active === '1';
       document.getElementById('edit-user-form').action = '/users/' + id + '/update';
       document.getElementById('eu-fullname').value = fullName;
-      document.getElementById('eu-email').value = email;
-      document.getElementById('eu-phone').value = phone;
-      document.getElementById('eu-role').value = role;
+      document.getElementById('eu-email').value    = email;
+      document.getElementById('eu-phone').value    = phone;
+      document.getElementById('eu-role').value     = role;
       document.getElementById('eu-active').checked = active;
       openModal('edit-user-modal');
     }
+
+    // ── คลิกปุ่มดินสอ (แก้ไข) ──
+    document.querySelectorAll('.btn-edit-user').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var tr = btn.closest('tr');
+        if (tr) openEditModal(tr);
+      });
+    });
+
+    // ── คลิก row ทั้งแถว ──
+    document.querySelectorAll('tr[data-uid]').forEach(function(tr) {
+      tr.addEventListener('click', function(e) {
+        // ไม่ทำงานถ้าคลิกที่ปุ่มหรือ form
+        if (e.target.closest('button, a, input, form, [data-no-nav]')) return;
+        openEditModal(tr);
+      });
+    });
+
+    // ── Deactivate confirm modal ──
+    var deactivateModal = document.getElementById('deactivate-modal');
+    var deactivateForm  = document.getElementById('deactivate-form');
+    var deactivateName  = document.getElementById('deactivate-username');
+
+    // ปิด modal เมื่อคลิก backdrop
+    if (deactivateModal) {
+      deactivateModal.addEventListener('click', function(e) {
+        if (e.target === deactivateModal) closeModal('deactivate-modal');
+      });
+    }
+
+    // ปุ่มยกเลิก
+    var btnCancelDeactivate = document.getElementById('btn-cancel-deactivate');
+    if (btnCancelDeactivate) {
+      btnCancelDeactivate.addEventListener('click', function() { closeModal('deactivate-modal'); });
+    }
+
+    // ปุ่มปิดสถานะ (user-x icon)
+    document.querySelectorAll('.btn-deactivate-user').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var uid  = btn.dataset.uid;
+        var name = btn.dataset.name;
+        if (deactivateName) deactivateName.textContent = name;
+        if (deactivateForm) deactivateForm.action = '/users/' + uid + '/deactivate';
+        openModal('deactivate-modal');
+      });
+    });
   </script>
   <script src="/js/table-sort.js"></script>
 </body>

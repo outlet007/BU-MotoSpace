@@ -17,8 +17,7 @@
     .severity-bar { height:8px; border-radius:999px; overflow:hidden; background:#f1f5f9; }
     .severity-fill { height:100%; border-radius:999px; transition:width .4s ease; }
     /* modal */
-    .modal-bg { display:none; position:fixed; inset:0; background:rgba(15,23,42,.6); backdrop-filter:blur(4px); z-index:60; align-items:center; justify-content:center; }
-    .modal-bg.open { display:flex; }
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(15,23,42,.6); backdrop-filter:blur(4px); z-index:9999; align-items:center; justify-content:center; }
     .modal-box { background:#fff; border-radius:16px; padding:28px; width:100%; max-width:460px; box-shadow:0 25px 60px rgba(0,0,0,.2); }
   </style>
 </head>
@@ -208,6 +207,7 @@
 
             <!-- CONFIRM -->
             <form method="POST" action="/violation-reports/<%= r.id %>/confirm" onsubmit="return confirm('ยืนยันการกระทำผิดและบันทึกลงประวัติ?')">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" id="btn-confirm-<%= r.id %>" class="btn w-full justify-center mb-2"
                       style="background:#16a34a;color:#fff;font-size:0.85rem;gap:6px;">
                 <i data-lucide="check-circle" class="w-4 h-4"></i> ยืนยัน
@@ -216,14 +216,12 @@
 
             <!-- EDIT -->
             <button type="button" id="btn-edit-<%= r.id %>"
-                    onclick="document.getElementById('edit-modal').classList.add('open')"
                     class="btn btn-secondary w-full justify-center mb-2" style="font-size:0.85rem;gap:6px;">
               <i data-lucide="pencil" class="w-4 h-4"></i> แก้ไข
             </button>
 
             <!-- REJECT -->
             <button type="button" id="btn-reject-<%= r.id %>"
-                    onclick="document.getElementById('reject-modal').classList.add('open')"
                     class="btn w-full justify-center" style="background:#dc2626;color:#fff;font-size:0.85rem;gap:6px;">
               <i data-lucide="x-circle" class="w-4 h-4"></i> ปฏิเสธ
             </button>
@@ -277,22 +275,22 @@
 </div>
 
 <!-- ── EDIT MODAL ────────────────────────────────── -->
-<div id="edit-modal" class="modal-bg" onclick="if(event.target===this)this.classList.remove('open')">
+<div id="edit-modal" class="modal-overlay">
   <div class="modal-box">
     <div class="flex items-center justify-between mb-5">
       <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
         <i data-lucide="pencil" class="w-4 h-4 text-brand-500"></i> แก้ไขรายการ
       </h3>
-      <button onclick="document.getElementById('edit-modal').classList.remove('open')"
+      <button id="btn-close-edit"
               class="text-slate-400 hover:text-slate-700 transition-colors">
         <i data-lucide="x" class="w-5 h-5"></i>
       </button>
     </div>
     <form method="POST" action="/violation-reports/<%= r.id %>/edit" class="space-y-4">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div>
         <label class="label">กฎที่ฝ่าฝืน</label>
         <select name="rule_id" class="input" id="edit-rule-id">
-          <!-- Current rule pre-selected; server can enrich if needed -->
           <option value="<%= r.rule_id %>" selected><%= r.rule_name %></option>
         </select>
         <p class="text-xs text-slate-400 mt-1">หากต้องการเปลี่ยนกฎ ให้เลือกจากรายการ (โหลดเมื่อเปิด)</p>
@@ -303,8 +301,7 @@
                   placeholder="รายละเอียดการกระทำผิด..."><%= r.description || '' %></textarea>
       </div>
       <div class="flex gap-3 justify-end pt-2">
-        <button type="button" onclick="document.getElementById('edit-modal').classList.remove('open')"
-                class="btn btn-secondary">ยกเลิก</button>
+        <button type="button" id="btn-cancel-edit" class="btn btn-secondary">ยกเลิก</button>
         <button type="submit" class="btn btn-primary">
           <i data-lucide="save" class="w-4 h-4"></i> บันทึก
         </button>
@@ -314,27 +311,27 @@
 </div>
 
 <!-- ── REJECT MODAL ──────────────────────────────── -->
-<div id="reject-modal" class="modal-bg" onclick="if(event.target===this)this.classList.remove('open')">
+<div id="reject-modal" class="modal-overlay">
   <div class="modal-box">
     <div class="flex items-center justify-between mb-5">
       <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
         <i data-lucide="x-circle" class="w-4 h-4 text-red-500"></i> ปฏิเสธรายการ
       </h3>
-      <button onclick="document.getElementById('reject-modal').classList.remove('open')"
+      <button id="btn-close-reject"
               class="text-slate-400 hover:text-slate-700 transition-colors">
         <i data-lucide="x" class="w-5 h-5"></i>
       </button>
     </div>
     <p class="text-sm text-slate-600 mb-4">กรุณาระบุเหตุผลในการปฏิเสธรายการนี้ (ถ้ามี)</p>
     <form method="POST" action="/violation-reports/<%= r.id %>/reject" class="space-y-4">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div>
         <label class="label">เหตุผล (ไม่บังคับ)</label>
         <textarea name="review_note" rows="3" class="input" style="resize:vertical;"
                   placeholder="เช่น ข้อมูลไม่ถูกต้อง, ไม่มีหลักฐานเพียงพอ..."></textarea>
       </div>
       <div class="flex gap-3 justify-end pt-2">
-        <button type="button" onclick="document.getElementById('reject-modal').classList.remove('open')"
-                class="btn btn-secondary">ยกเลิก</button>
+        <button type="button" id="btn-cancel-reject" class="btn btn-secondary">ยกเลิก</button>
         <button type="submit" class="btn" style="background:#dc2626;color:#fff;">
           <i data-lucide="x-circle" class="w-4 h-4"></i> ยืนยันการปฏิเสธ
         </button>
@@ -346,35 +343,96 @@
 <script>
   lucide.createIcons();
 
-  // Lightbox toggle
-  <% if (r.evidence_photo) { %>
-  const lb = document.getElementById('lightbox');
-  lb.addEventListener('click', () => lb.style.display = 'none');
-  document.querySelector('img[onclick*="lightbox"]')?.addEventListener('click', () => {
-    lb.style.display = 'flex';
-  });
-  <% } %>
+  // ── Modal helpers ───────────────────────────────────────────────
+  function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'flex';
+  }
+  function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  }
 
-  // Load rules into edit modal select when opened
-  document.getElementById('btn-edit-<%= r.id %>')?.addEventListener('click', async () => {
-    const sel = document.getElementById('edit-rule-id');
-    if (sel.options.length <= 1) {
-      try {
-        const res = await fetch('/rules?format=json');
-        if (res.ok) {
-          const rules = await res.json();
-          sel.innerHTML = '';
-          rules.forEach(rule => {
-            const opt = document.createElement('option');
-            opt.value = rule.id;
-            opt.textContent = rule.rule_name;
-            if (rule.id === <%= r.rule_id %>) opt.selected = true;
-            sel.appendChild(opt);
-          });
-        }
-      } catch(e) { /* keep current option */ }
+  // Close modal when clicking the backdrop (outside modal-box)
+  ['edit-modal', 'reject-modal'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('click', function(e) {
+      if (e.target === el) closeModal(id);
+    });
+  });
+
+  // Escape key closes any open modal
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeModal('edit-modal');
+      closeModal('reject-modal');
     }
   });
+
+  // ── Edit button ─────────────────────────────────────────────────
+  var btnEdit = document.getElementById('btn-edit-<%= r.id %>');
+  if (btnEdit) {
+    btnEdit.addEventListener('click', function(e) {
+      e.stopPropagation();
+      openModal('edit-modal');
+      // Load rules into select if not yet loaded
+      var sel = document.getElementById('edit-rule-id');
+      if (sel && sel.options.length <= 1) {
+        fetch('/rules?format=json')
+          .then(function(res) { return res.ok ? res.json() : []; })
+          .then(function(rules) {
+            if (!rules.length) return;
+            sel.innerHTML = '';
+            rules.forEach(function(rule) {
+              var opt = document.createElement('option');
+              opt.value = rule.id;
+              opt.textContent = rule.rule_name;
+              if (rule.id === <%= r.rule_id %>) opt.selected = true;
+              sel.appendChild(opt);
+            });
+          })
+          .catch(function() { /* keep current option */ });
+      }
+    });
+  }
+
+  // ── Reject button ────────────────────────────────────────────────
+  var btnReject = document.getElementById('btn-reject-<%= r.id %>');
+  if (btnReject) {
+    btnReject.addEventListener('click', function(e) {
+      e.stopPropagation();
+      openModal('reject-modal');
+    });
+  }
+
+  // ── Close buttons ────────────────────────────────────────────────
+  var btnCloseEdit = document.getElementById('btn-close-edit');
+  if (btnCloseEdit) btnCloseEdit.addEventListener('click', function() { closeModal('edit-modal'); });
+
+  var btnCancelEdit = document.getElementById('btn-cancel-edit');
+  if (btnCancelEdit) btnCancelEdit.addEventListener('click', function() { closeModal('edit-modal'); });
+
+  var btnCloseReject = document.getElementById('btn-close-reject');
+  if (btnCloseReject) btnCloseReject.addEventListener('click', function() { closeModal('reject-modal'); });
+
+  var btnCancelReject = document.getElementById('btn-cancel-reject');
+  if (btnCancelReject) btnCancelReject.addEventListener('click', function() { closeModal('reject-modal'); });
+
+  // ── Lightbox ─────────────────────────────────────────────────────
+  <% if (r.evidence_photo) { %>
+  var lb = document.getElementById('lightbox');
+  if (lb) {
+    lb.addEventListener('click', function() { lb.style.display = 'none'; });
+  }
+  var evidenceImg = document.querySelector('img[onclick*="lightbox"]');
+  if (evidenceImg) {
+    evidenceImg.removeAttribute('onclick');
+    evidenceImg.addEventListener('click', function() {
+      if (lb) lb.style.display = 'flex';
+    });
+  }
+  <% } %>
 </script>
 </body>
 </html>

@@ -63,13 +63,13 @@
               <p class="text-2xl font-bold text-slate-800"><%= stats.approved %></p>
             </div>
           </a>
-          <a href="/violations" class="stat-card block hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer text-left">
+          <a href="/violation-reports" class="stat-card block hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer text-left">
             <div class="w-12 h-12 flex items-center justify-center rounded-xl bg-red-100">
-              <i data-lucide="alert-triangle" class="w-6 h-6 text-red-500"></i>
+              <i data-lucide="clipboard-check" class="w-6 h-6 text-red-500"></i>
             </div>
             <div>
-              <p class="text-sm text-slate-500">กระทำผิดทั้งหมด</p>
-              <p class="text-2xl font-bold text-slate-800"><%= stats.violations %></p>
+              <p class="text-sm text-slate-500">ตรวจสอบการกระทำผิดกฎ</p>
+              <p class="text-2xl font-bold text-slate-800"><%= stats.pendingReports %></p>
             </div>
           </a>
         </div>
@@ -141,25 +141,25 @@
           <div class="table-container">
             <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
               <h3 class="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                <i data-lucide="list" class="w-4 h-4 text-brand-500"></i>
-                ลงทะเบียนล่าสุด
+                <i data-lucide="file-check" class="w-4 h-4 text-brand-500"></i>
+                การลงทะเบียนใหม่
               </h3>
-              <a href="/registrations" class="text-xs text-brand-600 hover:text-brand-700 font-medium">ดูทั้งหมด →</a>
+              <a href="/registrations?status=pending" class="text-xs text-brand-600 hover:text-brand-700 font-medium">ดูทั้งหมด →</a>
             </div>
-            <table class="data-table">
-              <thead><tr><th>ชื่อ</th><th>ป้ายทะเบียน</th><th>ประเภท</th><th>สถานะ</th></tr></thead>
+            <table class="data-table" data-no-sort>
+              <thead><tr><th>ชื่อ</th><th>ป้ายทะเบียน</th><th>ประเภท</th><th>วันที่สมัคร</th></tr></thead>
               <tbody>
-                <% if (recentRegs.length > 0) { %>
-                  <% recentRegs.forEach(function(r) { %>
-                  <tr class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.location='/registrations/<%= r.id %>'">
+                <% if (newPendingRegs.length > 0) { %>
+                  <% newPendingRegs.forEach(function(r) { %>
+                  <tr class="cursor-pointer hover:bg-slate-50 transition-colors" data-href="/registrations/<%= r.id %>">
                     <td class="font-medium text-slate-800"><%= r.first_name %> <%= r.last_name %></td>
                     <td><%= r.license_plate %></td>
                     <td><span class="badge <%= r.user_type === 'student' ? 'badge-success' : 'badge-info' %>"><%= r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %></span></td>
-                    <td><span class="badge <%= r.status === 'approved' ? 'badge-success' : r.status === 'pending' ? 'badge-warning' : 'badge-danger' %>"><%= r.status === 'approved' ? 'อนุมัติ' : r.status === 'pending' ? 'รอดำเนินการ' : 'ปฏิเสธ' %></span></td>
+                    <td class="text-xs text-slate-400"><%= new Date(r.registered_at).toLocaleDateString('th-TH', {day:'2-digit', month:'short', year:'2-digit'}) %></td>
                   </tr>
                   <% }); %>
                 <% } else { %>
-                  <tr><td colspan="4" class="text-center text-slate-400 py-8">ยังไม่มีข้อมูล</td></tr>
+                  <tr><td colspan="4" class="text-center text-slate-400 py-8">ไม่มีรายการลงทะเบียนใหม่ที่รอดำเนินการ</td></tr>
                 <% } %>
               </tbody>
             </table>
@@ -168,24 +168,25 @@
           <div class="table-container">
             <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
               <h3 class="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                <i data-lucide="alert-triangle" class="w-4 h-4 text-red-500"></i>
-                กระทำผิดล่าสุด
+                <i data-lucide="clipboard-check" class="w-4 h-4 text-orange-500"></i>
+                ตรวจสอบการกระทำผิดกฎ
               </h3>
-              <a href="/violations" class="text-xs text-brand-600 hover:text-brand-700 font-medium">ดูทั้งหมด →</a>
+              <a href="/violation-reports" class="text-xs text-brand-600 hover:text-brand-700 font-medium">ดูทั้งหมด →</a>
             </div>
-            <table class="data-table">
-              <thead><tr><th>ชื่อ</th><th>ป้ายทะเบียน</th><th>กฎที่ฝ่าฝืน</th></tr></thead>
+            <table class="data-table" data-no-sort>
+              <thead><tr><th>ชื่อ</th><th>ป้ายทะเบียน</th><th>กฎที่ฝ่าฝืน</th><th>แจ้งโดย</th></tr></thead>
               <tbody>
-                <% if (recentViolations.length > 0) { %>
-                  <% recentViolations.forEach(function(v) { %>
-                  <tr class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.location='/registrations/<%= v.registration_id %>'">
+                <% if (pendingViolationReports.length > 0) { %>
+                  <% pendingViolationReports.forEach(function(v) { %>
+                  <tr class="cursor-pointer hover:bg-slate-50 transition-colors" data-href="/violation-reports/<%= v.id %>">
                     <td class="font-medium text-slate-800"><%= v.first_name %> <%= v.last_name %></td>
                     <td><%= v.license_plate %></td>
-                    <td><span class="badge badge-danger"><%= v.rule_name %></span></td>
+                    <td><span class="badge badge-danger" style="font-size:0.7rem;"><%= v.rule_name %></span></td>
+                    <td class="text-xs text-slate-500"><%= v.reported_by_name || '-' %></td>
                   </tr>
                   <% }); %>
                 <% } else { %>
-                  <tr><td colspan="3" class="text-center text-slate-400 py-8">ยังไม่มีข้อมูล</td></tr>
+                  <tr><td colspan="4" class="text-center text-slate-400 py-8">ไม่มีรายการรอตรวจสอบ</td></tr>
                 <% } %>
               </tbody>
             </table>

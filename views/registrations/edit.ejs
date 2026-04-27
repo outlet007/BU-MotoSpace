@@ -39,6 +39,7 @@
             </div>
 
             <form method="POST" action="/registrations/<%= reg.id %>/edit" enctype="multipart/form-data" class="space-y-5">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <!-- Personal Info -->
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -121,15 +122,30 @@
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label class="label">เปลี่ยนรูปรถจักรยานยนต์</label>
-                  <input type="file" name="motorcycle_photo" accept="image/*" class="input text-sm">
+                  <input type="file" name="motorcycle_photo" id="edit-motorcycle-input" accept="image/*" class="hidden" data-preview-target="edit-motorcycle-preview" data-file-name-target="edit-motorcycle-name">
+                  <button type="button" class="btn btn-secondary w-full justify-center" data-file-button="edit-motorcycle-input">
+                    <i data-lucide="image-plus" class="w-4 h-4"></i> เลือกรูปรถ
+                  </button>
+                  <p id="edit-motorcycle-name" class="text-xs text-slate-400 mt-2">ยังไม่ได้เลือกไฟล์</p>
+                  <img id="edit-motorcycle-preview" class="hidden w-full h-32 object-cover rounded-xl border border-slate-200 mt-2" alt="Preview">
                 </div>
                 <div>
                   <label class="label">เปลี่ยนรูปป้ายทะเบียน</label>
-                  <input type="file" name="plate_photo" accept="image/*" class="input text-sm">
+                  <input type="file" name="plate_photo" id="edit-plate-input" accept="image/*" class="hidden" data-preview-target="edit-plate-preview" data-file-name-target="edit-plate-name">
+                  <button type="button" class="btn btn-secondary w-full justify-center" data-file-button="edit-plate-input">
+                    <i data-lucide="image-plus" class="w-4 h-4"></i> เลือกรูปป้ายทะเบียน
+                  </button>
+                  <p id="edit-plate-name" class="text-xs text-slate-400 mt-2">ยังไม่ได้เลือกไฟล์</p>
+                  <img id="edit-plate-preview" class="hidden w-full h-32 object-cover rounded-xl border border-slate-200 mt-2" alt="Preview">
                 </div>
                 <div>
                   <label class="label">เปลี่ยนรูปบัตรประจำตัว</label>
-                  <input type="file" name="id_card_photo" accept="image/*" class="input text-sm">
+                  <input type="file" name="id_card_photo" id="edit-id-card-input" accept="image/*" class="hidden" data-preview-target="edit-id-card-preview" data-file-name-target="edit-id-card-name">
+                  <button type="button" class="btn btn-secondary w-full justify-center" data-file-button="edit-id-card-input">
+                    <i data-lucide="image-plus" class="w-4 h-4"></i> เลือกรูปบัตร
+                  </button>
+                  <p id="edit-id-card-name" class="text-xs text-slate-400 mt-2">ยังไม่ได้เลือกไฟล์</p>
+                  <img id="edit-id-card-preview" class="hidden w-full h-32 object-cover rounded-xl border border-slate-200 mt-2" alt="Preview">
                 </div>
               </div>
 
@@ -149,6 +165,34 @@
       </main>
     </div>
   </div>
-  <script>lucide.createIcons();</script>
+  <script>
+    lucide.createIcons();
+
+    document.querySelectorAll('[data-file-button]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        var input = document.getElementById(button.dataset.fileButton);
+        if (input) input.click();
+      });
+    });
+
+    document.querySelectorAll('input[type="file"][data-preview-target]').forEach(function(input) {
+      input.addEventListener('change', function() {
+        var preview = document.getElementById(input.dataset.previewTarget);
+        var fileName = document.getElementById(input.dataset.fileNameTarget);
+        if (!preview || !input.files || !input.files[0]) return;
+
+        if (preview.dataset.objectUrl) {
+          URL.revokeObjectURL(preview.dataset.objectUrl);
+        }
+
+        var objectUrl = URL.createObjectURL(input.files[0]);
+        preview.dataset.objectUrl = objectUrl;
+        preview.src = objectUrl;
+        preview.alt = input.files[0].name;
+        preview.classList.remove('hidden');
+        if (fileName) fileName.textContent = input.files[0].name;
+      });
+    });
+  </script>
 </body>
 </html>

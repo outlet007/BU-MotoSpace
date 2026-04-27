@@ -82,6 +82,7 @@
             </div>
 
             <form method="POST" action="/violations" enctype="multipart/form-data" class="space-y-5">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <% if (selectedReg) { %>
                 <!-- Hidden field with the registration ID -->
                 <input type="hidden" name="registration_id" value="<%= selectedReg.id %>">

@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/output.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .sidebar-gradient { background: linear-gradient(180deg, #0f172a 0%, #1a2332 50%, #162032 100%); }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .summary-card {
+      background: linear-gradient(135deg, #fff7ed 0%, #ffffff 55%, #f0fdf4 100%);
+      border: 1px solid #fed7aa;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 1px 2px rgba(15,23,42,0.06);
+    }
+    .rule-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #fef2f2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+      font-size: 12px;
+      font-weight: 600;
+      margin: 2px;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+  <div class="flex min-h-screen">
+    <%- include('../partials/sidebar') %>
+    <div class="flex-1 flex flex-col lg:ml-64">
+      <%- include('../partials/topbar') %>
+      <main class="flex-1 p-4 sm:p-6 fade-in">
+        <%- include('../partials/flash') %>
+
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="user-check" class="w-7 h-7 text-orange-500"></i>
+              รายงานผู้เข้าข่ายเรียกพบ
+            </h2>
+            <p class="text-slate-500 mt-1">ผู้ที่มีประวัติกระทำผิดรวมทุกกฎและข้อบังคับตั้งแต่ <%= threshold %> ครั้งขึ้นไป</p>
+          </div>
+          <a href="/reports/summons/export?search=<%= encodeURIComponent(search || '') %>&user_type=<%= encodeURIComponent(user_type || '') %>"
+             class="btn btn-primary">
+            <i data-lucide="download" class="w-4 h-4"></i>
+            Export CSV
+          </a>
+        </div>
+
+        <div class="summary-card mb-6">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center">
+                <i data-lucide="calendar-clock" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <p class="text-sm text-slate-500">จำนวนผู้เข้าข่ายเรียกพบ</p>
+                <p class="text-3xl font-bold text-slate-800"><%= total %></p>
+              </div>
+            </div>
+            <div class="text-sm text-slate-600 md:text-right">
+              <p class="font-semibold text-slate-700">เงื่อนไขรายงาน</p>
+              <p>นับจากประวัติการกระทำผิดที่ยืนยันแล้วในระบบ โดยรวมทุกกฎเข้าด้วยกัน</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-4 mb-6">
+          <form method="GET" action="/reports/summons" class="flex flex-wrap items-end gap-4">
+            <div class="flex-1 min-w-[200px]">
+              <label class="label">ค้นหา</label>
+              <div class="relative">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" name="search" value="<%= search %>"
+                       class="input" style="padding-left:2.5rem"
+                       placeholder="ชื่อ, รหัส, ป้ายทะเบียน, เบอร์โทร">
+              </div>
+            </div>
+            <div>
+              <label class="label">ประเภท</label>
+              <select name="user_type" class="input">
+                <option value="" <%= !user_type ? 'selected' : '' %>>ทั้งหมด</option>
+                <option value="student" <%= user_type === 'student' ? 'selected' : '' %>>นักศึกษา</option>
+                <option value="staff" <%= user_type === 'staff' ? 'selected' : '' %>>บุคลากร</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <i data-lucide="search" class="w-4 h-4"></i>
+              ค้นหา
+            </button>
+          </form>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>รหัส</th>
+                <th>ชื่อ-นามสกุล</th>
+                <th>ป้ายทะเบียน</th>
+                <th>เบอร์โทร</th>
+                <th>จำนวนครั้งรวม</th>
+                <th>สรุปกฎที่ฝ่าฝืน</th>
+                <th>ล่าสุด</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (candidates && candidates.length > 0) { %>
+                <% candidates.forEach(function(item) { %>
+                <tr>
+                  <td class="text-xs font-mono text-slate-600"><%= item.id_number %></td>
+                  <td>
+                    <div class="font-semibold text-slate-800"><%= item.full_name %></div>
+                    <div class="text-xs text-slate-400 mt-0.5"><%= item.user_type_label %> · <%= item.province || '-' %></div>
+                  </td>
+                  <td class="font-semibold text-slate-700"><%= item.license_plate %></td>
+                  <td class="text-sm text-slate-600"><%= item.phone || '-' %></td>
+                  <td>
+                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-200 text-xs font-bold">
+                      <i data-lucide="alert-triangle" class="w-3 h-3"></i>
+                      <%= item.total_violations %> ครั้ง
+                    </span>
+                  </td>
+                  <td>
+                    <div class="flex flex-wrap max-w-md">
+                      <% item.rule_breakdown.forEach(function(rule) { %>
+                        <span class="rule-chip"><%= rule.rule_name %> <%= rule.cnt %></span>
+                      <% }) %>
+                    </div>
+                  </td>
+                  <td class="text-xs text-slate-500 whitespace-nowrap">
+                    <%= item.latest_recorded_at ? new Date(item.latest_recorded_at).toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' }) : '-' %>
+                  </td>
+                  <td class="text-right">
+                    <div class="flex flex-wrap justify-end gap-2">
+                      <button type="button"
+                              class="btn btn-primary btn-sm"
+                              data-summons-open
+                              data-registration-id="<%= item.id %>"
+                              data-full-name="<%= item.full_name %>">
+                        <i data-lucide="calendar-check" class="w-3.5 h-3.5"></i>
+                        ยืนยันเรียกพบ
+                      </button>
+                      <a href="/registrations/<%= item.id %>" class="btn btn-secondary btn-sm">
+                        <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                        ดูประวัติ
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+                <% }) %>
+              <% } else { %>
+              <tr>
+                <td colspan="8" class="text-center py-14">
+                  <div class="flex flex-col items-center gap-3 text-slate-400">
+                    <i data-lucide="clipboard-check" class="w-12 h-12 text-slate-300"></i>
+                    <p class="text-sm font-medium">ไม่พบผู้ที่กระทำผิดครบ <%= threshold %> ครั้ง</p>
+                    <p class="text-xs">ลองเปลี่ยนคำค้นหาหรือตัวกรองประเภทผู้ใช้</p>
+                  </div>
+                </td>
+              </tr>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+
+        <% if (totalPages > 1) { %>
+        <div class="flex items-center justify-center gap-2 mt-6">
+          <% for (var i = 1; i <= totalPages; i++) { %>
+            <a href="/reports/summons?page=<%= i %>&search=<%= encodeURIComponent(search) %>&user_type=<%= encodeURIComponent(user_type) %>"
+               class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium transition-all
+                      <%= i === currentPage ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' %>">
+              <%= i %>
+            </a>
+          <% } %>
+        </div>
+        <% } %>
+
+        <div id="summons-modal"
+             style="display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;padding:1rem;"
+             aria-modal="true" role="dialog" aria-labelledby="summons-modal-title">
+          <div data-summons-close style="position:absolute;inset:0;background:rgba(15,23,42,.68);backdrop-filter:blur(4px);"></div>
+          <div style="position:relative;width:100%;max-width:460px;background:#fff;border-radius:16px;box-shadow:0 25px 60px rgba(15,23,42,.28);overflow:hidden;">
+            <div style="padding:20px 24px 14px;border-bottom:1px solid #f1f5f9;">
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex items-start gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-brand-100 text-brand-600 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="calendar-check" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <h3 id="summons-modal-title" class="text-base font-bold text-slate-800">ยืนยันการเรียกพบ</h3>
+                    <p id="summons-person-name" class="text-sm text-slate-500 mt-1"></p>
+                  </div>
+                </div>
+                <button type="button" data-summons-close class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label="ปิด">
+                  <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+              </div>
+            </div>
+            <form id="summons-form" method="POST" action="">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="return_to" value="<%= currentUrl %>">
+              <div style="padding:20px 24px;" class="space-y-4">
+                <div>
+                  <label class="label" for="summons-scheduled-at">วันเวลานัดหมาย</label>
+                  <input id="summons-scheduled-at" type="datetime-local" name="scheduled_at" class="input" required>
+                </div>
+                <div>
+                  <label class="label" for="summons-note">หมายเหตุ</label>
+                  <textarea id="summons-note" name="note" class="input h-24 resize-none" placeholder="เช่น สถานที่นัดหมาย หรือรายละเอียดเพิ่มเติม"></textarea>
+                </div>
+                <p class="text-xs text-slate-500">
+                  เมื่อยืนยันแล้ว ระบบจะเริ่มนับจำนวนความผิดรอบใหม่ตั้งแต่เวลาบันทึกการเรียกพบนี้ โดยยังคงประวัติความผิดเดิมไว้
+                </p>
+              </div>
+              <div style="display:flex;gap:10px;padding:0 24px 22px;">
+                <button type="button" data-summons-close class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
+                <button type="submit" class="btn btn-primary flex-1 justify-center">
+                  <i data-lucide="check" class="w-4 h-4"></i>
+                  บันทึกการเรียกพบ
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script>
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+
+    (function() {
+      var modal = document.getElementById('summons-modal');
+      var form = document.getElementById('summons-form');
+      var nameEl = document.getElementById('summons-person-name');
+      var scheduledInput = document.getElementById('summons-scheduled-at');
+
+      function toDatetimeLocalValue(date) {
+        var pad = function(value) { return String(value).padStart(2, '0'); };
+        return date.getFullYear() + '-' +
+          pad(date.getMonth() + 1) + '-' +
+          pad(date.getDate()) + 'T' +
+          pad(date.getHours()) + ':' +
+          pad(date.getMinutes());
+      }
+
+      function openSummonsModal(button) {
+        if (!modal || !form) return;
+        var registrationId = button.dataset.registrationId;
+        var fullName = button.dataset.fullName || '';
+        form.action = '/reports/summons/' + registrationId + '/confirm';
+        if (nameEl) nameEl.textContent = fullName;
+        if (scheduledInput && !scheduledInput.value) {
+          var defaultDate = new Date();
+          defaultDate.setHours(defaultDate.getHours() + 1);
+          defaultDate.setMinutes(0, 0, 0);
+          scheduledInput.value = toDatetimeLocalValue(defaultDate);
+        }
+        modal.style.display = 'flex';
+        if (scheduledInput) scheduledInput.focus();
+      }
+
+      function closeSummonsModal() {
+        if (!modal) return;
+        modal.style.display = 'none';
+      }
+
+      document.querySelectorAll('[data-summons-open]').forEach(function(button) {
+        button.addEventListener('click', function() {
+          openSummonsModal(button);
+        });
+      });
+
+      document.querySelectorAll('[data-summons-close]').forEach(function(button) {
+        button.addEventListener('click', closeSummonsModal);
+      });
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal && modal.style.display === 'flex') {
+          closeSummonsModal();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

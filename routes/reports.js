@@ -4,6 +4,48 @@ const { requireRole } = require('../middleware/auth');
 
 router.use(requireRole('head', 'superadmin'));
 
+const SUMMONS_THRESHOLD_KEY = 'summons_total_threshold';
+const DEFAULT_SUMMONS_THRESHOLD = 3;
+
+async function ensureSettingsTable(conn) {
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      setting_key VARCHAR(100) PRIMARY KEY,
+      setting_value TEXT NOT NULL,
+      updated_by INT DEFAULT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (updated_by) REFERENCES admins(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB
+  `);
+}
+
+async function getSummonsThreshold(conn) {
+  await ensureSettingsTable(conn);
+  const [row] = await conn.query(
+    'SELECT setting_value FROM app_settings WHERE setting_key = ?',
+    [SUMMONS_THRESHOLD_KEY]
+  );
+  const value = parseInt(row && row.setting_value, 10);
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_SUMMONS_THRESHOLD;
+}
+
+async function ensureSummonsAppointmentsTable(conn) {
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS summons_appointments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      registration_id INT NOT NULL,
+      scheduled_at DATETIME NOT NULL,
+      note TEXT,
+      summoned_by INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
+      FOREIGN KEY (summoned_by) REFERENCES admins(id) ON DELETE CASCADE,
+      INDEX idx_registration_created (registration_id, created_at),
+      INDEX idx_scheduled_at (scheduled_at)
+    ) ENGINE=InnoDB
+  `);
+}
+
 // Helper: CSV builder with UTF-8 BOM
 function buildCSV(fields, data) {
   const BOM = '\uFEFF';
@@ -110,6 +152,296 @@ async function fetchReport(conn, type, startDate, endDate) {
 
   return { fields: [], rows: [] };
 }
+
+async function fetchSummonsCandidates(conn, options = {}) {
+  await ensureSummonsAppointmentsTable(conn);
+
+  const {
+    search = '',
+    userType = '',
+    page = 1,
+    limit = 20,
+    threshold = 3,
+    includeAll = false,
+  } = options;
+
+  let where = 'WHERE 1=1';
+  const params = [];
+
+  if (search && search.trim()) {
+    const searchTrimmed = search.trim().replace(/\s+/g, ' ');
+    const s = `%${searchTrimmed}%`;
+    const sNoSpace = `%${searchTrimmed.replace(/\s+/g, '')}%`;
+    where += ` AND (
+      r.id_number LIKE ? OR
+      r.first_name LIKE ? OR
+      r.last_name LIKE ? OR
+      CONCAT(r.first_name, ' ', r.last_name) LIKE ? OR
+      r.license_plate LIKE ? OR
+      REPLACE(r.license_plate, ' ', '') LIKE ? OR
+      r.phone LIKE ?
+    )`;
+    params.push(s, s, s, s, s, sNoSpace, s);
+  }
+
+  if (userType === 'student' || userType === 'staff') {
+    where += ' AND r.user_type = ?';
+    params.push(userType);
+  }
+
+  const [countRow] = await conn.query(
+    `SELECT COUNT(*) as cnt
+     FROM (
+       SELECT r.id
+       FROM registrations r
+       LEFT JOIN (
+         SELECT registration_id, MAX(created_at) AS latest_reset_at
+         FROM summons_appointments
+         GROUP BY registration_id
+       ) sa ON sa.registration_id = r.id
+       JOIN violations v
+         ON v.registration_id = r.id
+        AND v.recorded_at > COALESCE(sa.latest_reset_at, '1000-01-01 00:00:00')
+       ${where}
+       GROUP BY r.id
+       HAVING COUNT(v.id) >= ?
+     ) x`,
+    [...params, threshold]
+  );
+
+  const total = parseInt(countRow.cnt) || 0;
+  const offset = (parseInt(page) - 1) * limit;
+  const pagingSql = includeAll ? '' : 'LIMIT ? OFFSET ?';
+  const pagingParams = includeAll ? [] : [limit, offset];
+
+  const candidates = await conn.query(
+    `SELECT
+       r.id,
+       r.id_number,
+       r.user_type,
+       r.first_name,
+       r.last_name,
+       r.phone,
+       r.license_plate,
+       r.province,
+       COUNT(v.id) AS total_violations,
+       MIN(v.recorded_at) AS first_recorded_at,
+       MAX(v.recorded_at) AS latest_recorded_at,
+       sa.latest_reset_at
+     FROM registrations r
+     LEFT JOIN (
+       SELECT registration_id, MAX(created_at) AS latest_reset_at
+       FROM summons_appointments
+       GROUP BY registration_id
+     ) sa ON sa.registration_id = r.id
+     JOIN violations v
+       ON v.registration_id = r.id
+      AND v.recorded_at > COALESCE(sa.latest_reset_at, '1000-01-01 00:00:00')
+     ${where}
+     GROUP BY r.id, r.id_number, r.user_type, r.first_name, r.last_name, r.phone, r.license_plate, r.province, sa.latest_reset_at
+     HAVING COUNT(v.id) >= ?
+     ORDER BY total_violations DESC, latest_recorded_at DESC
+     ${pagingSql}`,
+    [...params, threshold, ...pagingParams]
+  );
+
+  if (candidates.length > 0) {
+    const ids = candidates.map(c => c.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const breakdownRows = await conn.query(
+      `SELECT v.registration_id, ru.rule_name, COUNT(v.id) AS cnt
+       FROM violations v
+       JOIN rules ru ON v.rule_id = ru.id
+       LEFT JOIN (
+         SELECT registration_id, MAX(created_at) AS latest_reset_at
+         FROM summons_appointments
+         GROUP BY registration_id
+       ) sa ON sa.registration_id = v.registration_id
+       WHERE v.registration_id IN (${placeholders})
+         AND v.recorded_at > COALESCE(sa.latest_reset_at, '1000-01-01 00:00:00')
+       GROUP BY v.registration_id, ru.id, ru.rule_name
+       ORDER BY v.registration_id, cnt DESC, ru.rule_name`,
+      ids
+    );
+
+    const byRegistration = new Map();
+    breakdownRows.forEach(row => {
+      const regId = Number(row.registration_id);
+      if (!byRegistration.has(regId)) byRegistration.set(regId, []);
+      byRegistration.get(regId).push({
+        rule_name: row.rule_name,
+        cnt: Number(row.cnt),
+      });
+    });
+
+    candidates.forEach(candidate => {
+      candidate.total_violations = Number(candidate.total_violations);
+      candidate.user_type_label = candidate.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร';
+      candidate.full_name = `${candidate.first_name} ${candidate.last_name}`;
+      candidate.rule_breakdown = byRegistration.get(Number(candidate.id)) || [];
+      candidate.rule_summary = candidate.rule_breakdown
+        .map(rule => `${rule.rule_name} (${rule.cnt})`)
+        .join(', ');
+      candidate.appointment_note = '';
+    });
+  }
+
+  return {
+    rows: candidates,
+    total,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
+const SUMMONS_FIELDS = [
+  { label: 'รหัสประจำตัว', key: 'id_number' },
+  { label: 'ประเภท', key: 'user_type_label' },
+  { label: 'ชื่อ-นามสกุล', key: 'full_name' },
+  { label: 'เบอร์โทร', key: 'phone' },
+  { label: 'ป้ายทะเบียน', key: 'license_plate' },
+  { label: 'จังหวัด', key: 'province' },
+  { label: 'จำนวนครั้งรวม', key: 'total_violations' },
+  { label: 'สรุปกฎที่ฝ่าฝืน', key: 'rule_summary' },
+  { label: 'วันที่ทำผิดครั้งแรก', key: 'first_recorded_at' },
+  { label: 'วันที่ทำผิดล่าสุด', key: 'latest_recorded_at' },
+  { label: 'หมายเหตุการนัดหมาย', key: 'appointment_note' },
+];
+
+// GET /reports/summons/export
+router.get('/summons/export', async (req, res) => {
+  const { search = '', user_type = '' } = req.query;
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const threshold = await getSummonsThreshold(conn);
+    const { rows } = await fetchSummonsCandidates(conn, {
+      search,
+      userType: user_type,
+      threshold,
+      includeAll: true,
+    });
+
+    const csv = buildCSV(SUMMONS_FIELDS, rows);
+    const safeFilename = 'summons_report.csv';
+    const thaiFilename = 'รายงานผู้เข้าข่ายเรียกพบ.csv';
+
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(thaiFilename)}`
+    );
+
+    return res.send(Buffer.from(csv, 'utf-8'));
+  } catch (err) {
+    console.error('Summons Export Error:', err);
+    req.flash('error', 'เกิดข้อผิดพลาดในการส่งออกรายงานผู้เข้าข่ายเรียกพบ');
+    return res.redirect('/reports/summons');
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// POST /reports/summons/:registrationId/confirm
+router.post('/summons/:registrationId/confirm', async (req, res) => {
+  const registrationId = parseInt(req.params.registrationId, 10);
+  const scheduledAtRaw = (req.body.scheduled_at || '').trim();
+  const note = (req.body.note || '').trim() || null;
+  const returnTo = req.body.return_to && req.body.return_to.startsWith('/reports/summons')
+    ? req.body.return_to
+    : '/reports/summons';
+
+  if (!Number.isFinite(registrationId) || registrationId <= 0) {
+    req.flash('error', 'ข้อมูลผู้เข้าข่ายเรียกพบไม่ถูกต้อง');
+    return res.redirect(returnTo);
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduledAtRaw)) {
+    req.flash('error', 'กรุณาระบุวันและเวลานัดหมายให้ถูกต้อง');
+    return res.redirect(returnTo);
+  }
+
+  const scheduledAt = scheduledAtRaw.replace('T', ' ') + ':00';
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await ensureSummonsAppointmentsTable(conn);
+
+    const [registration] = await conn.query(
+      'SELECT id, first_name, last_name FROM registrations WHERE id = ?',
+      [registrationId]
+    );
+
+    if (!registration) {
+      req.flash('error', 'ไม่พบข้อมูลผู้เข้าข่ายเรียกพบ');
+      return res.redirect(returnTo);
+    }
+
+    await conn.query(
+      `INSERT INTO summons_appointments (registration_id, scheduled_at, note, summoned_by)
+       VALUES (?, ?, ?, ?)`,
+      [registrationId, scheduledAt, note, req.session.admin.id]
+    );
+
+    req.flash(
+      'success',
+      `บันทึกการเรียกพบ ${registration.first_name} ${registration.last_name} เรียบร้อยแล้ว และเริ่มนับจำนวนความผิดรอบใหม่`
+    );
+    return res.redirect(returnTo);
+  } catch (err) {
+    console.error('POST /reports/summons/:registrationId/confirm error:', err);
+    req.flash('error', 'ไม่สามารถบันทึกการเรียกพบได้: ' + err.message);
+    return res.redirect(returnTo);
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// GET /reports/summons
+router.get('/summons', async (req, res) => {
+  const { search = '', user_type = '', page = 1 } = req.query;
+  const limit = 20;
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const threshold = await getSummonsThreshold(conn);
+    const report = await fetchSummonsCandidates(conn, {
+      search,
+      userType: user_type,
+      page,
+      limit,
+      threshold,
+    });
+
+    res.render('reports/summons', {
+      title: 'รายงานผู้เข้าข่ายเรียกพบ - BU MotoSpace',
+      candidates: report.rows,
+      total: report.total,
+      totalPages: report.totalPages,
+      currentPage: parseInt(page),
+      search,
+      user_type,
+      threshold,
+    });
+  } catch (err) {
+    console.error('GET /reports/summons error:', err);
+    req.flash('error', 'ไม่สามารถโหลดรายงานผู้เข้าข่ายเรียกพบได้');
+    res.render('reports/summons', {
+      title: 'รายงานผู้เข้าข่ายเรียกพบ - BU MotoSpace',
+      candidates: [],
+      total: 0,
+      totalPages: 0,
+      currentPage: 1,
+      search,
+      user_type,
+      threshold: DEFAULT_SUMMONS_THRESHOLD,
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
 
 // ★★★ IMPORTANT: /export route MUST be defined BEFORE the / route ★★★
 // GET /reports/export

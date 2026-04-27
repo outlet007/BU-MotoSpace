@@ -91,7 +91,7 @@
                 <th>ป้ายทะเบียน</th>
                 <th>กฎที่ฝ่าฝืน</th>
                 <th>รายละเอียด</th>
-                <th>บันทึกโดย</th>
+                <th>แจ้งโดย</th>
                 <th>สถานะ</th>
                 <th></th>
               </tr>
@@ -99,7 +99,7 @@
             <tbody>
               <% if (reports && reports.length > 0) { %>
                 <% reports.forEach(function(rpt) { %>
-                <tr class="row-hover cursor-pointer" onclick="window.location='/violation-reports/<%= rpt.id %>'">
+                <tr class="row-hover cursor-pointer" data-href="/violation-reports/<%= rpt.id %>">
                   <!-- วันที่ -->
                   <td class="text-xs text-slate-500 whitespace-nowrap">
                     <%= new Date(rpt.reported_at).toLocaleDateString('th-TH', {
@@ -149,7 +149,7 @@
                     <% } %>
                   </td>
                   <!-- ปุ่มดูรายละเอียด -->
-                  <td class="text-right" onclick="event.stopPropagation()">
+                  <td class="text-right" data-no-nav>
                     <a href="/violation-reports/<%= rpt.id %>"
                        class="btn btn-secondary btn-sm inline-flex items-center gap-1"
                        id="view-report-<%= rpt.id %>">

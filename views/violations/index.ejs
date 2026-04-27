@@ -155,14 +155,14 @@
             <tbody>
               <% if (typeof approvedRegistrations !== 'undefined' && approvedRegistrations.length > 0) { %>
                 <% approvedRegistrations.forEach(function(r) { %>
-                <tr class="hover:bg-slate-50 cursor-pointer transition-colors" onclick="window.location='/violations/create?reg_id=<%= r.id %>'">
+                <tr class="hover:bg-slate-50 cursor-pointer transition-colors" data-href="/violations/create?reg_id=<%= r.id %>">
                   <td class="text-xs"><%= r.id_number %></td>
                   <td class="font-medium text-slate-800"><%= r.first_name %> <%= r.last_name %></td>
                   <td class="font-semibold"><%= r.license_plate %></td>
                   <td><%= r.province %></td>
                   <td><span class="badge <%= r.user_type === 'student' ? 'badge-success' : 'badge-info' %>"><%= r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %></span></td>
                   <td class="text-xs text-slate-500"><%= new Date(r.registered_at).toLocaleDateString('th-TH') %></td>
-                  <td onclick="event.stopPropagation()">
+                  <td data-no-nav>
                     <div style="display:flex; justify-content: flex-end;">
                       <a href="/violations/create?reg_id=<%= r.id %>" class="btn btn-sm inline-flex items-center gap-1" style="background:#ea580c;color:#fff;font-size:0.75rem;">
                         <i data-lucide="send" class="w-3.5 h-3.5"></i> แจ้งการกระทำผิด

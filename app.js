@@ -3,6 +3,9 @@ const session = require('express-session');
 const flash = require('connect-flash');
 const path = require('path');
 const fs = require('fs');
+const helmet = require('helmet');
+const { csrfMiddleware, generateCsrfToken } = require('./middleware/csrf');
+const { idleSessionTimeout } = require('./middleware/auth');
 require('dotenv').config();
 
 // ตั้งค่า Timezone ของระบบเป็นประเทศไทย (UTC+7)
@@ -12,6 +15,8 @@ const { generateSignedUrl, verifySignedUrl, resolveFilePath } = require('./utils
 
 const app = express();
 const PORT = process.env.APP_PORT || 3000;
+const SUMMONS_THRESHOLD_KEY = 'summons_total_threshold';
+const DEFAULT_SUMMONS_THRESHOLD = 3;
 
 // Ensure upload directories exist (OUTSIDE public/ for PDPA security)
 const uploadDirs = [
@@ -31,6 +36,28 @@ uploadDirs.forEach(dir => {
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+// ─── Security Headers (Helmet) ───────────────────────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'",          // required for inline scripts in EJS
+        "https://unpkg.com",         // lucide icons
+        "https://www.google.com",    // reCAPTCHA
+        "https://www.gstatic.com",   // reCAPTCHA
+      ],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: ["'self'"],
+      frameSrc: ["https://www.google.com"], // reCAPTCHA iframe
+    },
+  },
+  crossOriginEmbedderPolicy: false, // allow reCAPTCHA
+}));
+
 // Middlewares
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -39,9 +66,22 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 24 * 60 * 60 * 1000 } // 24 hours
+  cookie: {
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    httpOnly: true,               // ป้องกัน JS อ่าน cookie
+    sameSite: 'lax',              // ป้องกัน CSRF ขั้นพื้นฐาน
+    secure: process.env.NODE_ENV === 'production', // HTTPS only ใน prod
+  },
 }));
 app.use(flash());
+
+// ─── CSRF Protection (Session-based Synchronizer Token) ────────────────────────
+// ใช้ csrf middleware ที่เขียนเอง โดยใช้ Node.js crypto (built-in) ไม่ต้องติดตั้ง package เพิ่ม
+app.use(csrfMiddleware);
+
+// ─── Idle Session Timeout (1 ชั่วโมง) ───────────────────────────────────
+// ตรวจสอบทุก request ว่าเวลาของ session ได้หมดอายุเนื่องจากไม่มีการใช้งานหรือยัง
+app.use(idleSessionTimeout);
 
 // Global template variables
 app.use(async (req, res, next) => {
@@ -50,6 +90,9 @@ app.use(async (req, res, next) => {
   res.locals.error = req.flash('error');
   res.locals.currentPath = req.path;
   res.locals.currentUrl = req.originalUrl;
+
+  // CSRF token สำหรับทุก form ใน EJS templates
+  res.locals.csrfToken = generateCsrfToken(req);
 
   // Signed URL helper — available in ALL EJS templates as signedUrl(path)
   // Each call generates a fresh URL valid for 15 minutes
@@ -69,6 +112,54 @@ app.use(async (req, res, next) => {
   } catch(e) {
     // Table may not exist yet on first boot — silently ignore
     res.locals.pendingReportsCount = 0;
+  }
+
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS summons_appointments (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        registration_id INT NOT NULL,
+        scheduled_at DATETIME NOT NULL,
+        note TEXT,
+        summoned_by INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
+        FOREIGN KEY (summoned_by) REFERENCES admins(id) ON DELETE CASCADE,
+        INDEX idx_registration_created (registration_id, created_at),
+        INDEX idx_scheduled_at (scheduled_at)
+      ) ENGINE=InnoDB
+    `);
+
+    const settingRows = await pool.query(
+      'SELECT setting_value FROM app_settings WHERE setting_key = ?',
+      [SUMMONS_THRESHOLD_KEY]
+    );
+    const thresholdValue = parseInt(settingRows[0] && settingRows[0].setting_value, 10);
+    const summonsThreshold = Number.isFinite(thresholdValue) && thresholdValue > 0
+      ? thresholdValue
+      : DEFAULT_SUMMONS_THRESHOLD;
+
+    const summonsRows = await pool.query(
+      `SELECT COUNT(*) as count
+       FROM (
+         SELECT r.id
+         FROM registrations r
+         LEFT JOIN (
+           SELECT registration_id, MAX(created_at) AS latest_reset_at
+           FROM summons_appointments
+           GROUP BY registration_id
+         ) sa ON sa.registration_id = r.id
+         JOIN violations v
+           ON v.registration_id = r.id
+          AND v.recorded_at > COALESCE(sa.latest_reset_at, '1000-01-01 00:00:00')
+         GROUP BY r.id
+         HAVING COUNT(v.id) >= ?
+       ) candidates`,
+      [summonsThreshold]
+    );
+    res.locals.summonsCandidatesCount = Number(summonsRows[0].count);
+  } catch(e) {
+    res.locals.summonsCandidatesCount = 0;
   }
 
   next();
@@ -133,13 +224,7 @@ app.get('/img/:encoded', (req, res) => {
   res.set('Referrer-Policy', 'no-referrer');
   res.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
 
-  if (isSensitive) {
-    // ID card: force download — never render inline in browser
-    res.set('Content-Disposition', 'attachment');
-  } else {
-    // Other images: allow inline display but still no-store
-    res.set('Content-Disposition', 'inline');
-  }
+  res.set('Content-Disposition', 'inline');
 
   res.sendFile(absPath);
 });
@@ -180,12 +265,17 @@ app.use((req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
+  // CSRF token ไม่ถูกต้อง — แลสดงข้อความแล้วเด้งกลับหน้าครั้งที่ไประบบรู้จัก (login page)
+  if (err.code === 'EBADCSRFTOKEN') {
+    try { req.flash('error', '⚠️ Session หมดอายุหรือคำขอไม่ถูกต้อง กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง'); } catch(e) {}
+    // Redirect to the GET version of the same page (not 'back' to avoid loop)
+    const safeUrl = req.originalUrl.split('?')[0];
+    return res.redirect(safeUrl);
+  }
+
+  // General errors — render 500 page instead of redirecting (prevents redirect loop)
   console.error('App Error:', err.message);
-  const referrer = req.get('Referrer') || '/dashboard';
-  try {
-    req.flash('error', err.message || 'เกิดข้อผิดพลาด');
-  } catch(e) { /* flash might not be available */ }
-  res.redirect(referrer);
+  res.status(err.status || 500).render('404', { title: 'เกิดข้อผิดพลาด' });
 });
 
 // Database init & start

@@ -18,19 +18,38 @@ router.get('/', async (req, res) => {
     const [studentCount] = await conn.query("SELECT COUNT(*) as cnt FROM registrations WHERE user_type='student'");
     const [staffCount] = await conn.query("SELECT COUNT(*) as cnt FROM registrations WHERE user_type='staff'");
 
-    // Recent registrations
-    const recentRegs = await conn.query(
-      'SELECT * FROM registrations ORDER BY registered_at DESC LIMIT 10'
+    // นับจำนวนรายการรอตรวจสอบจาก violation_reports (status='pending')
+    let pendingReportsCount = 0;
+    try {
+      const [pendingRptRow] = await conn.query("SELECT COUNT(*) as cnt FROM violation_reports WHERE status='pending'");
+      pendingReportsCount = parseInt(pendingRptRow.cnt) || 0;
+    } catch(e) { /* ตารางอาจยังไม่มี */ }
+
+    // การลงทะเบียนใหม่ — เฉพาะที่ยังรอการอนุมัติ (pending)
+    const newPendingRegs = await conn.query(
+      `SELECT * FROM registrations WHERE status = 'pending' ORDER BY registered_at DESC LIMIT 10`
     );
 
-    // Recent violations
-    const recentViolations = await conn.query(
-      `SELECT v.*, r.first_name, r.last_name, r.license_plate, r.user_type, ru.rule_name
-       FROM violations v
-       JOIN registrations r ON v.registration_id = r.id
-       JOIN rules ru ON v.rule_id = ru.id
-       ORDER BY v.recorded_at DESC LIMIT 10`
-    );
+    // ตรวจสอบการกระทำผิดกฎ — รายการรอตรวจสอบจาก violation_reports
+    let pendingViolationReports = [];
+    try {
+      pendingViolationReports = await conn.query(
+        `SELECT vr.id, vr.reported_at, vr.description, vr.status,
+                r.first_name, r.last_name, r.license_plate, r.user_type,
+                ru.rule_name,
+                a.full_name AS reported_by_name
+         FROM violation_reports vr
+         JOIN registrations r ON vr.registration_id = r.id
+         JOIN rules ru ON vr.rule_id = ru.id
+         LEFT JOIN admins a ON vr.reported_by = a.id
+         WHERE vr.status = 'pending'
+         ORDER BY vr.reported_at DESC
+         LIMIT 10`
+      );
+    } catch (e) {
+      // ตารางอาจยังไม่มี — ข้ามไป
+      pendingViolationReports = [];
+    }
 
     // Monthly registrations (last 6 months)
     const monthlyData = await conn.query(
@@ -54,11 +73,12 @@ router.get('/', async (req, res) => {
         pending: parseInt(pendingRegs.cnt),
         approved: parseInt(approvedRegs.cnt),
         violations: parseInt(totalViolations.cnt),
+        pendingReports: pendingReportsCount,
         students: parseInt(studentCount.cnt),
         staff: parseInt(staffCount.cnt),
       },
-      recentRegs,
-      recentViolations,
+      newPendingRegs,
+      pendingViolationReports,
       monthlyData,
       topRules,
     });
@@ -67,9 +87,9 @@ router.get('/', async (req, res) => {
     req.flash('error', 'ไม่สามารถโหลดข้อมูล Dashboard ได้');
     res.render('dashboard', {
       title: 'แดชบอร์ด - BU MotoSpace',
-      stats: { total: 0, pending: 0, approved: 0, violations: 0, students: 0, staff: 0 },
-      recentRegs: [],
-      recentViolations: [],
+      stats: { total: 0, pending: 0, approved: 0, violations: 0, pendingReports: 0, students: 0, staff: 0 },
+      newPendingRegs: [],
+      pendingViolationReports: [],
       monthlyData: [],
       topRules: [],
     });

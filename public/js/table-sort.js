@@ -1,5 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('table').forEach(table => {
+    // Skip tables marked with data-no-sort (e.g. dashboard summary tables)
+    if (table.hasAttribute('data-no-sort')) return;
     const thead = table.querySelector('thead');
     const tbody = table.querySelector('tbody');
     if (!thead || !tbody) return; // Only process standard data tables
@@ -94,13 +96,28 @@ document.addEventListener('DOMContentLoaded', () => {
           return asc ? aText.localeCompare(bText, 'th') : bText.localeCompare(aText, 'th');
         });
         
-        // Re-append sorted rows (this preserves event listeners on buttons inside rows)
-        tbody.innerHTML = '';
+        // Re-append sorted rows safely using removeChild to preserve onclick attributes
+        // NOTE: Do NOT use tbody.innerHTML = '' — it can destroy inline onclick in some browsers
+        while (tbody.firstChild) {
+          tbody.removeChild(tbody.firstChild);
+        }
         rows.forEach(row => tbody.appendChild(row));
         
         // Toggle sort direction for next click
         asc = !asc;
       });
     });
+  });
+
+  // ─── Delegated row-click navigation ──────────────────────────────────────────
+  // Supports <tr data-href="/path"> as a robust alternative to inline onclick.
+  // Event is bound to document so it survives any DOM re-ordering (e.g. after sort).
+  // Clicks on interactive elements (button, a, input, select, form) are ignored.
+  document.addEventListener('click', function(e) {
+    const row = e.target.closest('tr[data-href]');
+    if (!row) return;
+    const blocked = e.target.closest('button, a, input, select, textarea, form, [data-no-nav]');
+    if (blocked) return;
+    window.location.href = row.dataset.href;
   });
 });

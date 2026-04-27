@@ -28,7 +28,7 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
-              <i data-lucide="<%= isNewPage ? 'file-check' : 'clipboard-list' %>" class="w-7 h-7 text-brand-500"></i> <%= isNewPage ? 'การลงทะเบียนใหม่' : 'จัดการทะเบียนรถ' %>
+              <i data-lucide="<%= isNewPage ? 'file-check' : 'clipboard-list' %>" class="w-7 h-7 text-brand-500"></i> <%= isNewPage ? 'ตรวจสอบการลงทะเบียนใหม่' : 'จัดการทะเบียนรถ' %>
             </h2>
             <p class="text-slate-500 mt-1"><%= isNewPage ? 'ตรวจสอบรายละเอียด การลงทะเบียนรถจักรยานยนต์ใหม่' : 'ค้นหา จัดการ และตรวจสอบข้อมูลทะเบียนรถจักรยานยนต์ทั้งหมด' %></p>
           </div>
@@ -102,7 +102,7 @@
             <tbody>
               <% if (registrations.length > 0) { %>
                 <% registrations.forEach(function(r) { %>
-                <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors" onclick="window.location='/registrations/<%= r.id %>'">
+                <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors" data-href="/registrations/<%= r.id %>">
                   <td class="text-xs"><%= r.id_number %></td>
                   <td class="font-medium text-slate-800"><%= r.first_name %> <%= r.last_name %></td>
                   <td class="font-semibold"><%= r.license_plate %></td>
@@ -110,7 +110,7 @@
                   <td><span class="badge <%= r.user_type === 'student' ? 'badge-success' : 'badge-info' %>"><%= r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %></span></td>
                   <td><span class="badge <%= r.status === 'approved' ? 'badge-success' : r.status === 'pending' ? 'badge-warning' : 'badge-danger' %>"><%= r.status === 'approved' ? 'อนุมัติ' : r.status === 'pending' ? 'รอดำเนินการ' : 'ปฏิเสธ' %></span></td>
                   <td class="text-xs text-slate-500"><%= new Date(r.registered_at).toLocaleDateString('th-TH') %></td>
-                  <td onclick="event.stopPropagation()">
+                  <td data-no-nav>
                     <div style="display:flex; gap:6px;">
                       <a href="/registrations/<%= r.id %>" class="btn btn-secondary btn-sm">
                         <i data-lucide="eye" class="w-3.5 h-3.5"></i> ดูรายละเอียด

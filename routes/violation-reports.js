@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool = require('../config/database');
 const upload = require('../middleware/upload');
 const { isAuthenticated, isHead } = require('../middleware/auth');
+const { verifyCsrf } = require('../middleware/csrf');
 
 router.use(isAuthenticated);
 
@@ -182,7 +183,7 @@ router.get('/:id', isHead, async (req, res) => {
 /* ─────────────────────────────────────────────────────────────────────────────
    POST /violation-reports  —  submit a new report
    ───────────────────────────────────────────────────────────────────────────── */
-router.post('/', upload.single('evidence_photo'), async (req, res) => {
+router.post('/', upload.single('evidence_photo'), verifyCsrf, async (req, res) => {
   const { registration_id, rule_id, description } = req.body;
   let conn;
   try {

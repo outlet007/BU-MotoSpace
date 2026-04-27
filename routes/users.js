@@ -27,10 +27,34 @@ router.get('/', async (req, res) => {
   try {
     conn = await pool.getConnection();
     await ensureColumns(conn);
+
+    const search        = (req.query.search        || '').trim();
+    const role_filter   = (req.query.role_filter   || '').trim();
+    const status_filter = (req.query.status_filter || '').trim();
+    const conditions    = [];
+    const params        = [];
+
+    if (search) {
+      const s = `%${search}%`;
+      conditions.push(`(username LIKE ? OR full_name LIKE ? OR email LIKE ? OR phone LIKE ?)`);
+      params.push(s, s, s, s);
+    }
+    if (role_filter) {
+      conditions.push(`role = ?`);
+      params.push(role_filter);
+    }
+    if (status_filter === 'active') {
+      conditions.push(`is_active = 1`);
+    } else if (status_filter === 'inactive') {
+      conditions.push(`is_active = 0`);
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
     const users = await conn.query(
-      'SELECT id, username, full_name, email, phone, role, is_active, created_at FROM admins ORDER BY created_at DESC'
+      `SELECT id, username, full_name, email, phone, role, is_active, created_at FROM admins ${where} ORDER BY created_at DESC`,
+      params
     );
-    res.render('users/index', { title: 'จัดการผู้ใช้ - BU MotoSpace', users });
+    res.render('users/index', { title: 'จัดการผู้ใช้ - BU MotoSpace', users, search, role_filter, status_filter });
   } catch (err) {
     console.error(err);
     req.flash('error', 'ไม่สามารถโหลดข้อมูลได้');
@@ -95,20 +119,67 @@ router.post('/:id/update', async (req, res) => {
   res.redirect('/users');
 });
 
-// POST /users/:id/delete
-router.post('/:id/delete', async (req, res) => {
+// POST /users/:id/deactivate — Soft delete (ปิดสถานะ ไม่ลบจริง)
+router.post('/:id/deactivate', async (req, res) => {
   if (parseInt(req.params.id) === req.session.admin.id) {
-    req.flash('error', 'ไม่สามารถลบตัวเองได้');
+    req.flash('error', 'ไม่สามารถปิดตัวเองได้');
     return res.redirect('/users');
   }
   let conn;
   try {
     conn = await pool.getConnection();
-    await conn.query('DELETE FROM admins WHERE id = ?', [req.params.id]);
-    req.flash('success', 'ลบผู้ใช้เรียบร้อยแล้ว');
+    await conn.query('UPDATE admins SET is_active = 0 WHERE id = ?', [req.params.id]);
+    req.flash('success', 'ปิดการใช้งานผู้ใช้เรียบร้อยแล้ว');
   } catch (err) {
     console.error(err);
-    req.flash('error', 'ไม่สามารถลบผู้ใช้ได้');
+    req.flash('error', 'เกิดข้อผิดพลาด');
+  } finally {
+    if (conn) conn.release();
+  }
+  res.redirect('/users');
+});
+
+// POST /users/:id/restore — กู้คืนผู้ใช้
+router.post('/:id/restore', async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.query('UPDATE admins SET is_active = 1 WHERE id = ?', [req.params.id]);
+    req.flash('success', 'กู้คืนผู้ใช้เรียบร้อยแล้ว');
+  } catch (err) {
+    console.error(err);
+    req.flash('error', 'เกิดข้อผิดพลาด');
+  } finally {
+    if (conn) conn.release();
+  }
+  res.redirect('/users');
+});
+
+// POST /users/:id/delete — Hard delete
+router.post('/:id/delete', async (req, res) => {
+  if (parseInt(req.params.id, 10) === req.session.admin.id) {
+    req.flash('error', 'ไม่สามารถลบบัญชีของตัวเองได้');
+    return res.redirect('/users');
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const [user] = await conn.query(
+      'SELECT id, username, full_name FROM admins WHERE id = ?',
+      [req.params.id]
+    );
+
+    if (!user) {
+      req.flash('error', 'ไม่พบผู้ใช้ที่ต้องการลบ');
+      return res.redirect('/users');
+    }
+
+    await conn.query('DELETE FROM admins WHERE id = ?', [req.params.id]);
+    req.flash('success', `ลบผู้ใช้ "${user.full_name}" ออกจากระบบถาวรเรียบร้อยแล้ว`);
+  } catch (err) {
+    console.error('POST /users/:id/delete error:', err);
+    req.flash('error', 'ไม่สามารถลบผู้ใช้ถาวรได้: ' + err.message);
   } finally {
     if (conn) conn.release();
   }

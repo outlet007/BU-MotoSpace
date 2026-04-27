@@ -85,6 +85,17 @@ async function setup() {
     console.log('  ✅ rules');
 
     await conn.query(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        setting_key VARCHAR(100) PRIMARY KEY,
+        setting_value TEXT NOT NULL,
+        updated_by INT DEFAULT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (updated_by) REFERENCES admins(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB
+    `);
+    console.log('  ✅ app_settings');
+
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS violations (
         id INT AUTO_INCREMENT PRIMARY KEY,
         registration_id INT NOT NULL,

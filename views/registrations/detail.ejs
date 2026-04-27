@@ -95,19 +95,19 @@
                 <% if (reg.motorcycle_photo) { %>
                 <div>
                   <p class="text-xs text-slate-400 mb-2">รูปรถจักรยานยนต์</p>
-                  <img src="<%= signedUrl(reg.motorcycle_photo) %>" alt="Motorcycle" class="w-full h-40 object-cover rounded-xl border border-slate-200 lightbox-thumb" onclick="openLightbox(0)" data-lightbox-src="<%= signedUrl(reg.motorcycle_photo) %>" data-lightbox-caption="รูปรถจักรยานยนต์">
+                  <img src="<%= signedUrl(reg.motorcycle_photo) %>" alt="Motorcycle" class="w-full h-40 object-cover rounded-xl border border-slate-200 lightbox-thumb" data-lightbox-src="<%= signedUrl(reg.motorcycle_photo) %>" data-lightbox-caption="รูปรถจักรยานยนต์">
                 </div>
                 <% } %>
                 <% if (reg.plate_photo) { %>
                 <div>
                   <p class="text-xs text-slate-400 mb-2">รูปป้ายทะเบียน</p>
-                  <img src="<%= signedUrl(reg.plate_photo) %>" alt="License Plate" class="w-full h-40 object-cover rounded-xl border border-slate-200 lightbox-thumb" onclick="openLightbox(1)" data-lightbox-src="<%= signedUrl(reg.plate_photo) %>" data-lightbox-caption="รูปป้ายทะเบียน">
+                  <img src="<%= signedUrl(reg.plate_photo) %>" alt="License Plate" class="w-full h-40 object-cover rounded-xl border border-slate-200 lightbox-thumb" data-lightbox-src="<%= signedUrl(reg.plate_photo) %>" data-lightbox-caption="รูปป้ายทะเบียน">
                 </div>
                 <% } %>
                 <% if (reg.id_card_photo) { %>
                 <div>
                   <p class="text-xs text-slate-400 mb-2">รูปบัตรประจำตัว</p>
-                  <img src="<%= signedUrl(reg.id_card_photo) %>" alt="ID Card" class="w-full h-40 object-cover rounded-xl border border-slate-200 lightbox-thumb" onclick="openLightbox(2)" data-lightbox-src="<%= signedUrl(reg.id_card_photo) %>" data-lightbox-caption="รูปบัตรประจำตัว">
+                  <img src="<%= signedUrl(reg.id_card_photo) %>" alt="ID Card" class="w-full h-40 object-cover rounded-xl border border-slate-200 lightbox-thumb" data-lightbox-src="<%= signedUrl(reg.id_card_photo) %>" data-lightbox-caption="รูปบัตรประจำตัว">
                 </div>
                 <% } %>
                 <% if (!reg.motorcycle_photo && !reg.plate_photo && !reg.id_card_photo) { %>
@@ -142,20 +142,65 @@
               <% } %>
 
               <table class="data-table">
-                <thead><tr><th>กฎ</th><th>รายละเอียด</th><th>แจ้งโดย</th><th>ยืนยันโดย</th><th>วันที่</th></tr></thead>
+                <thead><tr><th>กฎ</th><th>รายละเอียด</th><th>แจ้งโดย</th><th>ยืนยันโดย</th><th>วันที่</th><th></th></tr></thead>
                 <tbody>
                   <% if (violations.length > 0) { %>
                     <% violations.forEach(function(v) { %>
-                    <tr>
+                    <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors" data-href="/violations/<%= v.id %>">
                       <td><span class="badge badge-danger"><%= v.rule_name %></span></td>
                       <td><%= v.description || '-' %></td>
                       <td class="text-xs text-slate-600"><%= v.reported_by_name || v.recorded_by_name %></td>
                       <td class="text-xs font-medium text-brand-600"><%= v.recorded_by_name %></td>
                       <td class="text-xs"><%= new Date(v.recorded_at).toLocaleDateString('th-TH') %></td>
+                      <td data-no-nav>
+                        <a href="/violations/<%= v.id %>" class="btn btn-secondary btn-sm justify-center whitespace-nowrap">
+                          <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                          ดูรายละเอียด
+                        </a>
+                      </td>
                     </tr>
                     <% }); %>
                   <% } else { %>
-                    <tr><td colspan="5" class="text-center text-slate-400 py-6">ไม่มีประวัติการกระทำผิด</td></tr>
+                    <tr><td colspan="6" class="text-center text-slate-400 py-6">ไม่มีประวัติการกระทำผิด</td></tr>
+                  <% } %>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Summons Appointments -->
+            <div id="summons-history" class="card p-6">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                  <i data-lucide="calendar-check" class="w-4 h-4 text-orange-500"></i>
+                  ประวัติการเรียกพบ
+                </h3>
+              </div>
+
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>วันเวลานัดหมาย</th>
+                    <th>หมายเหตุ</th>
+                    <th>บันทึกโดย</th>
+                    <th>วันที่บันทึก</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% if (typeof summonsAppointments !== 'undefined' && summonsAppointments.length > 0) { %>
+                    <% summonsAppointments.forEach(function(item) { %>
+                    <tr>
+                      <td class="font-medium text-slate-700 whitespace-nowrap">
+                        <%= item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>
+                      </td>
+                      <td><%= item.note || '-' %></td>
+                      <td class="text-xs font-medium text-brand-600"><%= item.summoned_by_name %></td>
+                      <td class="text-xs text-slate-500 whitespace-nowrap">
+                        <%= item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>
+                      </td>
+                    </tr>
+                    <% }); %>
+                  <% } else { %>
+                    <tr><td colspan="4" class="text-center text-slate-400 py-6">ไม่มีประวัติการเรียกพบ</td></tr>
                   <% } %>
                 </tbody>
               </table>
@@ -168,6 +213,7 @@
             <div class="card p-5 space-y-3">
               <h3 class="text-sm font-semibold text-slate-800">ดำเนินการ</h3>
               <form method="POST" action="/registrations/<%= reg.id %>/approve">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button type="submit" class="btn btn-primary w-full justify-center">
                   <i data-lucide="check" class="w-4 h-4"></i> อนุมัติ
                 </button>
@@ -180,7 +226,13 @@
               <a href="/registrations/<%= reg.id %>/edit" class="btn btn-secondary w-full justify-center">
                 <i data-lucide="pencil" class="w-4 h-4"></i> แก้ไขข้อมูล
               </a>
-              <form method="POST" action="/registrations/<%= reg.id %>/delete" onsubmit="return confirm('คุณแน่ใจหรือไม่ที่จะลบข้อมูลนี้?')">
+              <form method="POST"
+                    action="/registrations/<%= reg.id %>/delete"
+                    data-delete-confirm
+                    data-delete-item="ทะเบียนรถ: <%= reg.license_plate %>"
+                    data-delete-detail="<%= reg.first_name %> <%= reg.last_name %> · <%= reg.id_number %> · <%= reg.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %>"
+                    data-delete-confirm-text="ลบข้อมูลทะเบียน">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button type="submit" class="btn btn-secondary w-full justify-center text-red-500 hover:bg-red-50">
                   <i data-lucide="trash-2" class="w-4 h-4"></i> ลบข้อมูล
                 </button>
@@ -195,53 +247,80 @@
     </div>
   </div>
   <!-- Lightbox Modal -->
-  <div id="lightboxOverlay" class="lightbox-overlay" onclick="closeLightbox(event)">
-    <button class="lightbox-close" onclick="closeLightbox(event)" title="ปิด">✕</button>
-    <button class="lightbox-nav prev" onclick="navigateLightbox(event, -1)" title="ก่อนหน้า">❮</button>
+  <div id="lightboxOverlay" class="lightbox-overlay">
+    <button type="button" class="lightbox-close" title="ปิด">✕</button>
+    <button type="button" class="lightbox-nav prev" title="ก่อนหน้า">❮</button>
     <img id="lightboxImg" src="" alt="">
-    <button class="lightbox-nav next" onclick="navigateLightbox(event, 1)" title="ถัดไป">❯</button>
+    <button type="button" class="lightbox-nav next" title="ถัดไป">❯</button>
     <div id="lightboxCaption" class="lightbox-caption"></div>
   </div>
 
   <script>lucide.createIcons();</script>
   <script>
+    document.addEventListener('click', function(e) {
+      var row = e.target.closest('tr[data-href]');
+      if (!row) return;
+      if (e.target.closest('button, a, input, select, textarea, form, [data-no-nav]')) return;
+      window.location.href = row.dataset.href;
+    });
+
     // Lightbox functionality
     (function() {
       var images = [];
       var currentIndex = 0;
+      var overlay = document.getElementById('lightboxOverlay');
+      var closeButton = overlay.querySelector('.lightbox-close');
+      var prevButton = overlay.querySelector('.lightbox-nav.prev');
+      var nextButton = overlay.querySelector('.lightbox-nav.next');
 
       // Collect available images
-      document.querySelectorAll('.lightbox-thumb').forEach(function(img) {
-        images.push({ src: img.dataset.lightboxSrc, caption: img.dataset.lightboxCaption });
+      document.querySelectorAll('.lightbox-thumb').forEach(function(img, index) {
+        images.push({ src: img.dataset.lightboxSrc || img.src, caption: img.dataset.lightboxCaption || img.alt || '' });
+        img.addEventListener('click', function() {
+          openLightbox(index);
+        });
       });
 
-      window.openLightbox = function(requestedIndex) {
-        // Map requested index to actual available image index
-        var actualIndex = 0;
-        var thumbs = document.querySelectorAll('.lightbox-thumb');
-        thumbs.forEach(function(thumb, i) {
-          if (parseInt(thumb.getAttribute('onclick').match(/\d+/)[0]) === requestedIndex) {
-            actualIndex = i;
-          }
-        });
-        currentIndex = actualIndex;
+      window.openLightbox = function(index) {
+        if (images.length === 0) return;
+        currentIndex = Math.max(0, Math.min(index || 0, images.length - 1));
         showImage();
-        document.getElementById('lightboxOverlay').classList.add('active');
+        overlay.classList.add('active');
         document.body.style.overflow = 'hidden';
       };
 
-      window.closeLightbox = function(e) {
-        if (e.target === document.getElementById('lightboxOverlay') || e.target.classList.contains('lightbox-close')) {
-          document.getElementById('lightboxOverlay').classList.remove('active');
-          document.body.style.overflow = '';
-        }
+      window.closeLightbox = function() {
+        overlay.classList.remove('active');
+        document.body.style.overflow = '';
       };
 
-      window.navigateLightbox = function(e, direction) {
-        e.stopPropagation();
+      window.navigateLightbox = function(direction) {
+        if (images.length === 0) return;
         currentIndex = (currentIndex + direction + images.length) % images.length;
         showImage();
       };
+
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) closeLightbox();
+      });
+
+      closeButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeLightbox();
+      });
+
+      prevButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        navigateLightbox(-1);
+      });
+
+      nextButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        navigateLightbox(1);
+      });
 
       function showImage() {
         if (images.length === 0) return;
@@ -254,11 +333,10 @@
 
       // Keyboard navigation
       document.addEventListener('keydown', function(e) {
-        var overlay = document.getElementById('lightboxOverlay');
         if (!overlay.classList.contains('active')) return;
-        if (e.key === 'Escape') { overlay.classList.remove('active'); document.body.style.overflow = ''; }
-        if (e.key === 'ArrowLeft') { currentIndex = (currentIndex - 1 + images.length) % images.length; showImage(); }
-        if (e.key === 'ArrowRight') { currentIndex = (currentIndex + 1) % images.length; showImage(); }
+        if (e.key === 'Escape') closeLightbox();
+        if (e.key === 'ArrowLeft') navigateLightbox(-1);
+        if (e.key === 'ArrowRight') navigateLightbox(1);
       });
     })();
   </script>

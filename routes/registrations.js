@@ -2,9 +2,27 @@ const router = require('express').Router();
 const pool = require('../config/database');
 const upload = require('../middleware/upload');
 const { isAuthenticated, isHead } = require('../middleware/auth');
+const { verifyCsrf } = require('../middleware/csrf');
 const { generateHash, compareHashes } = require('../utils/imageHash');
 
 router.use(isAuthenticated);
+
+async function ensureSummonsAppointmentsTable(conn) {
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS summons_appointments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      registration_id INT NOT NULL,
+      scheduled_at DATETIME NOT NULL,
+      note TEXT,
+      summoned_by INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
+      FOREIGN KEY (summoned_by) REFERENCES admins(id) ON DELETE CASCADE,
+      INDEX idx_registration_created (registration_id, created_at),
+      INDEX idx_scheduled_at (scheduled_at)
+    ) ENGINE=InnoDB
+  `);
+}
 
 // GET /registrations
 router.get('/', isHead, async (req, res) => {
@@ -53,8 +71,10 @@ router.get('/', isHead, async (req, res) => {
     const imageSearchResults = req.session.imageSearchResults || null;
     if (req.session.imageSearchResults) delete req.session.imageSearchResults;
 
+    const pageTitle = status === 'pending' ? 'ตรวจสอบการลงทะเบียนใหม่' : 'จัดการทะเบียน';
+
     res.render('registrations/index', {
-      title: 'จัดการทะเบียน - BU MotoSpace',
+      title: `${pageTitle} - BU MotoSpace`,
       registrations: rows,
       total,
       totalPages,
@@ -68,8 +88,10 @@ router.get('/', isHead, async (req, res) => {
     console.error('GET /registrations error:', err);
     req.flash('error', 'ไม่สามารถโหลดข้อมูลได้: ' + err.message);
     // Render page with empty data instead of redirecting
+    const pageTitle = req.query.status === 'pending' ? 'ตรวจสอบการลงทะเบียนใหม่' : 'จัดการทะเบียน';
+
     return res.render('registrations/index', {
-      title: 'จัดการทะเบียน - BU MotoSpace',
+      title: `${pageTitle} - BU MotoSpace`,
       registrations: [],
       total: 0,
       totalPages: 0,
@@ -85,7 +107,7 @@ router.get('/', isHead, async (req, res) => {
 });
 
 // POST /registrations/search — Process image search (called from modal)
-router.post('/search', upload.single('search_image'), async (req, res) => {
+router.post('/search', upload.single('search_image'), verifyCsrf, async (req, res) => {
   let conn;
   try {
     if (!req.file) {
@@ -169,7 +191,7 @@ router.get('/api/search', isHead, async (req, res) => {
     return res.json(rows);
   } catch (err) {
     console.error('AJAX search error:', err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Internal server error' });
   } finally {
     if (conn) conn.release();
   }
@@ -210,11 +232,22 @@ router.get('/:id', isHead, async (req, res) => {
       [req.params.id]
     );
 
+    await ensureSummonsAppointmentsTable(conn);
+    const summonsAppointments = await conn.query(
+      `SELECT sa.*, a.full_name AS summoned_by_name
+       FROM summons_appointments sa
+       JOIN admins a ON sa.summoned_by = a.id
+       WHERE sa.registration_id = ?
+       ORDER BY sa.created_at DESC`,
+      [req.params.id]
+    );
+
     res.render('registrations/detail', {
       title: `${reg.first_name} ${reg.last_name} - BU MotoSpace`,
       reg,
       violations,
       violationCounts,
+      summonsAppointments,
     });
   } catch (err) {
     console.error(err);
@@ -291,7 +324,7 @@ router.post('/:id/edit', isHead, upload.fields([
   { name: 'motorcycle_photo', maxCount: 1 },
   { name: 'plate_photo', maxCount: 1 },
   { name: 'id_card_photo', maxCount: 1 },
-]), async (req, res) => {
+]), verifyCsrf, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();

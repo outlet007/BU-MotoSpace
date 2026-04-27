@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool = require('../config/database');
 const { isAuthenticated, isHead } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { verifyCsrf } = require('../middleware/csrf');
 const { Parser } = require('json2csv');
 const fs = require('fs');
 const xlsx = require('xlsx');
@@ -130,7 +131,7 @@ router.get('/export/violations', async (req, res) => {
 });
 
 // POST /data/import/registrations
-router.post('/import/registrations', isHead, upload.single('file'), async (req, res) => {
+router.post('/import/registrations', isHead, upload.single('file'), verifyCsrf, async (req, res) => {
   if (!req.file) {
     req.flash('error', 'กรุณาเลือกไฟล์');
     return res.redirect('/data/import');

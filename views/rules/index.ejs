@@ -36,9 +36,44 @@
             </h2>
             <p class="text-slate-500 mt-1">การจัดการกฎ ระเบียบ ข้อบังคับ และบทลงโทษ</p>
           </div>
-          <button onclick="openModal('add-modal')" class="btn btn-primary">
+          <button type="button" data-modal-open="add-modal" class="btn btn-primary">
             <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มกฎและข้อบังคับ
           </button>
+        </div>
+
+        <!-- Summons Report Settings -->
+        <div class="card p-4 sm:p-5 mb-6">
+          <div class="flex flex-col gap-3">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-11 h-11 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center flex-shrink-0">
+                  <i data-lucide="calendar-clock" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h3 class="font-semibold text-slate-800 lg:whitespace-nowrap">กำหนดจำนวนครั้งของการกระทำผิดรวม</h3>
+                </div>
+              </div>
+              <form method="POST" action="/rules/settings/summons-threshold" class="flex flex-col sm:flex-row sm:items-center gap-3 lg:flex-shrink-0">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                  <label class="label sm:mb-0 whitespace-nowrap">จำนวนครั้งรวม</label>
+                  <input type="number"
+                         name="summons_total_threshold"
+                         class="input sm:w-28"
+                         min="1"
+                         value="<%= typeof summonsThreshold !== 'undefined' ? summonsThreshold : 3 %>"
+                         required>
+                </div>
+                <button type="submit" class="btn btn-primary justify-center whitespace-nowrap">
+                  <i data-lucide="save" class="w-4 h-4"></i>
+                  บันทึกเกณฑ์
+                </button>
+              </form>
+            </div>
+            <p class="text-sm text-slate-500 lg:pl-14">
+              ใช้เป็นเกณฑ์รวมทุกกฎและข้อบังคับ ก่อนนำไปออกรายงานเรียกพบ
+            </p>
+          </div>
         </div>
 
         <!-- Rules Cards -->
@@ -52,32 +87,80 @@
                 </div>
                 <div>
                   <h3 class="font-semibold text-slate-800"><%= r.rule_name %></h3>
-                  <p class="text-xs text-slate-400"><%= r.is_active ? 'ใช้งาน' : 'ปิดใช้งาน' %> · ใช้ไปแล้ว <%= r.violation_count %> ครั้ง</p>
+                  <p class="text-xs text-slate-400">
+                    <span class="inline-flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full <%= r.is_active ? 'bg-brand-500' : 'bg-slate-400' %>"></span>
+                      <%= r.is_active ? 'เปิดใช้งาน' : 'ปิดใช้งาน' %>
+                    </span>
+                    · ใช้ไปแล้ว <%= r.violation_count %> ครั้ง
+                  </p>
                 </div>
               </div>
               <div class="flex items-center gap-1">
-                <button onclick="editRule(<%= r.id %>, '<%= r.rule_name %>', `<%= r.description || '' %>`, <%= r.max_violations %>, `<%= r.penalty || '' %>`, <%= r.is_active ? 'true' : 'false' %>)" class="p-1.5 text-slate-400 hover:text-brand-600 rounded-lg hover:bg-brand-50 transition-all">
+                <button type="button"
+                        class="js-edit-rule p-1.5 text-slate-400 hover:text-brand-600 rounded-lg hover:bg-brand-50 transition-all"
+                        data-id="<%= r.id %>"
+                        data-rule-name="<%= r.rule_name %>"
+                        data-description="<%= r.description || '' %>"
+                        data-max-violations="<%= r.max_violations %>"
+                        data-penalty="<%= r.penalty || '' %>"
+                        data-is-active="<%= r.is_active ? 'true' : 'false' %>">
                   <i data-lucide="pencil" class="w-4 h-4"></i>
                 </button>
-                <form method="POST" action="/rules/<%= r.id %>/delete" onsubmit="return confirm('คุณแน่ใจหรือไม่?')" class="inline">
-                  <button type="submit" class="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-all">
+                <form method="POST"
+                      action="/rules/<%= r.id %>/delete"
+                      class="inline"
+                      data-delete-confirm
+                      data-delete-title="ยืนยันการซ่อนกฎ"
+                      data-delete-lead="คุณกำลังจะซ่อน:"
+                      data-delete-item="ซ่อนกฎและข้อบังคับ: <%= r.rule_name %>"
+                      data-delete-detail="กฎจะถูกซ่อนจากการใช้งานใหม่ แต่ประวัติการกระทำผิดที่เคยบันทึกไว้จะยังคงอยู่"
+                      data-delete-warning="รายการนี้เป็นการซ่อนเท่านั้น ไม่ลบข้อมูลประวัติเดิม"
+                      data-delete-confirm-text="ซ่อนกฎนี้">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-all" title="ซ่อนกฎนี้">
+                    <i data-lucide="eye-off" class="w-4 h-4"></i>
+                  </button>
+                </form>
+                <form method="POST"
+                      action="/rules/<%= r.id %>/destroy"
+                      class="inline"
+                      data-delete-confirm
+                      data-delete-title="ยืนยันการลบกฎถาวร"
+                      data-delete-lead="คุณกำลังจะลบออกจากระบบจริง:"
+                      data-delete-item="กฎและข้อบังคับ: <%= r.rule_name %>"
+                      data-delete-detail="มีประวัติใช้งานกฎนี้แล้ว <%= r.violation_count %> ครั้ง"
+                      data-delete-warning="คำเตือน: การลบถาวรจะลบกฎออกจากฐานข้อมูลจริง และอาจทำให้ประวัติการกระทำผิดที่อ้างอิงกฎนี้ถูกลบตามความสัมพันธ์ของฐานข้อมูล"
+                      data-delete-confirm-text="ลบถาวร">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all" title="ลบกฎถาวร">
                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                   </button>
                 </form>
               </div>
             </div>
             <p class="text-sm text-slate-500 mb-3"><%= r.description || 'ไม่มีรายละเอียด' %></p>
-            <div class="flex items-center gap-4 text-xs">
-              <span class="flex items-center gap-1 text-amber-600">
-                <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
-                สูงสุด <%= r.max_violations %> ครั้ง
-              </span>
-              <% if (r.penalty) { %>
-              <span class="flex items-center gap-1 text-red-500">
-                <i data-lucide="gavel" class="w-3.5 h-3.5"></i>
-                <%= r.penalty %>
-              </span>
-              <% } %>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center gap-4 text-xs">
+                <span class="flex items-center gap-1 text-amber-600">
+                  <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+                  สูงสุด <%= r.max_violations %> ครั้ง
+                </span>
+                <% if (r.penalty) { %>
+                <span class="flex items-center gap-1 text-red-500">
+                  <i data-lucide="gavel" class="w-3.5 h-3.5"></i>
+                  <%= r.penalty %>
+                </span>
+                <% } %>
+              </div>
+              <form method="POST" action="/rules/<%= r.id %>/toggle">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors <%= r.is_active ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 'bg-brand-50 text-brand-700 border-brand-200 hover:bg-brand-100' %>">
+                  <i data-lucide="<%= r.is_active ? 'pause-circle' : 'play-circle' %>" class="w-3.5 h-3.5"></i>
+                  <%= r.is_active ? 'ปิดกฎ' : 'เปิดกฎ' %>
+                </button>
+              </form>
             </div>
           </div>
           <% }); %>
@@ -91,8 +174,7 @@
         <% } %>
 
         <!-- Add Modal -->
-        <div id="add-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center p-4"
-             onclick="if(event.target===this) closeModal('add-modal')">
+        <div id="add-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center p-4">
           <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-lg">
             <!-- Header -->
             <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
@@ -102,7 +184,7 @@
                 </div>
                 <h3 class="text-base font-semibold text-slate-800">เพิ่มกฎใหม่</h3>
               </div>
-              <button onclick="closeModal('add-modal')"
+              <button type="button" data-modal-close="add-modal"
                       class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
                       aria-label="ปิด">
                 <i data-lucide="x" class="w-4 h-4"></i>
@@ -111,6 +193,7 @@
             <!-- Body -->
             <div class="p-6">
               <form method="POST" action="/rules" class="space-y-4">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <div>
                   <label class="label">ชื่อกฎ</label>
                   <input type="text" name="rule_name" class="input" required placeholder="เช่น จอดรถในที่ห้ามจอด">
@@ -130,7 +213,7 @@
                   </div>
                 </div>
                 <div class="flex gap-3 pt-1">
-                  <button type="button" onclick="closeModal('add-modal')" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
+                  <button type="button" data-modal-close="add-modal" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
                   <button type="submit" class="btn btn-primary flex-1 justify-center">บันทึก</button>
                 </div>
               </form>
@@ -139,8 +222,7 @@
         </div>
 
         <!-- Edit Modal -->
-        <div id="edit-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center p-4"
-             onclick="if(event.target===this) closeModal('edit-modal')">
+        <div id="edit-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center p-4">
           <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-lg">
             <!-- Header -->
             <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
@@ -150,7 +232,7 @@
                 </div>
                 <h3 class="text-base font-semibold text-slate-800">แก้ไขกฎ</h3>
               </div>
-              <button onclick="closeModal('edit-modal')"
+              <button type="button" data-modal-close="edit-modal"
                       class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
                       aria-label="ปิด">
                 <i data-lucide="x" class="w-4 h-4"></i>
@@ -159,6 +241,7 @@
             <!-- Body -->
             <div class="p-6">
               <form id="edit-form" method="POST" class="space-y-4">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <div>
                   <label class="label">ชื่อกฎ</label>
                   <input type="text" name="rule_name" id="edit-rule-name" class="input" required>
@@ -182,7 +265,7 @@
                   <label for="edit-active" class="text-sm text-slate-600">เปิดใช้งาน</label>
                 </div>
                 <div class="flex gap-3 pt-1">
-                  <button type="button" onclick="closeModal('edit-modal')" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
+                  <button type="button" data-modal-close="edit-modal" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
                   <button type="submit" class="btn btn-primary flex-1 justify-center">อัปเดต</button>
                 </div>
               </form>
@@ -194,20 +277,52 @@
     </div>
   </div>
   <script>
-    lucide.createIcons();
-
     function closeModal(id) {
-      document.getElementById(id).classList.remove('active');
+      var modal = document.getElementById(id);
+      if (!modal) return;
+      modal.classList.remove('active');
+      modal.style.display = 'none';
     }
+
     function openModal(id) {
-      document.getElementById(id).classList.add('active');
+      var modal = document.getElementById(id);
+      if (!modal) return;
+      modal.style.display = 'flex';
+      modal.classList.add('active');
     }
+
+    window.closeModal = closeModal;
+    window.openModal = openModal;
+
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+
+    document.querySelectorAll('[data-modal-open]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        openModal(button.dataset.modalOpen);
+      });
+    });
+
+    document.querySelectorAll('[data-modal-close]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        closeModal(button.dataset.modalClose);
+      });
+    });
+
+    document.querySelectorAll('.modal-backdrop').forEach(function(modal) {
+      modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+          closeModal(modal.id);
+        }
+      });
+    });
 
     // ESC key closes any active modal
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
         document.querySelectorAll('.modal-backdrop.active').forEach(function(m) {
-          m.classList.remove('active');
+          closeModal(m.id);
         });
       }
     });
@@ -221,6 +336,19 @@
       document.getElementById('edit-active').checked = active;
       openModal('edit-modal');
     }
+
+    document.querySelectorAll('.js-edit-rule').forEach(function(button) {
+      button.addEventListener('click', function() {
+        editRule(
+          button.dataset.id,
+          button.dataset.ruleName || '',
+          button.dataset.description || '',
+          button.dataset.maxViolations || 3,
+          button.dataset.penalty || '',
+          button.dataset.isActive === 'true'
+        );
+      });
+    });
   </script>
   <script src="/js/table-sort.js"></script>
 </body>

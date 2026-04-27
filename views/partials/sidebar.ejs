@@ -29,38 +29,53 @@
       แดชบอร์ด
     </a>
 
-    <a href="/registrations?status=pending" class="sidebar-link <%= currentUrl.includes('/registrations') && currentUrl.includes('status=pending') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
-      <i data-lucide="file-check" class="w-5 h-5"></i>
-      <span class="flex-1">การลงทะเบียนใหม่</span>
-      <% if (typeof pendingCount !== 'undefined' && pendingCount > 0) { %>
-        <span class="bg-red-500 text-white text-[11px] font-bold w-5 h-5 flex items-center justify-center rounded-full ml-auto"><%= pendingCount %></span>
-      <% } %>
-    </a>
-
-    <a href="/registrations" class="sidebar-link <%= (currentPath.startsWith('/registrations') && currentPath !== '/registrations/search' || currentPath === '/violations/create') && !currentUrl.includes('status=pending') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+    <a href="/registrations" class="sidebar-link <%= currentPath.startsWith('/registrations') && currentPath !== '/registrations/search' && !currentUrl.includes('status=pending') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
       <i data-lucide="clipboard-list" class="w-5 h-5"></i>
       จัดการทะเบียน
     </a>
     <% } %>
 
     <!-- ค้นหาด้วยภาพ — opens modal instead of navigating -->
-    <button type="button" onclick="openImageSearchModal()" class="sidebar-link w-full text-left">
+    <button type="button" id="btn-image-search" class="sidebar-link w-full text-left" style="cursor:pointer">
       <i data-lucide="image" class="w-5 h-5"></i>
-      ค้นหาด้วยภาพ
+      ค้นหาด้วยรูปภาพ
     </button>
 
-    <a href="/violations" class="sidebar-link <%= currentPath.startsWith('/violations') && currentPath !== '/violations/create' ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+    <a href="/violations" class="sidebar-link <%= currentPath.startsWith('/violations') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
       <i data-lucide="alert-triangle" class="w-5 h-5"></i>
       แจ้งการทำผิดกฎ
     </a>
 
     <% if (admin && (admin.role === 'head' || admin.role === 'superadmin')) { %>
+    <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold px-4 mt-6 mb-2">ตรวจสอบ และรายงาน</p>
+
+    <a href="/registrations?status=pending" class="sidebar-link <%= currentUrl.includes('/registrations') && currentUrl.includes('status=pending') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+      <i data-lucide="file-check" class="w-5 h-5"></i>
+      <span class="flex-1">ตรวจสอบการลงทะเบียนใหม่</span>
+      <% if (typeof pendingCount !== 'undefined' && pendingCount > 0) { %>
+        <span class="bg-red-500 text-white text-[11px] font-bold w-5 h-5 flex items-center justify-center rounded-full ml-auto"><%= pendingCount %></span>
+      <% } %>
+    </a>
+
     <a href="/violation-reports" class="sidebar-link <%= currentPath.startsWith('/violation-reports') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
       <i data-lucide="clipboard-check" class="w-5 h-5"></i>
       <span class="flex-1">ตรวจสอบการกระทำผิดกฎ</span>
       <% if (typeof pendingReportsCount !== 'undefined' && pendingReportsCount > 0) { %>
         <span style="background:#f97316;color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;border-radius:9999px;padding:0 4px;flex-shrink:0;"><%= pendingReportsCount %></span>
       <% } %>
+    </a>
+
+    <a href="/reports/summons" class="sidebar-link <%= currentPath.startsWith('/reports/summons') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+      <i data-lucide="user-check" class="w-5 h-5"></i>
+      <span class="flex-1">รายงานผู้เข้าข่ายเรียกพบ</span>
+      <% if (typeof summonsCandidatesCount !== 'undefined') { %>
+        <span style="background:#22c55e;color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;border-radius:9999px;padding:0 4px;flex-shrink:0;"><%= summonsCandidatesCount > 99 ? '99+' : summonsCandidatesCount %></span>
+      <% } %>
+    </a>
+
+    <a href="/reports" class="sidebar-link <%= currentPath === '/reports' ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+      <i data-lucide="pie-chart" class="w-5 h-5"></i>
+      รายงานสถิติ
     </a>
 
     <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold px-4 mt-6 mb-2">จัดการ</p>
@@ -78,11 +93,6 @@
     <a href="/data/export" class="sidebar-link <%= currentPath.startsWith('/data/export') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
       <i data-lucide="file-down" class="w-5 h-5"></i>
       ส่งออกข้อมูล
-    </a>
-
-    <a href="/reports" class="sidebar-link <%= currentPath.startsWith('/reports') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
-      <i data-lucide="pie-chart" class="w-5 h-5"></i>
-      รายงาน
     </a>
     <% } %>
 
@@ -116,16 +126,58 @@
 </aside>
 
 <!-- ======================================================
+     Delete Confirmation Dialog
+     ====================================================== -->
+<div id="delete-confirm-modal"
+     style="display:none; position:fixed; inset:0; z-index:10000; align-items:center; justify-content:center; padding:1rem;"
+     aria-modal="true" role="dialog" aria-labelledby="delete-confirm-title">
+  <div id="delete-confirm-backdrop"
+       style="position:absolute; inset:0; background:rgba(15,23,42,.72); backdrop-filter:blur(4px);"></div>
+  <div style="position:relative; width:100%; max-width:430px; background:#fff; border-radius:16px; box-shadow:0 25px 60px rgba(15,23,42,.28); overflow:hidden;">
+    <div style="padding:22px 24px 16px; border-bottom:1px solid #f1f5f9;">
+      <div style="display:flex; align-items:flex-start; gap:12px;">
+        <div style="width:44px; height:44px; border-radius:14px; background:#fef2f2; color:#dc2626; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <i data-lucide="trash-2" style="width:22px; height:22px;"></i>
+        </div>
+        <div>
+          <h2 id="delete-confirm-title" style="font-size:1rem; font-weight:700; color:#0f172a; margin:0;">ยืนยันการลบข้อมูล</h2>
+          <p style="font-size:.8rem; color:#64748b; margin:4px 0 0;">โปรดตรวจสอบรายการที่จะลบก่อนดำเนินการ</p>
+        </div>
+      </div>
+    </div>
+    <div style="padding:18px 24px;">
+      <p id="delete-confirm-lead" style="font-size:.875rem; color:#475569; margin:0 0 10px;">คุณกำลังจะลบ:</p>
+      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px;">
+        <p id="delete-confirm-item" style="font-size:.95rem; font-weight:700; color:#1e293b; margin:0;">รายการนี้</p>
+        <p id="delete-confirm-detail" style="font-size:.8rem; color:#64748b; margin:4px 0 0;"></p>
+      </div>
+      <p id="delete-confirm-warning" style="font-size:.78rem; color:#dc2626; margin:12px 0 0;">
+        การลบนี้อาจส่งผลต่อข้อมูลที่เกี่ยวข้อง และไม่ควรทำหากยังไม่แน่ใจ
+      </p>
+    </div>
+    <div style="display:flex; gap:10px; padding:0 24px 22px;">
+      <button type="button" id="delete-confirm-cancel"
+              style="flex:1; padding:10px 14px; border-radius:10px; border:1px solid #e2e8f0; background:#f8fafc; color:#334155; font-size:.875rem; font-weight:600; cursor:pointer;">
+        ยกเลิก
+      </button>
+      <button type="button" id="delete-confirm-submit"
+              style="flex:1; padding:10px 14px; border-radius:10px; border:0; background:#dc2626; color:#fff; font-size:.875rem; font-weight:700; cursor:pointer;">
+        ยืนยันลบ
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================
      Image Search Modal
      ====================================================== -->
 <div id="image-search-modal"
-     class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden"
+     style="display:none; position:fixed; inset:0; z-index:9999; align-items:center; justify-content:center; padding:1rem;"
      aria-modal="true" role="dialog" aria-labelledby="modal-title">
 
   <!-- Backdrop -->
   <div id="image-search-backdrop"
-       class="absolute inset-0 bg-slate-900/70 backdrop-blur-sm"
-       onclick="closeImageSearchModal()"></div>
+       style="position:absolute;inset:0;background:rgba(15,23,42,.7);backdrop-filter:blur(4px);"></div>
 
   <!-- Modal Panel -->
   <div class="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden
@@ -140,7 +192,7 @@
         </div>
         <h2 id="modal-title" class="text-base font-semibold text-slate-800">ค้นหาด้วยรูปภาพ</h2>
       </div>
-      <button onclick="closeImageSearchModal()"
+      <button id="btn-close-image-search"
               class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400
                      hover:text-slate-700 hover:bg-slate-100 transition-colors"
               aria-label="ปิด">
@@ -154,6 +206,7 @@
 
       <form id="image-search-form" method="POST" action="/registrations/search"
             enctype="multipart/form-data" class="space-y-4">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
         <!-- Upload Zone -->
         <label id="modal-upload-zone"
@@ -249,11 +302,12 @@
   /* ── Image Search Modal ──────────────────────────────── */
   function openImageSearchModal() {
     closeSidebarOnMobile();
-    const modal = document.getElementById('image-search-modal');
-    const panel = document.getElementById('image-search-panel');
-    modal.classList.remove('hidden');
+    var modal = document.getElementById('image-search-modal');
+    var panel = document.getElementById('image-search-panel');
+    if (!modal) return;
+    modal.style.display = 'flex';
     // Trigger animation next frame
-    requestAnimationFrame(() => {
+    requestAnimationFrame(function() {
       panel.classList.remove('scale-95', 'opacity-0');
       panel.classList.add('scale-100', 'opacity-100');
     });
@@ -261,12 +315,13 @@
   }
 
   function closeImageSearchModal() {
-    const modal = document.getElementById('image-search-modal');
-    const panel = document.getElementById('image-search-panel');
+    var modal = document.getElementById('image-search-modal');
+    var panel = document.getElementById('image-search-panel');
+    if (!modal) return;
     panel.classList.add('scale-95', 'opacity-0');
     panel.classList.remove('scale-100', 'opacity-100');
-    setTimeout(() => {
-      modal.classList.add('hidden');
+    setTimeout(function() {
+      modal.style.display = 'none';
       resetModalForm();
     }, 200);
     document.removeEventListener('keydown', handleModalEsc);
@@ -347,9 +402,93 @@
   }
 
   /* Click anywhere on zone opens file picker (but not on button/img) */
-  document.getElementById('modal-upload-zone').addEventListener('click', function(e) {
-    if (e.target === this || e.target.closest('#modal-upload-default')) {
-      document.getElementById('modal-file-input').click();
+  var uploadZone = document.getElementById('modal-upload-zone');
+  if (uploadZone) {
+    uploadZone.addEventListener('click', function(e) {
+      if (e.target === uploadZone || e.target.closest('#modal-upload-default')) {
+        document.getElementById('modal-file-input').click();
+      }
+    });
+  }
+
+  /* Wire up sidebar button, close button, backdrop via addEventListener */
+  document.addEventListener('DOMContentLoaded', function() {});
+  (function() {
+    var btnOpen = document.getElementById('btn-image-search');
+    if (btnOpen) {
+      btnOpen.addEventListener('click', function(e) {
+        e.stopPropagation();
+        openImageSearchModal();
+      });
     }
-  });
+    var btnClose = document.getElementById('btn-close-image-search');
+    if (btnClose) {
+      btnClose.addEventListener('click', function() { closeImageSearchModal(); });
+    }
+    var backdrop = document.getElementById('image-search-backdrop');
+    if (backdrop) {
+      backdrop.addEventListener('click', function() { closeImageSearchModal(); });
+    }
+  })();
+
+  /* Shared delete confirmation dialog */
+  (function() {
+    var pendingDeleteForm = null;
+    var modal = document.getElementById('delete-confirm-modal');
+    var titleEl = document.getElementById('delete-confirm-title');
+    var leadEl = document.getElementById('delete-confirm-lead');
+    var itemEl = document.getElementById('delete-confirm-item');
+    var detailEl = document.getElementById('delete-confirm-detail');
+    var warningEl = document.getElementById('delete-confirm-warning');
+    var btnCancel = document.getElementById('delete-confirm-cancel');
+    var btnSubmit = document.getElementById('delete-confirm-submit');
+    var backdrop = document.getElementById('delete-confirm-backdrop');
+
+    function closeDeleteConfirm() {
+      pendingDeleteForm = null;
+      if (modal) modal.style.display = 'none';
+    }
+
+    function openDeleteConfirm(form) {
+      pendingDeleteForm = form;
+      if (titleEl) titleEl.textContent = form.dataset.deleteTitle || 'ยืนยันการลบข้อมูล';
+      if (leadEl) leadEl.textContent = form.dataset.deleteLead || 'คุณกำลังจะลบ:';
+      if (itemEl) itemEl.textContent = form.dataset.deleteItem || 'รายการนี้';
+      if (detailEl) {
+        detailEl.textContent = form.dataset.deleteDetail || '';
+        detailEl.style.display = form.dataset.deleteDetail ? 'block' : 'none';
+      }
+      if (warningEl) warningEl.textContent = form.dataset.deleteWarning || 'การลบนี้อาจส่งผลต่อข้อมูลที่เกี่ยวข้อง และไม่ควรทำหากยังไม่แน่ใจ';
+      if (btnSubmit) btnSubmit.textContent = form.dataset.deleteConfirmText || 'ยืนยันลบ';
+      if (modal) modal.style.display = 'flex';
+    }
+
+    document.addEventListener('submit', function(e) {
+      var submittedForm = e.target.closest('form');
+      if (!submittedForm) return;
+      var action = submittedForm.getAttribute('action') || '';
+      var isDeleteForm = submittedForm.hasAttribute('data-delete-confirm') || /\/delete(?:\?|$)/.test(action);
+      var form = isDeleteForm ? submittedForm : null;
+      if (!form || form.dataset.deleteConfirmed === 'true') return;
+      e.preventDefault();
+      openDeleteConfirm(form);
+    });
+
+    if (btnCancel) btnCancel.addEventListener('click', closeDeleteConfirm);
+    if (backdrop) backdrop.addEventListener('click', closeDeleteConfirm);
+
+    if (btnSubmit) {
+      btnSubmit.addEventListener('click', function() {
+        if (!pendingDeleteForm) return;
+        pendingDeleteForm.dataset.deleteConfirmed = 'true';
+        HTMLFormElement.prototype.submit.call(pendingDeleteForm);
+      });
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && modal && modal.style.display === 'flex') {
+        closeDeleteConfirm();
+      }
+    });
+  })();
 </script>
