@@ -2,6 +2,15 @@
 CREATE DATABASE IF NOT EXISTS bu_motospace CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE bu_motospace;
 
+-- ตารางหน่วยงาน
+CREATE TABLE IF NOT EXISTS departments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  department_name VARCHAR(200) NOT NULL UNIQUE,
+  description TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
 -- ตาราง admins (เจ้าหน้าที่, หัวหน้า, ผู้ดูแลระบบ)
 CREATE TABLE IF NOT EXISTS admins (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -10,10 +19,13 @@ CREATE TABLE IF NOT EXISTS admins (
   full_name VARCHAR(200) NOT NULL,
   email VARCHAR(200) DEFAULT NULL,
   phone VARCHAR(20) DEFAULT NULL,
+  department_id INT DEFAULT NULL,
   role ENUM('officer','head','superadmin') NOT NULL DEFAULT 'officer',
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_department (department_id),
+  FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- ตารางลงทะเบียนรถจักรยานยนต์

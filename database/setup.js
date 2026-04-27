@@ -28,15 +28,31 @@ async function setup() {
     console.log('🔧 Creating tables...');
 
     await conn.query(`
+      CREATE TABLE IF NOT EXISTS departments (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        department_name VARCHAR(200) NOT NULL UNIQUE,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB
+    `);
+    console.log('  ✅ departments');
+
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS admins (
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(100) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         full_name VARCHAR(200) NOT NULL,
+        email VARCHAR(200) DEFAULT NULL,
+        phone VARCHAR(20) DEFAULT NULL,
+        department_id INT DEFAULT NULL,
         role ENUM('officer','head','superadmin') NOT NULL DEFAULT 'officer',
         is_active BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_department (department_id),
+        FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL
       ) ENGINE=InnoDB
     `);
     console.log('  ✅ admins');

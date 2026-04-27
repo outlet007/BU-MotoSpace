@@ -249,6 +249,7 @@ app.use('/violations', require('./routes/violations'));
 app.use('/violation-reports', require('./routes/violation-reports'));
 app.use('/rules', require('./routes/rules'));
 app.use('/users', require('./routes/users'));
+app.use('/departments', require('./routes/departments'));
 app.use('/data', require('./routes/data'));
 app.use('/reports', require('./routes/reports'));
 

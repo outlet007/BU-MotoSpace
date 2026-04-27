@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/output.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .sidebar-gradient { background: linear-gradient(180deg, #0f172a 0%, #1a2332 50%, #162032 100%); }
+    .modal-backdrop { background: rgba(15,23,42,0.6); backdrop-filter: blur(4px); display:none; }
+    .modal-backdrop.active { display:flex; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+  <div class="flex min-h-screen">
+    <%- include('../partials/sidebar') %>
+    <div class="flex-1 flex flex-col lg:ml-72">
+      <%- include('../partials/topbar') %>
+      <main class="flex-1 p-4 sm:p-6 fade-in">
+        <%- include('../partials/flash') %>
+
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="building-2" class="w-7 h-7 text-brand-500"></i>
+              หน่วยงาน
+            </h2>
+            <p class="text-slate-500 mt-1">กำหนดหน่วยงานสำหรับผู้ใช้ในระบบ</p>
+          </div>
+          <button type="button" class="btn btn-primary" data-modal-open="add-department-modal">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            เพิ่มหน่วยงาน
+          </button>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ชื่อหน่วยงาน</th>
+                <th>รายละเอียด</th>
+                <th>จำนวนผู้ใช้</th>
+                <th>วันที่สร้าง</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (departments.length > 0) { %>
+                <% departments.forEach(function(dep) { %>
+                <tr>
+                  <td class="font-semibold text-slate-800"><%= dep.department_name %></td>
+                  <td class="text-sm text-slate-600"><%= dep.description || '-' %></td>
+                  <td>
+                    <span class="badge badge-info"><%= dep.user_count %> คน</span>
+                  </td>
+                  <td class="text-xs text-slate-500"><%= new Date(dep.created_at).toLocaleDateString('th-TH') %></td>
+                  <td>
+                    <div class="flex items-center justify-end gap-1">
+                      <button type="button"
+                              class="js-edit-department p-1.5 text-slate-400 hover:text-brand-600 rounded-lg hover:bg-brand-50 transition-all"
+                              data-id="<%= dep.id %>"
+                              data-name="<%= dep.department_name %>"
+                              data-description="<%= dep.description || '' %>">
+                        <i data-lucide="pencil" class="w-4 h-4"></i>
+                      </button>
+                      <form method="POST"
+                            action="/departments/<%= dep.id %>/delete"
+                            class="inline"
+                            data-delete-confirm
+                            data-delete-title="ยืนยันการลบหน่วยงาน"
+                            data-delete-lead="คุณกำลังจะลบหน่วยงาน:"
+                            data-delete-item="<%= dep.department_name %>"
+                            data-delete-detail="มีผู้ใช้สังกัดอยู่ <%= dep.user_count %> คน"
+                            data-delete-warning="ไม่สามารถลบได้หากยังมีผู้ใช้สังกัดอยู่"
+                            data-delete-confirm-text="ลบหน่วยงาน">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all">
+                          <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+                <% }); %>
+              <% } else { %>
+                <tr>
+                  <td colspan="5" class="text-center text-slate-400 py-12">ยังไม่มีหน่วยงานในระบบ</td>
+                </tr>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+
+        <div id="add-department-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center p-4">
+          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                <i data-lucide="plus" class="w-4 h-4 text-brand-600"></i>
+                เพิ่มหน่วยงาน
+              </h3>
+              <button type="button" data-modal-close="add-department-modal" class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+            <form method="POST" action="/departments" class="p-6 space-y-4">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <div>
+                <label class="label">ชื่อหน่วยงาน <span class="text-red-500">*</span></label>
+                <input type="text" name="department_name" class="input" required placeholder="เช่น ฝ่ายรักษาความปลอดภัย">
+              </div>
+              <div>
+                <label class="label">รายละเอียด</label>
+                <textarea name="description" class="input h-24 resize-none" placeholder="รายละเอียดเพิ่มเติม"></textarea>
+              </div>
+              <div class="flex gap-3 pt-1">
+                <button type="button" data-modal-close="add-department-modal" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
+                <button type="submit" class="btn btn-primary flex-1 justify-center">บันทึก</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div id="edit-department-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center p-4">
+          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                <i data-lucide="pencil" class="w-4 h-4 text-brand-600"></i>
+                แก้ไขหน่วยงาน
+              </h3>
+              <button type="button" data-modal-close="edit-department-modal" class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+            <form id="edit-department-form" method="POST" class="p-6 space-y-4">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <div>
+                <label class="label">ชื่อหน่วยงาน <span class="text-red-500">*</span></label>
+                <input type="text" name="department_name" id="edit-department-name" class="input" required>
+              </div>
+              <div>
+                <label class="label">รายละเอียด</label>
+                <textarea name="description" id="edit-department-description" class="input h-24 resize-none"></textarea>
+              </div>
+              <div class="flex gap-3 pt-1">
+                <button type="button" data-modal-close="edit-department-modal" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
+                <button type="submit" class="btn btn-primary flex-1 justify-center">อัปเดต</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+
+    function openModal(id) {
+      var modal = document.getElementById(id);
+      if (!modal) return;
+      modal.style.display = 'flex';
+      modal.classList.add('active');
+    }
+
+    function closeModal(id) {
+      var modal = document.getElementById(id);
+      if (!modal) return;
+      modal.classList.remove('active');
+      modal.style.display = 'none';
+    }
+
+    document.querySelectorAll('[data-modal-open]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        openModal(button.dataset.modalOpen);
+      });
+    });
+
+    document.querySelectorAll('[data-modal-close]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        closeModal(button.dataset.modalClose);
+      });
+    });
+
+    document.querySelectorAll('.modal-backdrop').forEach(function(modal) {
+      modal.addEventListener('click', function(e) {
+        if (e.target === modal) closeModal(modal.id);
+      });
+    });
+
+    document.querySelectorAll('.js-edit-department').forEach(function(button) {
+      button.addEventListener('click', function() {
+        document.getElementById('edit-department-form').action = '/departments/' + button.dataset.id + '/update';
+        document.getElementById('edit-department-name').value = button.dataset.name || '';
+        document.getElementById('edit-department-description').value = button.dataset.description || '';
+        openModal('edit-department-modal');
+      });
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeModal('add-department-modal');
+        closeModal('edit-department-modal');
+      }
+    });
+  </script>
+  <script src="/js/table-sort.js"></script>
+</body>
+</html>

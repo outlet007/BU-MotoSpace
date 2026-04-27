@@ -24,7 +24,7 @@
 <body class="min-h-screen bg-slate-50">
   <div class="flex min-h-screen">
     <%- include('../partials/sidebar') %>
-    <div class="flex-1 flex flex-col lg:ml-64">
+    <div class="flex-1 flex flex-col lg:ml-72">
       <%- include('../partials/topbar') %>
       <main class="flex-1 p-4 sm:p-6 fade-in">
         <%- include('../partials/flash') %>
@@ -120,6 +120,7 @@
               <tr>
                 <th>ชื่อผู้ใช้</th>
                 <th>ชื่อ-นามสกุล</th>
+                <th>หน่วยงาน</th>
                 <th>อีเมล</th>
                 <th>เบอร์โทร</th>
                 <th>บทบาท</th>
@@ -133,9 +134,11 @@
               <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors"
                   data-uid="<%= u.id %>" data-fullname="<%= u.full_name %>"
                   data-email="<%= (u.email || '') %>" data-phone="<%= (u.phone || '') %>"
+                  data-department-id="<%= u.department_id || '' %>"
                   data-role="<%= u.role %>" data-active="<%= u.is_active ? '1' : '0' %>">
                 <td class="text-sm"><%= u.username %></td>
                 <td class="font-medium text-slate-800"><%= u.full_name %></td>
+                <td class="text-sm text-slate-600"><%= u.department_name || '-' %></td>
                 <td class="text-sm text-slate-600">
                   <% if (u.email) { %>
                     <a href="mailto:<%= u.email %>" class="hover:text-brand-600 transition-colors"><%= u.email %></a>
@@ -259,6 +262,15 @@
                   </div>
                 </div>
                 <div>
+                  <label class="label">หน่วยงาน</label>
+                  <select name="department_id" class="input">
+                    <option value="">ไม่ระบุหน่วยงาน</option>
+                    <% departments.forEach(function(dep) { %>
+                      <option value="<%= dep.id %>"><%= dep.department_name %></option>
+                    <% }); %>
+                  </select>
+                </div>
+                <div>
                   <label class="label">บทบาท <span class="text-red-500">*</span></label>
                   <select name="role" class="input" required>
                     <option value="officer">เจ้าหน้าที่</option>
@@ -314,6 +326,15 @@
                     <i data-lucide="phone" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
                     <input type="tel" name="phone" id="eu-phone" class="input" style="padding-left:2.5rem" placeholder="08x-xxx-xxxx">
                   </div>
+                </div>
+                <div>
+                  <label class="label">หน่วยงาน</label>
+                  <select name="department_id" id="eu-department" class="input">
+                    <option value="">ไม่ระบุหน่วยงาน</option>
+                    <% departments.forEach(function(dep) { %>
+                      <option value="<%= dep.id %>"><%= dep.department_name %></option>
+                    <% }); %>
+                  </select>
                 </div>
                 <div>
                   <label class="label">รหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)</label>
@@ -440,12 +461,14 @@
       var fullName = tr.dataset.fullname;
       var email    = tr.dataset.email;
       var phone    = tr.dataset.phone;
+      var departmentId = tr.dataset.departmentId || '';
       var role     = tr.dataset.role;
       var active   = tr.dataset.active === '1';
       document.getElementById('edit-user-form').action = '/users/' + id + '/update';
       document.getElementById('eu-fullname').value = fullName;
       document.getElementById('eu-email').value    = email;
       document.getElementById('eu-phone').value    = phone;
+      document.getElementById('eu-department').value = departmentId;
       document.getElementById('eu-role').value     = role;
       document.getElementById('eu-active').checked = active;
       openModal('edit-user-modal');

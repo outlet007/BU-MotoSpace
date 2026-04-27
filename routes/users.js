@@ -6,17 +6,33 @@ const { isAuthenticated, isSuperAdmin } = require('../middleware/auth');
 router.use(isAuthenticated);
 router.use(isSuperAdmin);
 
-/* Lazy migration — add email/phone columns if they don't exist yet */
+async function ensureDepartmentsTable(conn) {
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS departments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      department_name VARCHAR(200) NOT NULL UNIQUE,
+      description TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB
+  `);
+}
+
+/* Lazy migration — add profile columns if they don't exist yet */
 async function ensureColumns(conn) {
+  await ensureDepartmentsTable(conn);
   await conn.query(`
     ALTER TABLE admins
       ADD COLUMN IF NOT EXISTS email VARCHAR(200) DEFAULT NULL,
-      ADD COLUMN IF NOT EXISTS phone VARCHAR(20)  DEFAULT NULL
+      ADD COLUMN IF NOT EXISTS phone VARCHAR(20)  DEFAULT NULL,
+      ADD COLUMN IF NOT EXISTS department_id INT DEFAULT NULL
   `).catch(() => {
     // MariaDB < 10.3 doesn't support ADD COLUMN IF NOT EXISTS; try individually
     return conn.query("ALTER TABLE admins ADD COLUMN email VARCHAR(200) DEFAULT NULL")
       .catch(() => {}) // already exists
       .then(() => conn.query("ALTER TABLE admins ADD COLUMN phone VARCHAR(20) DEFAULT NULL"))
+      .catch(() => {})
+      .then(() => conn.query("ALTER TABLE admins ADD COLUMN department_id INT DEFAULT NULL"))
       .catch(() => {}); // already exists
   });
 }
@@ -36,25 +52,31 @@ router.get('/', async (req, res) => {
 
     if (search) {
       const s = `%${search}%`;
-      conditions.push(`(username LIKE ? OR full_name LIKE ? OR email LIKE ? OR phone LIKE ?)`);
-      params.push(s, s, s, s);
+      conditions.push(`(a.username LIKE ? OR a.full_name LIKE ? OR a.email LIKE ? OR a.phone LIKE ? OR d.department_name LIKE ?)`);
+      params.push(s, s, s, s, s);
     }
     if (role_filter) {
-      conditions.push(`role = ?`);
+      conditions.push(`a.role = ?`);
       params.push(role_filter);
     }
     if (status_filter === 'active') {
-      conditions.push(`is_active = 1`);
+      conditions.push(`a.is_active = 1`);
     } else if (status_filter === 'inactive') {
-      conditions.push(`is_active = 0`);
+      conditions.push(`a.is_active = 0`);
     }
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const users = await conn.query(
-      `SELECT id, username, full_name, email, phone, role, is_active, created_at FROM admins ${where} ORDER BY created_at DESC`,
+      `SELECT a.id, a.username, a.full_name, a.email, a.phone, a.department_id,
+              d.department_name, a.role, a.is_active, a.created_at
+       FROM admins a
+       LEFT JOIN departments d ON d.id = a.department_id
+       ${where}
+       ORDER BY a.created_at DESC`,
       params
     );
-    res.render('users/index', { title: 'จัดการผู้ใช้ - BU MotoSpace', users, search, role_filter, status_filter });
+    const departments = await conn.query('SELECT id, department_name FROM departments ORDER BY department_name');
+    res.render('users/index', { title: 'จัดการผู้ใช้ - BU MotoSpace', users, departments, search, role_filter, status_filter });
   } catch (err) {
     console.error(err);
     req.flash('error', 'ไม่สามารถโหลดข้อมูลได้');
@@ -67,14 +89,15 @@ router.get('/', async (req, res) => {
 // POST /users — Create
 router.post('/', async (req, res) => {
   const { username, password, full_name, email, phone, role } = req.body;
+  const departmentId = req.body.department_id ? parseInt(req.body.department_id, 10) : null;
   let conn;
   try {
     conn = await pool.getConnection();
     await ensureColumns(conn);
     const hashedPw = await bcrypt.hash(password, 10);
     await conn.query(
-      'INSERT INTO admins (username, password, full_name, email, phone, role) VALUES (?, ?, ?, ?, ?, ?)',
-      [username, hashedPw, full_name, email || null, phone || null, role]
+      'INSERT INTO admins (username, password, full_name, email, phone, department_id, role) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [username, hashedPw, full_name, email || null, phone || null, departmentId, role]
     );
     req.flash('success', 'เพิ่มผู้ใช้เรียบร้อยแล้ว');
   } catch (err) {
@@ -93,6 +116,7 @@ router.post('/', async (req, res) => {
 // POST /users/:id/update
 router.post('/:id/update', async (req, res) => {
   const { full_name, email, phone, role, is_active, password } = req.body;
+  const departmentId = req.body.department_id ? parseInt(req.body.department_id, 10) : null;
   let conn;
   try {
     conn = await pool.getConnection();
@@ -100,13 +124,13 @@ router.post('/:id/update', async (req, res) => {
     if (password && password.trim()) {
       const hashedPw = await bcrypt.hash(password, 10);
       await conn.query(
-        'UPDATE admins SET full_name = ?, email = ?, phone = ?, role = ?, is_active = ?, password = ? WHERE id = ?',
-        [full_name, email || null, phone || null, role, is_active === 'on' ? 1 : 0, hashedPw, req.params.id]
+        'UPDATE admins SET full_name = ?, email = ?, phone = ?, department_id = ?, role = ?, is_active = ?, password = ? WHERE id = ?',
+        [full_name, email || null, phone || null, departmentId, role, is_active === 'on' ? 1 : 0, hashedPw, req.params.id]
       );
     } else {
       await conn.query(
-        'UPDATE admins SET full_name = ?, email = ?, phone = ?, role = ?, is_active = ? WHERE id = ?',
-        [full_name, email || null, phone || null, role, is_active === 'on' ? 1 : 0, req.params.id]
+        'UPDATE admins SET full_name = ?, email = ?, phone = ?, department_id = ?, role = ?, is_active = ? WHERE id = ?',
+        [full_name, email || null, phone || null, departmentId, role, is_active === 'on' ? 1 : 0, req.params.id]
       );
     }
     req.flash('success', 'อัปเดตผู้ใช้เรียบร้อยแล้ว');

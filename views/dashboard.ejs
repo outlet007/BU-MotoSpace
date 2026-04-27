@@ -22,7 +22,7 @@
 <body class="min-h-screen bg-slate-50">
   <div class="flex min-h-screen">
     <%- include('partials/sidebar') %>
-    <div class="flex-1 flex flex-col lg:ml-64">
+    <div class="flex-1 flex flex-col lg:ml-72">
       <%- include('partials/topbar') %>
       <main class="flex-1 p-4 sm:p-6 fade-in">
         <%- include('partials/flash') %>
@@ -50,17 +50,8 @@
               <i data-lucide="clock" class="w-6 h-6 text-amber-600"></i>
             </div>
             <div>
-              <p class="text-sm text-slate-500">รอดำเนินการ</p>
+              <p class="text-sm text-slate-500">ตรวจสอบการลงทะเบียนใหม่</p>
               <p class="text-2xl font-bold text-slate-800"><%= stats.pending %></p>
-            </div>
-          </a>
-          <a href="/registrations?status=approved" class="stat-card block hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer text-left">
-            <div class="w-12 h-12 flex items-center justify-center rounded-xl bg-brand-100">
-              <i data-lucide="check-circle" class="w-6 h-6 text-brand-600"></i>
-            </div>
-            <div>
-              <p class="text-sm text-slate-500">อนุมัติแล้ว</p>
-              <p class="text-2xl font-bold text-slate-800"><%= stats.approved %></p>
             </div>
           </a>
           <a href="/violation-reports" class="stat-card block hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer text-left">
@@ -70,6 +61,15 @@
             <div>
               <p class="text-sm text-slate-500">ตรวจสอบการกระทำผิดกฎ</p>
               <p class="text-2xl font-bold text-slate-800"><%= stats.pendingReports %></p>
+            </div>
+          </a>
+          <a href="/reports/summons" class="stat-card block hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer text-left">
+            <div class="w-12 h-12 flex items-center justify-center rounded-xl bg-orange-100">
+              <i data-lucide="user-check" class="w-6 h-6 text-orange-600"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">รายงานผู้เข้าข่ายเรียกพบ</p>
+              <p class="text-2xl font-bold text-slate-800"><%= stats.summonsCandidates %></p>
             </div>
           </a>
         </div>
