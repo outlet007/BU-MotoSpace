@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/output.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+  <main class="w-full max-w-md rounded-3xl bg-white border border-slate-200 p-8 text-center shadow-xl shadow-slate-200/60">
+    <div class="w-16 h-16 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center mx-auto mb-5">
+      <i data-lucide="clock-alert" class="w-8 h-8"></i>
+    </div>
+    <h1 class="text-2xl font-bold text-slate-800 mb-3">เซสชันหมดเวลา</h1>
+    <p class="text-slate-600 leading-relaxed mb-6"><%= message %></p>
+    <a href="/auth/login" class="btn btn-primary justify-center w-full">
+      <i data-lucide="log-in" class="w-4 h-4"></i>
+      เข้าสู่ระบบใหม่
+    </a>
+  </main>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

@@ -46,6 +46,91 @@ async function ensureSummonsAppointmentsTable(conn) {
   `);
 }
 
+function isValidDatetimeLocal(value) {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value || '');
+}
+
+function toSqlDatetime(datetimeLocal) {
+  return datetimeLocal.replace('T', ' ') + ':00';
+}
+
+async function fetchSummonsAppointments(conn, options = {}) {
+  await ensureSummonsAppointmentsTable(conn);
+
+  const {
+    search = '',
+    userType = '',
+    limit = 50,
+  } = options;
+
+  let where = 'WHERE 1=1';
+  const params = [];
+
+  if (search && search.trim()) {
+    const searchTrimmed = search.trim().replace(/\s+/g, ' ');
+    const s = `%${searchTrimmed}%`;
+    const sNoSpace = `%${searchTrimmed.replace(/\s+/g, '')}%`;
+    where += ` AND (
+      r.id_number LIKE ? OR
+      r.first_name LIKE ? OR
+      r.last_name LIKE ? OR
+      CONCAT(r.first_name, ' ', r.last_name) LIKE ? OR
+      r.license_plate LIKE ? OR
+      REPLACE(r.license_plate, ' ', '') LIKE ? OR
+      r.phone LIKE ?
+    )`;
+    params.push(s, s, s, s, s, sNoSpace, s);
+  }
+
+  if (userType === 'student' || userType === 'staff') {
+    where += ' AND r.user_type = ?';
+    params.push(userType);
+  }
+
+  const [countRow] = await conn.query(
+    `SELECT COUNT(*) AS cnt
+     FROM summons_appointments sa
+     JOIN registrations r ON sa.registration_id = r.id
+     ${where}`,
+    params
+  );
+
+  const rows = await conn.query(
+    `SELECT
+       sa.id,
+       sa.registration_id,
+       sa.scheduled_at,
+       DATE_FORMAT(sa.scheduled_at, '%Y-%m-%dT%H:%i') AS scheduled_at_input,
+       sa.note,
+       sa.created_at,
+       r.id_number,
+       r.user_type,
+       r.first_name,
+       r.last_name,
+       r.phone,
+       r.license_plate,
+       r.province,
+       a.full_name AS summoned_by_name
+     FROM summons_appointments sa
+     JOIN registrations r ON sa.registration_id = r.id
+     JOIN admins a ON sa.summoned_by = a.id
+     ${where}
+     ORDER BY sa.created_at DESC, sa.id DESC
+     LIMIT ?`,
+    [...params, limit]
+  );
+
+  rows.forEach(row => {
+    row.full_name = `${row.first_name} ${row.last_name}`;
+    row.user_type_label = row.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร';
+  });
+
+  return {
+    rows,
+    total: parseInt(countRow.cnt, 10) || 0,
+  };
+}
+
 // Helper: CSV builder with UTF-8 BOM
 function buildCSV(fields, data) {
   const BOM = '\uFEFF';
@@ -108,7 +193,6 @@ async function fetchReport(conn, type, startDate, endDate) {
       r.user_type_label = r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร';
       r.status_label = r.status === 'approved' ? 'อนุมัติ' : r.status === 'pending' ? 'รอดำเนินการ' : 'ปฏิเสธ';
     });
-
     return { fields, rows };
 
   } else if (type === 'violations') {
@@ -309,7 +393,8 @@ const SUMMONS_FIELDS = [
 
 // GET /reports/summons/export
 router.get('/summons/export', async (req, res) => {
-  const { search = '', user_type = '' } = req.query;
+  const search = req.query.pending_search ?? req.query.search ?? '';
+  const user_type = req.query.pending_user_type ?? req.query.user_type ?? '';
 
   let conn;
   try {
@@ -356,12 +441,12 @@ router.post('/summons/:registrationId/confirm', async (req, res) => {
     return res.redirect(returnTo);
   }
 
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduledAtRaw)) {
+  if (!isValidDatetimeLocal(scheduledAtRaw)) {
     req.flash('error', 'กรุณาระบุวันและเวลานัดหมายให้ถูกต้อง');
     return res.redirect(returnTo);
   }
 
-  const scheduledAt = scheduledAtRaw.replace('T', ' ') + ':00';
+  const scheduledAt = toSqlDatetime(scheduledAtRaw);
 
   let conn;
   try {
@@ -398,9 +483,69 @@ router.post('/summons/:registrationId/confirm', async (req, res) => {
   }
 });
 
+// POST /reports/summons/appointments/:appointmentId/edit
+router.post('/summons/appointments/:appointmentId/edit', async (req, res) => {
+  const appointmentId = parseInt(req.params.appointmentId, 10);
+  const scheduledAtRaw = (req.body.scheduled_at || '').trim();
+  const note = (req.body.note || '').trim() || null;
+  const returnTo = req.body.return_to && req.body.return_to.startsWith('/reports/summons')
+    ? req.body.return_to
+    : '/reports/summons';
+
+  if (!Number.isFinite(appointmentId) || appointmentId <= 0) {
+    req.flash('error', 'ข้อมูลรายการเรียกพบไม่ถูกต้อง');
+    return res.redirect(returnTo);
+  }
+
+  if (!isValidDatetimeLocal(scheduledAtRaw)) {
+    req.flash('error', 'กรุณาระบุวันและเวลานัดหมายให้ถูกต้อง');
+    return res.redirect(returnTo);
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await ensureSummonsAppointmentsTable(conn);
+
+    const [appointment] = await conn.query(
+      `SELECT sa.id, r.first_name, r.last_name
+       FROM summons_appointments sa
+       JOIN registrations r ON sa.registration_id = r.id
+       WHERE sa.id = ?`,
+      [appointmentId]
+    );
+
+    if (!appointment) {
+      req.flash('error', 'ไม่พบรายการเรียกพบที่ต้องการแก้ไข');
+      return res.redirect(returnTo);
+    }
+
+    await conn.query(
+      `UPDATE summons_appointments
+       SET scheduled_at = ?, note = ?
+       WHERE id = ?`,
+      [toSqlDatetime(scheduledAtRaw), note, appointmentId]
+    );
+
+    req.flash('success', `แก้ไขรายการเรียกพบ ${appointment.first_name} ${appointment.last_name} เรียบร้อยแล้ว`);
+    return res.redirect(returnTo);
+  } catch (err) {
+    console.error('POST /reports/summons/appointments/:appointmentId/edit error:', err);
+    req.flash('error', 'ไม่สามารถแก้ไขรายการเรียกพบได้: ' + err.message);
+    return res.redirect(returnTo);
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 // GET /reports/summons
 router.get('/summons', async (req, res) => {
-  const { search = '', user_type = '', page = 1 } = req.query;
+  const pendingSearch = req.query.pending_search ?? req.query.search ?? '';
+  const pendingUserType = req.query.pending_user_type ?? req.query.user_type ?? '';
+  const completedSearch = req.query.completed_search ?? '';
+  const completedUserType = req.query.completed_user_type ?? '';
+  const activeTab = req.query.active_tab === 'completed' ? 'completed' : 'pending';
+  const page = req.query.pending_page ?? req.query.page ?? 1;
   const limit = 20;
 
   let conn;
@@ -408,21 +553,32 @@ router.get('/summons', async (req, res) => {
     conn = await pool.getConnection();
     const threshold = await getSummonsThreshold(conn);
     const report = await fetchSummonsCandidates(conn, {
-      search,
-      userType: user_type,
+      search: pendingSearch,
+      userType: pendingUserType,
       page,
       limit,
       threshold,
+    });
+    const summonedReport = await fetchSummonsAppointments(conn, {
+      search: completedSearch,
+      userType: completedUserType,
     });
 
     res.render('reports/summons', {
       title: 'รายงานผู้เข้าข่ายเรียกพบ - BU MotoSpace',
       candidates: report.rows,
+      summonedAppointments: summonedReport.rows,
+      summonedTotal: summonedReport.total,
       total: report.total,
       totalPages: report.totalPages,
       currentPage: parseInt(page),
-      search,
-      user_type,
+      search: pendingSearch,
+      user_type: pendingUserType,
+      pendingSearch,
+      pendingUserType,
+      completedSearch,
+      completedUserType,
+      activeTab,
       threshold,
     });
   } catch (err) {
@@ -431,11 +587,18 @@ router.get('/summons', async (req, res) => {
     res.render('reports/summons', {
       title: 'รายงานผู้เข้าข่ายเรียกพบ - BU MotoSpace',
       candidates: [],
+      summonedAppointments: [],
+      summonedTotal: 0,
       total: 0,
       totalPages: 0,
       currentPage: 1,
-      search,
-      user_type,
+      search: pendingSearch,
+      user_type: pendingUserType,
+      pendingSearch,
+      pendingUserType,
+      completedSearch,
+      completedUserType,
+      activeTab,
       threshold: DEFAULT_SUMMONS_THRESHOLD,
     });
   } finally {

@@ -31,6 +31,41 @@
       margin: 2px;
       white-space: nowrap;
     }
+    .summons-tab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      color: #64748b;
+      font-size: 14px;
+      font-weight: 700;
+      transition: all 0.2s;
+      min-height: 42px;
+    }
+    .summons-tab:hover { background: #f8fafc; color: #334155; }
+    .summons-tab.active {
+      background: #16a34a;
+      color: #fff;
+      box-shadow: 0 1px 2px rgba(22,163,74,0.25);
+    }
+    .summons-tab-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      height: 22px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #475569;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .summons-tab.active .summons-tab-count { background: rgba(255,255,255,0.22); color: #fff; }
+    .summons-tab-panel { display: none; }
+    .summons-tab-panel.active { display: block; }
   </style>
 </head>
 <body class="min-h-screen bg-slate-50">
@@ -49,7 +84,7 @@
             </h2>
             <p class="text-slate-500 mt-1">ผู้ที่มีประวัติกระทำผิดรวมทุกกฎและข้อบังคับตั้งแต่ <%= threshold %> ครั้งขึ้นไป</p>
           </div>
-          <a href="/reports/summons/export?search=<%= encodeURIComponent(search || '') %>&user_type=<%= encodeURIComponent(user_type || '') %>"
+          <a href="/reports/summons/export?pending_search=<%= encodeURIComponent(pendingSearch || '') %>&pending_user_type=<%= encodeURIComponent(pendingUserType || '') %>"
              class="btn btn-primary">
             <i data-lucide="download" class="w-4 h-4"></i>
             Export CSV
@@ -74,8 +109,8 @@
           </div>
         </div>
 
-        <div class="card p-4 mb-6">
-          <form method="GET" action="/reports/summons" class="flex flex-wrap items-end gap-4">
+        <div class="hidden">
+          <form method="GET" action="/reports/summons" class="flex flex-wrap items-end gap-4 mb-4">
             <div class="flex-1 min-w-[200px]">
               <label class="label">ค้นหา</label>
               <div class="relative">
@@ -100,8 +135,78 @@
           </form>
         </div>
 
-        <div class="table-container">
-          <table class="data-table">
+        <div class="card p-2 mb-4">
+          <div class="flex flex-col sm:flex-row gap-2" role="tablist" aria-label="รายการเรียกพบ">
+            <button type="button"
+                    class="summons-tab <%= activeTab === 'pending' ? 'active' : '' %>"
+                    id="tab-pending"
+                    data-summons-tab="pending"
+                    role="tab"
+                    aria-controls="panel-pending"
+                    aria-selected="<%= activeTab === 'pending' ? 'true' : 'false' %>">
+              <i data-lucide="clock" class="w-4 h-4"></i>
+              รายการรอเรียกพบ
+              <span class="summons-tab-count"><%= total %></span>
+            </button>
+            <button type="button"
+                    class="summons-tab <%= activeTab === 'completed' ? 'active' : '' %>"
+                    id="tab-completed"
+                    data-summons-tab="completed"
+                    role="tab"
+                    aria-controls="summoned-history"
+                    aria-selected="<%= activeTab === 'completed' ? 'true' : 'false' %>">
+              <i data-lucide="history" class="w-4 h-4"></i>
+              รายการที่เรียกพบไปแล้ว
+              <span class="summons-tab-count"><%= typeof summonedTotal !== 'undefined' ? summonedTotal : 0 %></span>
+            </button>
+          </div>
+        </div>
+
+        <section id="panel-pending"
+                 class="summons-tab-panel <%= activeTab === 'pending' ? 'active' : '' %>"
+                 role="tabpanel"
+                 aria-labelledby="tab-pending">
+        <div class="card p-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                <i data-lucide="clock" class="w-5 h-5 text-orange-500"></i>
+                รายการรอเรียกพบ
+              </h3>
+            </div>
+            <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200 text-sm font-semibold self-start sm:self-auto">
+              <i data-lucide="list-checks" class="w-4 h-4"></i>
+              <%= total %> รายการ
+            </span>
+          </div>
+          <form method="GET" action="/reports/summons" class="flex flex-wrap items-end gap-4 mb-4">
+            <input type="hidden" name="active_tab" value="pending">
+            <input type="hidden" name="completed_search" value="<%= completedSearch || '' %>">
+            <input type="hidden" name="completed_user_type" value="<%= completedUserType || '' %>">
+            <div class="flex-1 min-w-[200px]">
+              <label class="label">ค้นหาในรายการรอเรียกพบ</label>
+              <div class="relative">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" name="pending_search" value="<%= pendingSearch || '' %>"
+                       class="input" style="padding-left:2.5rem"
+                       placeholder="ชื่อ, รหัส, ป้ายทะเบียน, เบอร์โทร">
+              </div>
+            </div>
+            <div>
+              <label class="label">ประเภท</label>
+              <select name="pending_user_type" class="input">
+                <option value="" <%= !pendingUserType ? 'selected' : '' %>>ทั้งหมด</option>
+                <option value="student" <%= pendingUserType === 'student' ? 'selected' : '' %>>นักศึกษา</option>
+                <option value="staff" <%= pendingUserType === 'staff' ? 'selected' : '' %>>บุคลากร</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <i data-lucide="search" class="w-4 h-4"></i>
+              ค้นหา
+            </button>
+          </form>
+          <div class="table-container">
+            <table class="data-table">
             <thead>
               <tr>
                 <th>รหัส</th>
@@ -117,7 +222,10 @@
             <tbody>
               <% if (candidates && candidates.length > 0) { %>
                 <% candidates.forEach(function(item) { %>
-                <tr>
+                <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors"
+                    data-summons-open-row
+                    data-registration-id="<%= item.id %>"
+                    data-full-name="<%= item.full_name %>">
                   <td class="text-xs font-mono text-slate-600"><%= item.id_number %></td>
                   <td>
                     <div class="font-semibold text-slate-800"><%= item.full_name %></div>
@@ -177,7 +285,7 @@
         <% if (totalPages > 1) { %>
         <div class="flex items-center justify-center gap-2 mt-6">
           <% for (var i = 1; i <= totalPages; i++) { %>
-            <a href="/reports/summons?page=<%= i %>&search=<%= encodeURIComponent(search) %>&user_type=<%= encodeURIComponent(user_type) %>"
+            <a href="/reports/summons?active_tab=pending&pending_page=<%= i %>&pending_search=<%= encodeURIComponent(pendingSearch || '') %>&pending_user_type=<%= encodeURIComponent(pendingUserType || '') %>&completed_search=<%= encodeURIComponent(completedSearch || '') %>&completed_user_type=<%= encodeURIComponent(completedUserType || '') %>"
                class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium transition-all
                       <%= i === currentPage ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' %>">
               <%= i %>
@@ -185,6 +293,119 @@
           <% } %>
         </div>
         <% } %>
+        </div>
+        </section>
+
+        <section id="summoned-history"
+                 class="summons-tab-panel <%= activeTab === 'completed' ? 'active' : '' %>"
+                 role="tabpanel"
+                 aria-labelledby="tab-completed">
+        <div class="card p-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                <i data-lucide="history" class="w-5 h-5 text-brand-500"></i>
+                รายการที่เรียกพบไปแล้ว
+              </h3>
+            </div>
+            <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-50 text-brand-700 border border-brand-100 text-sm font-semibold self-start sm:self-auto">
+              <i data-lucide="list-checks" class="w-4 h-4"></i>
+              <%= typeof summonedTotal !== 'undefined' ? summonedTotal : 0 %> รายการ
+            </span>
+          </div>
+
+          <form method="GET" action="/reports/summons" class="flex flex-wrap items-end gap-4 mb-4">
+            <input type="hidden" name="active_tab" value="completed">
+            <input type="hidden" name="pending_search" value="<%= pendingSearch || '' %>">
+            <input type="hidden" name="pending_user_type" value="<%= pendingUserType || '' %>">
+            <div class="flex-1 min-w-[200px]">
+              <label class="label">ค้นหาในรายการที่เรียกพบไปแล้ว</label>
+              <div class="relative">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" name="completed_search" value="<%= completedSearch || '' %>"
+                       class="input" style="padding-left:2.5rem"
+                       placeholder="ชื่อ, รหัส, ป้ายทะเบียน, เบอร์โทร">
+              </div>
+            </div>
+            <div>
+              <label class="label">ประเภท</label>
+              <select name="completed_user_type" class="input">
+                <option value="" <%= !completedUserType ? 'selected' : '' %>>ทั้งหมด</option>
+                <option value="student" <%= completedUserType === 'student' ? 'selected' : '' %>>นักศึกษา</option>
+                <option value="staff" <%= completedUserType === 'staff' ? 'selected' : '' %>>บุคลากร</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <i data-lucide="search" class="w-4 h-4"></i>
+              ค้นหา
+            </button>
+          </form>
+
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>รหัส</th>
+                  <th>ชื่อ-นามสกุล</th>
+                  <th>ป้ายทะเบียน</th>
+                  <th>วันเวลานัดหมาย</th>
+                  <th>หมายเหตุ</th>
+                  <th>บันทึกโดย</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <% if (typeof summonedAppointments !== 'undefined' && summonedAppointments.length > 0) { %>
+                  <% summonedAppointments.forEach(function(item) { %>
+                  <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors" data-href="/registrations/<%= item.registration_id %>#summons-history">
+                    <td class="text-xs font-mono text-slate-600"><%= item.id_number %></td>
+                    <td>
+                      <div class="font-semibold text-slate-800"><%= item.full_name %></div>
+                      <div class="text-xs text-slate-400 mt-0.5"><%= item.user_type_label %> · <%= item.province || '-' %></div>
+                    </td>
+                    <td class="font-semibold text-slate-700"><%= item.license_plate %></td>
+                    <td class="text-xs text-slate-600 whitespace-nowrap">
+                      <%= item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>
+                    </td>
+                    <td class="text-sm text-slate-600 max-w-xs">
+                      <div class="line-clamp-2"><%= item.note || '-' %></div>
+                    </td>
+                    <td class="text-xs font-medium text-brand-600 whitespace-nowrap"><%= item.summoned_by_name %></td>
+                    <td class="text-right">
+                      <div class="flex flex-wrap justify-end gap-2">
+                        <a href="/registrations/<%= item.registration_id %>#summons-history" class="btn btn-secondary btn-sm order-2">
+                          <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                          ดูรายละเอียด
+                        </a>
+                        <button type="button"
+                                class="btn btn-primary btn-sm order-1"
+                                data-summons-edit
+                                data-appointment-id="<%= item.id %>"
+                                data-full-name="<%= item.full_name %>"
+                                data-scheduled-at="<%= item.scheduled_at_input || '' %>"
+                                data-note="<%= encodeURIComponent(item.note || '') %>">
+                          <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                          แก้ไข
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  <% }) %>
+                <% } else { %>
+                  <tr>
+                    <td colspan="7" class="text-center py-10">
+                      <div class="flex flex-col items-center gap-2 text-slate-400">
+                        <i data-lucide="calendar-x" class="w-10 h-10 text-slate-300"></i>
+                        <p class="text-sm font-medium">ยังไม่มีรายการที่เรียกพบไปแล้ว</p>
+                      </div>
+                    </td>
+                  </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        </section>
 
         <div id="summons-modal"
              style="display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;padding:1rem;"
@@ -209,7 +430,7 @@
             </div>
             <form id="summons-form" method="POST" action="">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <input type="hidden" name="return_to" value="<%= currentUrl %>">
+              <input id="summons-return-to" type="hidden" name="return_to" value="<%= currentUrl %>">
               <div style="padding:20px 24px;" class="space-y-4">
                 <div>
                   <label class="label" for="summons-scheduled-at">วันเวลานัดหมาย</label>
@@ -242,10 +463,18 @@
     }
 
     (function() {
+      var tabs = document.querySelectorAll('[data-summons-tab]');
+      var panels = {
+        pending: document.getElementById('panel-pending'),
+        completed: document.getElementById('summoned-history')
+      };
       var modal = document.getElementById('summons-modal');
       var form = document.getElementById('summons-form');
+      var titleEl = document.getElementById('summons-modal-title');
       var nameEl = document.getElementById('summons-person-name');
       var scheduledInput = document.getElementById('summons-scheduled-at');
+      var noteInput = document.getElementById('summons-note');
+      var returnToInput = document.getElementById('summons-return-to');
 
       function toDatetimeLocalValue(date) {
         var pad = function(value) { return String(value).padStart(2, '0'); };
@@ -256,18 +485,54 @@
           pad(date.getMinutes());
       }
 
+      function activateTab(tabName) {
+        if (!panels[tabName]) return;
+        tabs.forEach(function(tab) {
+          var isActive = tab.dataset.summonsTab === tabName;
+          tab.classList.toggle('active', isActive);
+          tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+        Object.keys(panels).forEach(function(key) {
+          panels[key].classList.toggle('active', key === tabName);
+        });
+      }
+
+      function buildReturnTo(tabName, hash) {
+        var params = new URLSearchParams(window.location.search);
+        params.set('active_tab', tabName);
+        var query = params.toString();
+        return window.location.pathname + (query ? '?' + query : '') + (hash || '');
+      }
+
       function openSummonsModal(button) {
         if (!modal || !form) return;
         var registrationId = button.dataset.registrationId;
         var fullName = button.dataset.fullName || '';
         form.action = '/reports/summons/' + registrationId + '/confirm';
+        if (titleEl) titleEl.textContent = 'ยืนยันการเรียกพบ';
         if (nameEl) nameEl.textContent = fullName;
-        if (scheduledInput && !scheduledInput.value) {
+        if (noteInput) noteInput.value = '';
+        if (returnToInput) returnToInput.value = buildReturnTo('pending', '');
+        if (scheduledInput) {
           var defaultDate = new Date();
           defaultDate.setHours(defaultDate.getHours() + 1);
           defaultDate.setMinutes(0, 0, 0);
           scheduledInput.value = toDatetimeLocalValue(defaultDate);
         }
+        modal.style.display = 'flex';
+        if (scheduledInput) scheduledInput.focus();
+      }
+
+      function openEditSummonsModal(button) {
+        if (!modal || !form) return;
+        var appointmentId = button.dataset.appointmentId;
+        var fullName = button.dataset.fullName || '';
+        form.action = '/reports/summons/appointments/' + appointmentId + '/edit';
+        if (titleEl) titleEl.textContent = 'แก้ไขรายการเรียกพบ';
+        if (nameEl) nameEl.textContent = fullName;
+        if (scheduledInput) scheduledInput.value = button.dataset.scheduledAt || '';
+        if (noteInput) noteInput.value = decodeURIComponent(button.dataset.note || '');
+        if (returnToInput) returnToInput.value = buildReturnTo('completed', '#summoned-history');
         modal.style.display = 'flex';
         if (scheduledInput) scheduledInput.focus();
       }
@@ -283,9 +548,39 @@
         });
       });
 
+      document.querySelectorAll('[data-summons-open-row]').forEach(function(row) {
+        row.addEventListener('click', function(e) {
+          if (e.target.closest('button, a, input, select, textarea, form, [data-no-nav]')) return;
+          openSummonsModal(row);
+        });
+      });
+
+      document.querySelectorAll('[data-summons-edit]').forEach(function(button) {
+        button.addEventListener('click', function() {
+          openEditSummonsModal(button);
+        });
+      });
+
       document.querySelectorAll('[data-summons-close]').forEach(function(button) {
         button.addEventListener('click', closeSummonsModal);
       });
+
+      document.addEventListener('click', function(e) {
+        var row = e.target.closest('tr[data-href]');
+        if (!row) return;
+        if (e.target.closest('button, a, input, select, textarea, form, [data-no-nav]')) return;
+        window.location.href = row.dataset.href;
+      });
+
+      tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+          activateTab(tab.dataset.summonsTab);
+        });
+      });
+
+      if (window.location.hash === '#summoned-history') {
+        activateTab('completed');
+      }
 
       document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && modal && modal.style.display === 'flex') {

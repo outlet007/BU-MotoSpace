@@ -142,7 +142,7 @@
               <% } %>
 
               <table class="data-table">
-                <thead><tr><th>กฎ</th><th>รายละเอียด</th><th>แจ้งโดย</th><th>ยืนยันโดย</th><th>วันที่</th><th></th></tr></thead>
+                <thead><tr><th>กฎที่กระทำผิด</th><th>รายละเอียด</th><th>แจ้งโดย</th><th>ยืนยันโดย</th><th>วันที่</th><th></th></tr></thead>
                 <tbody>
                   <% if (violations.length > 0) { %>
                     <% violations.forEach(function(v) { %>
@@ -152,7 +152,7 @@
                       <td class="text-xs text-slate-600"><%= v.reported_by_name || v.recorded_by_name %></td>
                       <td class="text-xs font-medium text-brand-600"><%= v.recorded_by_name %></td>
                       <td class="text-xs"><%= new Date(v.recorded_at).toLocaleDateString('th-TH') %></td>
-                      <td data-no-nav>
+                      <td class="text-right" data-no-nav>
                         <a href="/violations/<%= v.id %>" class="btn btn-secondary btn-sm justify-center whitespace-nowrap">
                           <i data-lucide="eye" class="w-3.5 h-3.5"></i>
                           ดูรายละเอียด
@@ -183,12 +183,30 @@
                     <th>หมายเหตุ</th>
                     <th>บันทึกโดย</th>
                     <th>วันที่บันทึก</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   <% if (typeof summonsAppointments !== 'undefined' && summonsAppointments.length > 0) { %>
                     <% summonsAppointments.forEach(function(item) { %>
-                    <tr>
+                    <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors"
+                        data-summons-detail-row
+                        data-scheduled-at="<%= item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>"
+                        data-note="<%= encodeURIComponent(item.note || '-') %>"
+                        data-summoned-by="<%= item.summoned_by_name || '-' %>"
+                        data-created-at="<%= item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>">
+                      <td class="hidden" data-no-nav aria-hidden="true">
+                        <button type="button"
+                                class="btn btn-secondary btn-sm justify-center whitespace-nowrap"
+                                data-summons-detail-open
+                                data-scheduled-at="<%= item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>"
+                                data-note="<%= encodeURIComponent(item.note || '-') %>"
+                                data-summoned-by="<%= item.summoned_by_name || '-' %>"
+                                data-created-at="<%= item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>">
+                          <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                          ดูรายละเอียด
+                        </button>
+                      </td>
                       <td class="font-medium text-slate-700 whitespace-nowrap">
                         <%= item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>
                       </td>
@@ -197,10 +215,22 @@
                       <td class="text-xs text-slate-500 whitespace-nowrap">
                         <%= item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>
                       </td>
+                      <td class="text-right" data-no-nav>
+                        <button type="button"
+                                class="btn btn-secondary btn-sm justify-center whitespace-nowrap"
+                                data-summons-detail-open
+                                data-scheduled-at="<%= item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>"
+                                data-note="<%= encodeURIComponent(item.note || '-') %>"
+                                data-summoned-by="<%= item.summoned_by_name || '-' %>"
+                                data-created-at="<%= item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>">
+                          <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                          ดูรายละเอียด
+                        </button>
+                      </td>
                     </tr>
                     <% }); %>
                   <% } else { %>
-                    <tr><td colspan="4" class="text-center text-slate-400 py-6">ไม่มีประวัติการเรียกพบ</td></tr>
+                    <tr><td colspan="5" class="text-center text-slate-400 py-6">ไม่มีประวัติการเรียกพบ</td></tr>
                   <% } %>
                 </tbody>
               </table>
@@ -246,6 +276,54 @@
       </main>
     </div>
   </div>
+  <!-- Summons Detail Modal -->
+  <div id="summonsDetailModal"
+       style="display:none;position:fixed;inset:0;z-index:9998;align-items:center;justify-content:center;padding:1rem;"
+       aria-modal="true" role="dialog" aria-labelledby="summons-detail-title">
+    <div data-summons-detail-close style="position:absolute;inset:0;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);"></div>
+    <div style="position:relative;width:100%;max-width:520px;background:#fff;border-radius:16px;box-shadow:0 25px 60px rgba(15,23,42,.28);overflow:hidden;">
+      <div style="padding:20px 24px 14px;border-bottom:1px solid #f1f5f9;">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center flex-shrink-0">
+              <i data-lucide="calendar-check" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 id="summons-detail-title" class="text-base font-bold text-slate-800">รายละเอียดการเรียกพบ</h3>
+              <p class="text-sm text-slate-500 mt-1"><%= reg.first_name %> <%= reg.last_name %></p>
+            </div>
+          </div>
+          <button type="button" data-summons-detail-close class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label="ปิด">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+      <div style="padding:20px 24px;" class="space-y-3">
+        <div class="p-3 bg-slate-50 rounded-xl">
+          <p class="text-xs text-slate-400 mb-1">วันเวลานัดหมาย</p>
+          <p id="summons-detail-scheduled-at" class="text-sm font-semibold text-slate-800">-</p>
+        </div>
+        <div class="p-3 bg-slate-50 rounded-xl">
+          <p class="text-xs text-slate-400 mb-1">หมายเหตุ</p>
+          <p id="summons-detail-note" class="text-sm text-slate-700 whitespace-pre-wrap">-</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="p-3 bg-slate-50 rounded-xl">
+            <p class="text-xs text-slate-400 mb-1">บันทึกโดย</p>
+            <p id="summons-detail-by" class="text-sm font-semibold text-brand-600">-</p>
+          </div>
+          <div class="p-3 bg-slate-50 rounded-xl">
+            <p class="text-xs text-slate-400 mb-1">วันที่บันทึก</p>
+            <p id="summons-detail-created-at" class="text-sm text-slate-700">-</p>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;padding:0 24px 22px;">
+        <button type="button" data-summons-detail-close class="btn btn-secondary justify-center">ปิด</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Lightbox Modal -->
   <div id="lightboxOverlay" class="lightbox-overlay">
     <button type="button" class="lightbox-close" title="ปิด">✕</button>
@@ -263,6 +341,50 @@
       if (e.target.closest('button, a, input, select, textarea, form, [data-no-nav]')) return;
       window.location.href = row.dataset.href;
     });
+
+    (function() {
+      var modal = document.getElementById('summonsDetailModal');
+      var scheduledEl = document.getElementById('summons-detail-scheduled-at');
+      var noteEl = document.getElementById('summons-detail-note');
+      var byEl = document.getElementById('summons-detail-by');
+      var createdAtEl = document.getElementById('summons-detail-created-at');
+
+      function openDetail(button) {
+        if (!modal) return;
+        if (scheduledEl) scheduledEl.textContent = button.dataset.scheduledAt || '-';
+        if (noteEl) noteEl.textContent = decodeURIComponent(button.dataset.note || '-');
+        if (byEl) byEl.textContent = button.dataset.summonedBy || '-';
+        if (createdAtEl) createdAtEl.textContent = button.dataset.createdAt || '-';
+        modal.style.display = 'flex';
+      }
+
+      function closeDetail() {
+        if (modal) modal.style.display = 'none';
+      }
+
+      document.querySelectorAll('[data-summons-detail-open]').forEach(function(button) {
+        button.addEventListener('click', function() {
+          openDetail(button);
+        });
+      });
+
+      document.querySelectorAll('[data-summons-detail-row]').forEach(function(row) {
+        row.addEventListener('click', function(e) {
+          if (e.target.closest('button, a, input, select, textarea, form, [data-no-nav]')) return;
+          openDetail(row);
+        });
+      });
+
+      document.querySelectorAll('[data-summons-detail-close]').forEach(function(button) {
+        button.addEventListener('click', closeDetail);
+      });
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal && modal.style.display === 'flex') {
+          closeDetail();
+        }
+      });
+    })();
 
     // Lightbox functionality
     (function() {

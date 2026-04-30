@@ -3,6 +3,7 @@
 // ─── Idle Session Timeout ────────────────────────────────────────────────────
 // ถ้า admin ไม่มีการใช้งานระบบใดๆ ภายใน IDLE_TIMEOUT_MS จะถูก logout อัตโนมัติ
 const IDLE_TIMEOUT_MS = 60 * 60 * 1000; // 1 ชั่วโมง
+const SESSION_EXPIRED_MESSAGE = 'เซสชันของคุณหมดเวลาเนื่องจากไม่มีการใช้งาน กรุณาเข้าสู่ระบบใหม่อีกครั้ง';
 
 /**
  * Middleware: ตรวจสอบ idle session ทุก request
@@ -21,29 +22,26 @@ function idleSessionTimeout(req, res, next) {
 
   // ถ้ามีค่า lastActivity และ idle เกินกำหนด → หมดเวลา
   if (lastActivity && (now - lastActivity) > IDLE_TIMEOUT_MS) {
-    const adminName = req.session.admin.full_name || 'admin';
+    const wantsJson = req.xhr || req.headers['accept']?.includes('application/json');
 
-    // ทำลาย session ฝั่ง server
-    req.session.destroy((err) => {
-      if (err) console.error('Session destroy error:', err);
-    });
+    function respondAfterDestroy() {
+      res.clearCookie('connect.sid', { path: '/' });
 
-    // ลบ cookie ฝั่ง browser
-    res.clearCookie('connect.sid');
+      if (wantsJson) {
+        return res.status(401).json({
+          error: 'session_expired',
+          message: SESSION_EXPIRED_MESSAGE,
+        });
+      }
 
-    // ถ้าเป็น AJAX request → ตอบ JSON
-    if (req.xhr || req.headers['accept']?.includes('application/json')) {
-      return res.status(401).json({
-        error: 'session_expired',
-        message: 'เซสชันหมดอายุเนื่องจากไม่มีการใช้งาน กรุณาเข้าสู่ระบบใหม่',
-      });
+      return res.redirect('/auth/session-expired');
     }
 
-    // ถ้าเป็น normal request → redirect ไป login พร้อม flash
-    // ใช้ new session สำหรับ flash (session เก่าถูกทำลายแล้ว)
-    req.session.destroy(() => {}); // ensure destroyed
-    res.clearCookie('connect.sid');
-    return res.redirect('/auth/login?reason=idle');
+    req.session.destroy((err) => {
+      if (err) console.error('Session destroy error:', err);
+      return respondAfterDestroy();
+    });
+    return;
   }
 
   // อัปเดตเวลากิจกรรมล่าสุด
@@ -80,6 +78,7 @@ const isSuperAdmin = requireRole('superadmin');
 
 module.exports = {
   idleSessionTimeout,
+  SESSION_EXPIRED_MESSAGE,
   isAuthenticated,
   requireRole,
   isOfficer,

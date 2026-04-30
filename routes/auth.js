@@ -2,6 +2,7 @@ const router = require('express').Router();
 const bcrypt = require('bcrypt');
 const pool = require('../config/database');
 const rateLimit = require('express-rate-limit');
+const { SESSION_EXPIRED_MESSAGE } = require('../middleware/auth');
 
 // ─── Brute Force Protection ───────────────────────────────────────────────────
 // จำกัด POST /auth/login ไม่เกิน 10 ครั้ง / 15 นาที / IP
@@ -20,6 +21,21 @@ const loginLimiter = rateLimit({
 // Dummy hash สำหรับ timing-safe comparison (ป้องกัน username enumeration)
 const DUMMY_HASH = '$2b$10$X9hGFkKQGNkKI5YEpxjNuuTISbLMIYbz5l4Gfb8hCGTgqvZ5pQ7qi';
 
+// GET /auth/session-expired
+router.get('/session-expired', (req, res) => {
+  if (req.session && req.session.admin) {
+    if (req.session.admin.role === 'officer') {
+      return res.redirect('/violations');
+    }
+    return res.redirect('/dashboard');
+  }
+
+  res.status(401).render('session-expired', {
+    title: 'เซสชันหมดเวลา - BU MotoSpace',
+    message: SESSION_EXPIRED_MESSAGE,
+  });
+});
+
 // GET /auth/login
 router.get('/login', (req, res) => {
   if (req.session.admin) {
@@ -31,7 +47,7 @@ router.get('/login', (req, res) => {
 
   // แสดงข้อความแจ้งเมื่อ session หมดเวลาเนื่องจากไม่มีการใช้งาน
   if (req.query.reason === 'idle') {
-    req.flash('error', '⏰ เซสชันหมดอายุเนื่องจากไม่มีการใช้งานนานเกิน 1 ชั่วโมง กรุณาเข้าสู่ระบบใหม่อีกครั้ง');
+    req.flash('error', SESSION_EXPIRED_MESSAGE);
   }
 
   res.render('login', { title: 'เข้าสู่ระบบ - BU MotoSpace' });
