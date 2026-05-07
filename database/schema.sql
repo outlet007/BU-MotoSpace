@@ -54,16 +54,49 @@ CREATE TABLE IF NOT EXISTS registrations (
 ) ENGINE=InnoDB;
 
 -- ตารางกฎ/ข้อบังคับ
+-- Violation types
+CREATE TABLE IF NOT EXISTS violation_types (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  type_name VARCHAR(200) NOT NULL UNIQUE,
+  type_code VARCHAR(20) DEFAULT NULL,
+  max_violations INT NOT NULL DEFAULT 3,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_by INT DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_violation_type_code (type_code),
+  FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Penalty types
+CREATE TABLE IF NOT EXISTS penalty_types (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  penalty_name VARCHAR(200) NOT NULL UNIQUE,
+  description TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_by INT DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Rules and regulations
 CREATE TABLE IF NOT EXISTS rules (
   id INT AUTO_INCREMENT PRIMARY KEY,
   rule_name VARCHAR(200) NOT NULL,
   description TEXT,
+  violation_type_id INT DEFAULT NULL,
+  penalty_type_id INT DEFAULT NULL,
   max_violations INT NOT NULL DEFAULT 3,
   penalty TEXT,
   is_active BOOLEAN DEFAULT TRUE,
   created_by INT DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_rules_violation_type (violation_type_id),
+  INDEX idx_rules_penalty_type (penalty_type_id),
+  FOREIGN KEY (violation_type_id) REFERENCES violation_types(id) ON DELETE SET NULL,
+  FOREIGN KEY (penalty_type_id) REFERENCES penalty_types(id) ON DELETE SET NULL,
   FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
@@ -95,13 +128,17 @@ CREATE TABLE IF NOT EXISTS violations (
 -- ตารางบันทึกการนัดเรียกพบ
 CREATE TABLE IF NOT EXISTS summons_appointments (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  appointment_code VARCHAR(30) DEFAULT NULL,
   registration_id INT NOT NULL,
   scheduled_at DATETIME NOT NULL,
   note TEXT,
+  written_document VARCHAR(500) DEFAULT NULL,
+  written_document_original_name VARCHAR(255) DEFAULT NULL,
   summoned_by INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
   FOREIGN KEY (summoned_by) REFERENCES admins(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_summons_appointment_code (appointment_code),
   INDEX idx_registration_created (registration_id, created_at),
   INDEX idx_scheduled_at (scheduled_at)
 ) ENGINE=InnoDB;

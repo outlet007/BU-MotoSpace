@@ -62,7 +62,7 @@
                 <i data-lucide="clipboard-check" class="w-6 h-6 text-orange-500"></i>
               </div>
               <div class="flex-1">
-                <h2 class="text-xl font-bold text-slate-800">รายการแจ้ง #<%= r.id %></h2>
+                <h2 class="text-xl font-bold text-slate-800">รายการแจ้งเลขที่ <%= r.report_code || ('IR-GEN-' + String(r.id).padStart(6, '0')) %></h2>
                 <p class="text-sm text-slate-500 mt-0.5">
                   <%= new Date(r.reported_at).toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'}) %>
                 </p>

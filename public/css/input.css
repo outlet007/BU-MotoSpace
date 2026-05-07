@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -12,12 +12,14 @@
   --color-brand-700: #15803d;
   --color-brand-800: #166534;
   --color-brand-900: #14532d;
-  --font-sans: 'Inter', 'Noto Sans Thai', sans-serif;
+  --font-sans: 'Noto Sans Thai', sans-serif;
+  --font-mono: 'Noto Sans Thai', sans-serif;
 }
 
 /* Base styles */
 @layer base {
   html { font-family: var(--font-sans); }
+  code, kbd, samp, pre { font-family: var(--font-sans); }
   body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 }
 

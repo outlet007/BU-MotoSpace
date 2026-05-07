@@ -1,3 +1,11 @@
+<%
+  const typeList = Array.isArray(violationTypes) ? violationTypes : [];
+  const penaltyTypeList = Array.isArray(penaltyTypes) ? penaltyTypes : [];
+  const activeTypeList = typeList.filter(function(type) { return type.is_active; });
+  const activePenaltyTypeList = penaltyTypeList.filter(function(type) { return type.is_active; });
+  const selectedTab = activeTab === 'types' || activeTab === 'penalties' ? activeTab : 'rules';
+  const canCreateRule = activeTypeList.length > 0 && activePenaltyTypeList.length > 0;
+%>
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -11,14 +19,50 @@
     .fade-in { animation: fadeIn 0.3s ease-in; }
     @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
     .sidebar-gradient { background: linear-gradient(180deg, #0f172a 0%, #1a2332 50%, #162032 100%); }
-    .tooltip { position: relative; }
-    .tooltip::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); padding: 4px 8px; background: #1e293b; color: white; font-size: 12px; border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
-    .tooltip:hover::after { opacity: 1; }
     .modal-backdrop { background: rgba(15,23,42,0.6); backdrop-filter: blur(4px); display:none; }
     .modal-backdrop.active { display: flex; animation: backdropIn 0.2s ease; }
     @keyframes backdropIn { from{opacity:0} to{opacity:1} }
     .modal-panel { animation: modalSlideUp 0.25s cubic-bezier(0.16,1,0.3,1); }
     @keyframes modalSlideUp { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
+    .rules-tab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      color: #64748b;
+      font-size: 14px;
+      font-weight: 700;
+      transition: all 0.2s;
+      flex: 1;
+    }
+    .rules-tab:hover { background: #f8fafc; color: #334155; }
+    .rules-tab[aria-selected="true"] {
+      background: #16a34a;
+      color: #fff;
+      box-shadow: 0 1px 2px rgba(22,163,74,0.25);
+    }
+    .rules-tab-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      height: 22px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #475569;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .rules-tab[aria-selected="true"] .rules-tab-count {
+      background: rgba(255,255,255,0.22);
+      color: #fff;
+    }
+    .rules-panel { display: none; }
+    .rules-panel.active { display: block; }
   </style>
 </head>
 <body class="min-h-screen bg-slate-50">
@@ -29,127 +73,154 @@
       <main class="flex-1 p-4 sm:p-6 fade-in">
         <%- include('../partials/flash') %>
 
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
-              <i data-lucide="shield" class="w-7 h-7 text-brand-500"></i> กฎและข้อบังคับ
-            </h2>
-            <p class="text-slate-500 mt-1">การจัดการกฎ ระเบียบ ข้อบังคับ และบทลงโทษ</p>
-          </div>
-          <button type="button" data-modal-open="add-modal" class="btn btn-primary">
-            <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มกฎและข้อบังคับ
-          </button>
+        <div class="flex flex-col gap-2 mb-6">
+          <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+            <i data-lucide="shield" class="w-7 h-7 text-brand-500"></i>
+            กฎและข้อบังคับ
+          </h2>
+          <p class="text-slate-500">จัดการกฎ ประเภทความผิด จำนวนครั้งสูงสุด และประเภทบทลงโทษ</p>
         </div>
 
-        <!-- Summons Report Settings -->
-        <div class="card p-4 sm:p-5 mb-6">
-          <div class="flex flex-col gap-3">
-            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div class="flex items-center gap-3 min-w-0">
-                <div class="w-11 h-11 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center flex-shrink-0">
-                  <i data-lucide="calendar-clock" class="w-5 h-5"></i>
-                </div>
-                <div>
-                  <h3 class="font-semibold text-slate-800 lg:whitespace-nowrap">กำหนดจำนวนครั้งของการกระทำผิดรวม</h3>
-                </div>
-              </div>
-              <form method="POST" action="/rules/settings/summons-threshold" class="flex flex-col sm:flex-row sm:items-center gap-3 lg:flex-shrink-0">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                  <label class="label sm:mb-0 whitespace-nowrap">จำนวนครั้งรวม</label>
-                  <input type="number"
-                         name="summons_total_threshold"
-                         class="input sm:w-28"
-                         min="1"
-                         value="<%= typeof summonsThreshold !== 'undefined' ? summonsThreshold : 3 %>"
-                         required>
-                </div>
-                <button type="submit" class="btn btn-primary justify-center whitespace-nowrap">
-                  <i data-lucide="save" class="w-4 h-4"></i>
-                  บันทึกเกณฑ์
-                </button>
-              </form>
-            </div>
-            <p class="text-sm text-slate-500 lg:pl-14">
-              ใช้เป็นเกณฑ์รวมทุกกฎและข้อบังคับ ก่อนนำไปออกรายงานเรียกพบ
-            </p>
+        <div class="card p-2 mb-6">
+          <div class="flex flex-col sm:flex-row gap-2" role="tablist" aria-label="กฎและข้อบังคับ">
+            <button type="button"
+                    class="rules-tab"
+                    data-rules-tab="rules"
+                    aria-selected="<%= selectedTab === 'rules' ? 'true' : 'false' %>">
+              <i data-lucide="clipboard-list" class="w-4 h-4"></i>
+              กฎและข้อบังคับ
+              <span class="rules-tab-count"><%= rules.length %></span>
+            </button>
+            <button type="button"
+                    class="rules-tab"
+                    data-rules-tab="types"
+                    aria-selected="<%= selectedTab === 'types' ? 'true' : 'false' %>">
+              <i data-lucide="tags" class="w-4 h-4"></i>
+              ประเภทความผิด
+              <span class="rules-tab-count"><%= typeList.length %></span>
+            </button>
+            <button type="button"
+                    class="rules-tab"
+                    data-rules-tab="penalties"
+                    aria-selected="<%= selectedTab === 'penalties' ? 'true' : 'false' %>">
+              <i data-lucide="gavel" class="w-4 h-4"></i>
+              ประเภทบทลงโทษ
+              <span class="rules-tab-count"><%= penaltyTypeList.length %></span>
+            </button>
           </div>
         </div>
 
-        <!-- Rules Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <% rules.forEach(function(r) { %>
-          <div class="card p-5">
-            <div class="flex items-start justify-between mb-3">
-              <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl flex items-center justify-center <%= r.is_active ? 'bg-brand-100' : 'bg-slate-100' %>">
-                  <i data-lucide="shield" class="w-5 h-5 <%= r.is_active ? 'text-brand-600' : 'text-slate-400' %>"></i>
-                </div>
-                <div>
-                  <h3 class="font-semibold text-slate-800"><%= r.rule_name %></h3>
-                  <p class="text-xs text-slate-400">
-                    <span class="inline-flex items-center gap-1">
-                      <span class="w-1.5 h-1.5 rounded-full <%= r.is_active ? 'bg-brand-500' : 'bg-slate-400' %>"></span>
-                      <%= r.is_active ? 'เปิดใช้งาน' : 'ปิดใช้งาน' %>
-                    </span>
-                    · ใช้ไปแล้ว <%= r.violation_count %> ครั้ง
-                  </p>
-                </div>
-              </div>
-              <div class="flex items-center gap-1">
-                <button type="button"
-                        class="js-edit-rule p-1.5 text-slate-400 hover:text-brand-600 rounded-lg hover:bg-brand-50 transition-all"
-                        data-id="<%= r.id %>"
-                        data-rule-name="<%= r.rule_name %>"
-                        data-description="<%= r.description || '' %>"
-                        data-max-violations="<%= r.max_violations %>"
-                        data-penalty="<%= r.penalty || '' %>"
-                        data-is-active="<%= r.is_active ? 'true' : 'false' %>">
-                  <i data-lucide="pencil" class="w-4 h-4"></i>
-                </button>
-                <form method="POST"
-                      action="/rules/<%= r.id %>/delete"
-                      class="inline"
-                      data-delete-confirm
-                      data-delete-title="ยืนยันการซ่อนกฎ"
-                      data-delete-lead="คุณกำลังจะซ่อน:"
-                      data-delete-item="ซ่อนกฎและข้อบังคับ: <%= r.rule_name %>"
-                      data-delete-detail="กฎจะถูกซ่อนจากการใช้งานใหม่ แต่ประวัติการกระทำผิดที่เคยบันทึกไว้จะยังคงอยู่"
-                      data-delete-warning="รายการนี้เป็นการซ่อนเท่านั้น ไม่ลบข้อมูลประวัติเดิม"
-                      data-delete-confirm-text="ซ่อนกฎนี้">
-                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                  <button type="submit" class="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-all" title="ซ่อนกฎนี้">
-                    <i data-lucide="eye-off" class="w-4 h-4"></i>
-                  </button>
-                </form>
-                <form method="POST"
-                      action="/rules/<%= r.id %>/destroy"
-                      class="inline"
-                      data-delete-confirm
-                      data-delete-title="ยืนยันการลบกฎถาวร"
-                      data-delete-lead="คุณกำลังจะลบออกจากระบบจริง:"
-                      data-delete-item="กฎและข้อบังคับ: <%= r.rule_name %>"
-                      data-delete-detail="มีประวัติใช้งานกฎนี้แล้ว <%= r.violation_count %> ครั้ง"
-                      data-delete-warning="คำเตือน: การลบถาวรจะลบกฎออกจากฐานข้อมูลจริง และอาจทำให้ประวัติการกระทำผิดที่อ้างอิงกฎนี้ถูกลบตามความสัมพันธ์ของฐานข้อมูล"
-                      data-delete-confirm-text="ลบถาวร">
-                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                  <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all" title="ลบกฎถาวร">
-                    <i data-lucide="trash-2" class="w-4 h-4"></i>
-                  </button>
-                </form>
+        <section id="rules-panel" class="rules-panel <%= selectedTab === 'rules' ? 'active' : '' %>" data-rules-panel="rules">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+            <div>
+              <h3 class="text-lg font-bold text-slate-800">รายการกฎ</h3>
+              <p class="text-sm text-slate-500">เพิ่มกฎใหม่โดยเลือกประเภทความผิดและประเภทบทลงโทษจากรายการที่กำหนดไว้</p>
+            </div>
+            <button type="button" data-modal-open="add-modal" class="btn btn-primary justify-center" <%= canCreateRule ? '' : 'disabled' %>>
+              <i data-lucide="plus" class="w-4 h-4"></i>
+              เพิ่มกฎใหม่
+            </button>
+          </div>
+
+          <% if (!canCreateRule) { %>
+          <div class="card p-5 mb-6 border border-amber-100 bg-amber-50">
+            <div class="flex items-start gap-3">
+              <i data-lucide="alert-circle" class="w-5 h-5 text-amber-600 mt-0.5"></i>
+              <div>
+                <p class="font-semibold text-amber-800">ยังเพิ่มกฎใหม่ไม่ได้</p>
+                <p class="text-sm text-amber-700">
+                  <% if (activeTypeList.length === 0 && activePenaltyTypeList.length === 0) { %>
+                    กรุณาเพิ่มประเภทความผิดและประเภทบทลงโทษก่อน
+                  <% } else if (activeTypeList.length === 0) { %>
+                    กรุณาเพิ่มประเภทความผิดก่อน
+                  <% } else { %>
+                    กรุณาเพิ่มประเภทบทลงโทษก่อน
+                  <% } %>
+                </p>
               </div>
             </div>
-            <p class="text-sm text-slate-500 mb-3"><%= r.description || 'ไม่มีรายละเอียด' %></p>
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <div class="flex items-center gap-4 text-xs">
-                <span class="flex items-center gap-1 text-amber-600">
-                  <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
-                  สูงสุด <%= r.max_violations %> ครั้ง
+          </div>
+          <% } %>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <% rules.forEach(function(r) { %>
+            <% const maxCount = r.effective_max_violations || r.type_max_violations || r.max_violations || 3; %>
+            <% const penaltyText = r.effective_penalty || r.penalty || ''; %>
+            <div class="card p-5">
+              <div class="flex items-start justify-between gap-3 mb-3">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-10 h-10 rounded-xl flex items-center justify-center <%= r.is_active ? 'bg-brand-100' : 'bg-slate-100' %>">
+                    <i data-lucide="shield" class="w-5 h-5 <%= r.is_active ? 'text-brand-600' : 'text-slate-400' %>"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <h3 class="font-semibold text-slate-800 break-words"><%= r.rule_name %></h3>
+                    <p class="text-xs text-slate-400">
+                      <span class="inline-flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full <%= r.is_active ? 'bg-brand-500' : 'bg-slate-400' %>"></span>
+                        <%= r.is_active ? 'เปิดใช้งาน' : 'ปิดใช้งาน' %>
+                      </span>
+                      · ใช้ไปแล้ว <%= r.violation_count %> ครั้ง
+                    </p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1 flex-shrink-0">
+                  <button type="button"
+                          class="js-edit-rule p-1.5 text-slate-400 hover:text-brand-600 rounded-lg hover:bg-brand-50 transition-all"
+                          data-id="<%= r.id %>"
+                          data-rule-name="<%= r.rule_name %>"
+                          data-description="<%= r.description || '' %>"
+                          data-violation-type-id="<%= r.violation_type_id || '' %>"
+                          data-penalty-type-id="<%= r.penalty_type_id || '' %>"
+                          data-is-active="<%= r.is_active ? 'true' : 'false' %>"
+                          title="แก้ไขกฎ">
+                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                  </button>
+                  <form method="POST"
+                        action="/rules/<%= r.id %>/delete"
+                        class="inline"
+                        data-delete-confirm
+                        data-delete-title="ยืนยันการซ่อนกฎ"
+                        data-delete-lead="คุณกำลังจะซ่อน:"
+                        data-delete-item="กฎและข้อบังคับ: <%= r.rule_name %>"
+                        data-delete-detail="กฎจะถูกซ่อนจากการใช้งานใหม่ แต่ประวัติการกระทำผิดที่เคยบันทึกไว้จะยังคงอยู่"
+                        data-delete-warning="รายการนี้เป็นการซ่อนเท่านั้น ไม่ลบข้อมูลประวัติเดิม"
+                        data-delete-confirm-text="ซ่อนกฎนี้">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button type="submit" class="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-all" title="ซ่อนกฎนี้">
+                      <i data-lucide="eye-off" class="w-4 h-4"></i>
+                    </button>
+                  </form>
+                  <form method="POST"
+                        action="/rules/<%= r.id %>/destroy"
+                        class="inline"
+                        data-delete-confirm
+                        data-delete-title="ยืนยันการลบกฎถาวร"
+                        data-delete-lead="คุณกำลังจะลบออกจากระบบจริง:"
+                        data-delete-item="กฎและข้อบังคับ: <%= r.rule_name %>"
+                        data-delete-detail="มีประวัติใช้งานกฎนี้แล้ว <%= r.violation_count %> ครั้ง"
+                        data-delete-warning="คำเตือน: การลบถาวรจะลบกฎออกจากฐานข้อมูลจริง และอาจทำให้ประวัติการกระทำผิดที่อ้างอิงกฎนี้ถูกลบตามความสัมพันธ์ของฐานข้อมูล"
+                        data-delete-confirm-text="ลบถาวร">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all" title="ลบกฎถาวร">
+                      <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                  </form>
+                </div>
+              </div>
+              <p class="text-sm text-slate-500 mb-3 break-words"><%= r.description || 'ไม่มีรายละเอียด' %></p>
+              <div class="flex flex-wrap items-center gap-2 mb-4">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 text-xs font-semibold">
+                  <i data-lucide="tag" class="w-3.5 h-3.5"></i>
+                  <%= r.type_name || 'ไม่ระบุประเภทความผิด' %>
                 </span>
-                <% if (r.penalty) { %>
-                <span class="flex items-center gap-1 text-red-500">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 text-xs font-semibold">
+                  <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+                  สูงสุด <%= maxCount %> ครั้ง
+                </span>
+                <% if (penaltyText) { %>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-50 text-red-600 text-xs font-semibold">
                   <i data-lucide="gavel" class="w-3.5 h-3.5"></i>
-                  <%= r.penalty %>
+                  <%= penaltyText %>
                 </span>
                 <% } %>
               </div>
@@ -162,21 +233,167 @@
                 </button>
               </form>
             </div>
+            <% }); %>
           </div>
-          <% }); %>
-        </div>
 
-        <% if (rules.length === 0) { %>
-        <div class="card p-12 text-center">
-          <i data-lucide="shield-off" class="w-12 h-12 text-slate-300 mx-auto mb-3"></i>
-          <p class="text-slate-400">ยังไม่มีกฎในระบบ</p>
-        </div>
-        <% } %>
+          <% if (rules.length === 0) { %>
+          <div class="card p-12 text-center">
+            <i data-lucide="shield-off" class="w-12 h-12 text-slate-300 mx-auto mb-3"></i>
+            <p class="text-slate-400">ยังไม่มีกฎในระบบ</p>
+          </div>
+          <% } %>
+        </section>
 
-        <!-- Add Modal -->
+        <section id="types-panel" class="rules-panel <%= selectedTab === 'types' ? 'active' : '' %>" data-rules-panel="types">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+            <div>
+              <h3 class="text-lg font-bold text-slate-800">รายการประเภทความผิด</h3>
+              <p class="text-sm text-slate-500">จัดการประเภทความผิดและจำนวนครั้งสูงสุดที่ใช้เป็นเกณฑ์เรียกพบ</p>
+            </div>
+            <button type="button" data-modal-open="add-type-modal" class="btn btn-primary justify-center">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+              เพิ่มประเภทความผิด
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <% typeList.forEach(function(type) { %>
+            <div class="card p-5">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-2 mb-2">
+                    <h4 class="font-semibold text-slate-800 break-words"><%= type.type_name %></h4>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold <%= type.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500' %>">
+                      <i data-lucide="<%= type.is_active ? 'badge-check' : 'badge-x' %>" class="w-3.5 h-3.5"></i>
+                      <%= type.is_active ? 'เปิดใช้งาน' : 'ปิดใช้งาน' %>
+                    </span>
+                  </div>
+                  <div class="flex flex-wrap gap-2 text-xs">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-50 text-brand-700 font-semibold">
+                      <i data-lucide="hash" class="w-3.5 h-3.5"></i>
+                      รหัส <%= type.type_code || '-' %>
+                    </span>
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 font-semibold">
+                      <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+                      สูงสุด <%= type.max_violations %> ครั้ง
+                    </span>
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-semibold">
+                      <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                      ใช้ในกฎ <%= type.rule_count || 0 %> รายการ
+                    </span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1 flex-shrink-0">
+                  <button type="button"
+                          class="js-edit-type p-1.5 text-slate-400 hover:text-brand-600 rounded-lg hover:bg-brand-50 transition-all"
+                          data-id="<%= type.id %>"
+                          data-type-name="<%= type.type_name %>"
+                          data-type-code="<%= type.type_code || '' %>"
+                          data-max-violations="<%= type.max_violations %>"
+                          data-is-active="<%= type.is_active ? 'true' : 'false' %>"
+                          title="แก้ไขประเภท">
+                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                  </button>
+                  <form method="POST"
+                        action="/rules/types/<%= type.id %>/delete"
+                        class="inline"
+                        data-delete-confirm
+                        data-delete-title="ยืนยันการลบประเภทความผิด"
+                        data-delete-lead="คุณกำลังจะลบ:"
+                        data-delete-item="ประเภทความผิด: <%= type.type_name %>"
+                        data-delete-detail="หากประเภทนี้ถูกใช้งานในกฎอยู่ ระบบจะปิดใช้งานแทนการลบเพื่อรักษาข้อมูลเดิม"
+                        data-delete-warning="ตรวจสอบกฎที่ผูกกับประเภทนี้ก่อนดำเนินการ"
+                        data-delete-confirm-text="ลบประเภทนี้">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all" title="ลบประเภท">
+                      <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+            <% }); %>
+          </div>
+
+          <% if (typeList.length === 0) { %>
+          <div class="card p-12 text-center">
+            <i data-lucide="tags" class="w-12 h-12 text-slate-300 mx-auto mb-3"></i>
+            <p class="text-slate-400">ยังไม่มีประเภทความผิดในระบบ</p>
+          </div>
+          <% } %>
+        </section>
+
+        <section id="penalties-panel" class="rules-panel <%= selectedTab === 'penalties' ? 'active' : '' %>" data-rules-panel="penalties">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+            <div>
+              <h3 class="text-lg font-bold text-slate-800">รายการประเภทบทลงโทษ</h3>
+              <p class="text-sm text-slate-500">จัดการตัวเลือกบทลงโทษที่ใช้ตอนเพิ่มหรือแก้ไขกฎ</p>
+            </div>
+            <button type="button" data-modal-open="add-penalty-modal" class="btn btn-primary justify-center">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+              เพิ่มประเภทบทลงโทษ
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <% penaltyTypeList.forEach(function(type) { %>
+            <div class="card p-5">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-2 mb-2">
+                    <h4 class="font-semibold text-slate-800 break-words"><%= type.penalty_name %></h4>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold <%= type.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500' %>">
+                      <i data-lucide="<%= type.is_active ? 'badge-check' : 'badge-x' %>" class="w-3.5 h-3.5"></i>
+                      <%= type.is_active ? 'เปิดใช้งาน' : 'ปิดใช้งาน' %>
+                    </span>
+                  </div>
+                  <p class="text-sm text-slate-500 break-words mb-3"><%= type.description || 'ไม่มีรายละเอียด' %></p>
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 text-xs font-semibold">
+                    <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                    ใช้ในกฎ <%= type.rule_count || 0 %> รายการ
+                  </span>
+                </div>
+                <div class="flex items-center gap-1 flex-shrink-0">
+                  <button type="button"
+                          class="js-edit-penalty p-1.5 text-slate-400 hover:text-brand-600 rounded-lg hover:bg-brand-50 transition-all"
+                          data-id="<%= type.id %>"
+                          data-penalty-name="<%= type.penalty_name %>"
+                          data-description="<%= type.description || '' %>"
+                          data-is-active="<%= type.is_active ? 'true' : 'false' %>"
+                          title="แก้ไขประเภทบทลงโทษ">
+                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                  </button>
+                  <form method="POST"
+                        action="/rules/penalties/<%= type.id %>/delete"
+                        class="inline"
+                        data-delete-confirm
+                        data-delete-title="ยืนยันการลบประเภทบทลงโทษ"
+                        data-delete-lead="คุณกำลังจะลบ:"
+                        data-delete-item="ประเภทบทลงโทษ: <%= type.penalty_name %>"
+                        data-delete-detail="หากประเภทนี้ถูกใช้งานในกฎอยู่ ระบบจะปิดใช้งานแทนการลบเพื่อรักษาข้อมูลเดิม"
+                        data-delete-warning="ตรวจสอบกฎที่ผูกกับประเภทนี้ก่อนดำเนินการ"
+                        data-delete-confirm-text="ลบประเภทนี้">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all" title="ลบประเภทบทลงโทษ">
+                      <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+            <% }); %>
+          </div>
+
+          <% if (penaltyTypeList.length === 0) { %>
+          <div class="card p-12 text-center">
+            <i data-lucide="gavel" class="w-12 h-12 text-slate-300 mx-auto mb-3"></i>
+            <p class="text-slate-400">ยังไม่มีประเภทบทลงโทษในระบบ</p>
+          </div>
+          <% } %>
+        </section>
+
         <div id="add-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center p-4">
           <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-            <!-- Header -->
             <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div class="flex items-center gap-2">
                 <div class="w-8 h-8 bg-brand-500/10 rounded-lg flex items-center justify-center">
@@ -184,13 +401,10 @@
                 </div>
                 <h3 class="text-base font-semibold text-slate-800">เพิ่มกฎใหม่</h3>
               </div>
-              <button type="button" data-modal-close="add-modal"
-                      class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                      aria-label="ปิด">
+              <button type="button" data-modal-close="add-modal" class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label="ปิด">
                 <i data-lucide="x" class="w-4 h-4"></i>
               </button>
             </div>
-            <!-- Body -->
             <div class="p-6">
               <form method="POST" action="/rules" class="space-y-4">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -202,15 +416,23 @@
                   <label class="label">รายละเอียด</label>
                   <textarea name="description" class="input h-20 resize-none" placeholder="อธิบายรายละเอียดกฎ..."></textarea>
                 </div>
-                <div class="grid grid-cols-2 gap-4">
-                  <div>
-                    <label class="label">จำนวนครั้งสูงสุด</label>
-                    <input type="number" name="max_violations" class="input" value="3" min="1" required>
-                  </div>
-                  <div>
-                    <label class="label">บทลงโทษ</label>
-                    <input type="text" name="penalty" class="input" placeholder="เช่น ตักเตือน">
-                  </div>
+                <div>
+                  <label class="label">ประเภทความผิด</label>
+                  <select name="violation_type_id" class="input" required>
+                    <option value="">เลือกประเภทความผิด</option>
+                    <% activeTypeList.forEach(function(type) { %>
+                    <option value="<%= type.id %>"><%= type.type_code ? '[' + type.type_code + '] ' : '' %><%= type.type_name %> (สูงสุด <%= type.max_violations %> ครั้ง)</option>
+                    <% }); %>
+                  </select>
+                </div>
+                <div>
+                  <label class="label">ประเภทบทลงโทษ</label>
+                  <select name="penalty_type_id" class="input" required>
+                    <option value="">เลือกประเภทบทลงโทษ</option>
+                    <% activePenaltyTypeList.forEach(function(type) { %>
+                    <option value="<%= type.id %>"><%= type.penalty_name %></option>
+                    <% }); %>
+                  </select>
                 </div>
                 <div class="flex gap-3 pt-1">
                   <button type="button" data-modal-close="add-modal" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
@@ -221,10 +443,79 @@
           </div>
         </div>
 
-        <!-- Edit Modal -->
+        <div id="add-type-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center p-4">
+          <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-brand-500/10 rounded-lg flex items-center justify-center">
+                  <i data-lucide="tags" class="w-4 h-4 text-brand-600"></i>
+                </div>
+                <h3 class="text-base font-semibold text-slate-800">เพิ่มประเภทความผิด</h3>
+              </div>
+              <button type="button" data-modal-close="add-type-modal" class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label="ปิด">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+            <div class="p-6">
+              <form method="POST" action="/rules/types" class="space-y-4">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <div>
+                  <label class="label">ชื่อประเภทความผิด</label>
+                  <input type="text" name="type_name" class="input" required placeholder="เช่น ความผิดทั่วไป">
+                </div>
+                <div>
+                  <label class="label">รหัสประเภทความผิด</label>
+                  <input type="text" name="type_code" class="input uppercase" required maxlength="10" pattern="[A-Za-z0-9]{2,10}" placeholder="เช่น MIN, MAJ, CRI">
+                  <p class="text-xs text-slate-400 mt-1">ระบบจะใช้สร้างเลขรายการ เช่น IR-MIN-000026</p>
+                </div>
+                <div>
+                  <label class="label">จำนวนครั้งสูงสุด</label>
+                  <input type="number" name="max_violations" class="input" value="3" min="1" required>
+                </div>
+                <div class="flex gap-3 pt-1">
+                  <button type="button" data-modal-close="add-type-modal" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
+                  <button type="submit" class="btn btn-primary flex-1 justify-center">บันทึก</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div id="add-penalty-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center p-4">
+          <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-red-500/10 rounded-lg flex items-center justify-center">
+                  <i data-lucide="gavel" class="w-4 h-4 text-red-600"></i>
+                </div>
+                <h3 class="text-base font-semibold text-slate-800">เพิ่มประเภทบทลงโทษ</h3>
+              </div>
+              <button type="button" data-modal-close="add-penalty-modal" class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label="ปิด">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+            <div class="p-6">
+              <form method="POST" action="/rules/penalties" class="space-y-4">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <div>
+                  <label class="label">ชื่อประเภทบทลงโทษ</label>
+                  <input type="text" name="penalty_name" class="input" required placeholder="เช่น ตักเตือน">
+                </div>
+                <div>
+                  <label class="label">รายละเอียด</label>
+                  <textarea name="description" class="input h-20 resize-none" placeholder="รายละเอียดเพิ่มเติม ถ้ามี"></textarea>
+                </div>
+                <div class="flex gap-3 pt-1">
+                  <button type="button" data-modal-close="add-penalty-modal" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
+                  <button type="submit" class="btn btn-primary flex-1 justify-center">บันทึก</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
         <div id="edit-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center p-4">
           <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-            <!-- Header -->
             <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div class="flex items-center gap-2">
                 <div class="w-8 h-8 bg-brand-500/10 rounded-lg flex items-center justify-center">
@@ -232,13 +523,10 @@
                 </div>
                 <h3 class="text-base font-semibold text-slate-800">แก้ไขกฎ</h3>
               </div>
-              <button type="button" data-modal-close="edit-modal"
-                      class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                      aria-label="ปิด">
+              <button type="button" data-modal-close="edit-modal" class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label="ปิด">
                 <i data-lucide="x" class="w-4 h-4"></i>
               </button>
             </div>
-            <!-- Body -->
             <div class="p-6">
               <form id="edit-form" method="POST" class="space-y-4">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -250,15 +538,21 @@
                   <label class="label">รายละเอียด</label>
                   <textarea name="description" id="edit-description" class="input h-20 resize-none"></textarea>
                 </div>
-                <div class="grid grid-cols-2 gap-4">
-                  <div>
-                    <label class="label">จำนวนครั้งสูงสุด</label>
-                    <input type="number" name="max_violations" id="edit-max" class="input" min="1" required>
-                  </div>
-                  <div>
-                    <label class="label">บทลงโทษ</label>
-                    <input type="text" name="penalty" id="edit-penalty" class="input">
-                  </div>
+                <div>
+                  <label class="label">ประเภทความผิด</label>
+                  <select name="violation_type_id" id="edit-violation-type" class="input" required>
+                    <% typeList.forEach(function(type) { %>
+                    <option value="<%= type.id %>"><%= type.type_code ? '[' + type.type_code + '] ' : '' %><%= type.type_name %><%= type.is_active ? '' : ' (ปิดใช้งาน)' %> - สูงสุด <%= type.max_violations %> ครั้ง</option>
+                    <% }); %>
+                  </select>
+                </div>
+                <div>
+                  <label class="label">ประเภทบทลงโทษ</label>
+                  <select name="penalty_type_id" id="edit-penalty-type" class="input" required>
+                    <% penaltyTypeList.forEach(function(type) { %>
+                    <option value="<%= type.id %>"><%= type.penalty_name %><%= type.is_active ? '' : ' (ปิดใช้งาน)' %></option>
+                    <% }); %>
+                  </select>
                 </div>
                 <div class="flex items-center gap-2">
                   <input type="checkbox" name="is_active" id="edit-active" class="w-4 h-4 rounded text-brand-600">
@@ -273,9 +567,88 @@
           </div>
         </div>
 
+        <div id="edit-type-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center p-4">
+          <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-brand-500/10 rounded-lg flex items-center justify-center">
+                  <i data-lucide="tags" class="w-4 h-4 text-brand-600"></i>
+                </div>
+                <h3 class="text-base font-semibold text-slate-800">แก้ไขประเภทความผิด</h3>
+              </div>
+              <button type="button" data-modal-close="edit-type-modal" class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label="ปิด">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+            <div class="p-6">
+              <form id="edit-type-form" method="POST" class="space-y-4">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <div>
+                  <label class="label">ชื่อประเภทความผิด</label>
+                  <input type="text" name="type_name" id="edit-type-name" class="input" required>
+                </div>
+                <div>
+                  <label class="label">รหัสประเภทความผิด</label>
+                  <input type="text" name="type_code" id="edit-type-code" class="input uppercase" required maxlength="10" pattern="[A-Za-z0-9]{2,10}">
+                  <p class="text-xs text-slate-400 mt-1">ตัวอย่าง MIN, MAJ, CRI ใช้สร้างเลขรายการแบบ IR-MIN-000026</p>
+                </div>
+                <div>
+                  <label class="label">จำนวนครั้งสูงสุด</label>
+                  <input type="number" name="max_violations" id="edit-type-max" class="input" min="1" required>
+                </div>
+                <div class="flex items-center gap-2">
+                  <input type="checkbox" name="is_active" id="edit-type-active" class="w-4 h-4 rounded text-brand-600">
+                  <label for="edit-type-active" class="text-sm text-slate-600">เปิดใช้งาน</label>
+                </div>
+                <div class="flex gap-3 pt-1">
+                  <button type="button" data-modal-close="edit-type-modal" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
+                  <button type="submit" class="btn btn-primary flex-1 justify-center">อัปเดต</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div id="edit-penalty-modal" class="modal-backdrop fixed inset-0 z-50 items-center justify-center p-4">
+          <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-red-500/10 rounded-lg flex items-center justify-center">
+                  <i data-lucide="gavel" class="w-4 h-4 text-red-600"></i>
+                </div>
+                <h3 class="text-base font-semibold text-slate-800">แก้ไขประเภทบทลงโทษ</h3>
+              </div>
+              <button type="button" data-modal-close="edit-penalty-modal" class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label="ปิด">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+            <div class="p-6">
+              <form id="edit-penalty-form" method="POST" class="space-y-4">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <div>
+                  <label class="label">ชื่อประเภทบทลงโทษ</label>
+                  <input type="text" name="penalty_name" id="edit-penalty-name" class="input" required>
+                </div>
+                <div>
+                  <label class="label">รายละเอียด</label>
+                  <textarea name="description" id="edit-penalty-description" class="input h-20 resize-none"></textarea>
+                </div>
+                <div class="flex items-center gap-2">
+                  <input type="checkbox" name="is_active" id="edit-penalty-active" class="w-4 h-4 rounded text-brand-600">
+                  <label for="edit-penalty-active" class="text-sm text-slate-600">เปิดใช้งาน</label>
+                </div>
+                <div class="flex gap-3 pt-1">
+                  <button type="button" data-modal-close="edit-penalty-modal" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
+                  <button type="submit" class="btn btn-primary flex-1 justify-center">อัปเดต</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       </main>
     </div>
   </div>
+
   <script>
     function closeModal(id) {
       var modal = document.getElementById(id);
@@ -291,8 +664,30 @@
       modal.classList.add('active');
     }
 
+    function setRulesTab(tabName, updateUrl) {
+      var selected = tabName === 'types' || tabName === 'penalties' ? tabName : 'rules';
+      document.querySelectorAll('[data-rules-tab]').forEach(function(button) {
+        button.setAttribute('aria-selected', button.dataset.rulesTab === selected ? 'true' : 'false');
+      });
+      document.querySelectorAll('[data-rules-panel]').forEach(function(panel) {
+        panel.classList.toggle('active', panel.dataset.rulesPanel === selected);
+      });
+
+      if (updateUrl) {
+        var url = new URL(window.location.href);
+        url.searchParams.set('tab', selected);
+        window.history.replaceState({}, '', url);
+      }
+    }
+
     window.closeModal = closeModal;
     window.openModal = openModal;
+
+    document.querySelectorAll('[data-rules-tab]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        setRulesTab(button.dataset.rulesTab, true);
+      });
+    });
 
     if (window.lucide) {
       lucide.createIcons();
@@ -300,6 +695,7 @@
 
     document.querySelectorAll('[data-modal-open]').forEach(function(button) {
       button.addEventListener('click', function() {
+        if (button.disabled) return;
         openModal(button.dataset.modalOpen);
       });
     });
@@ -312,41 +708,54 @@
 
     document.querySelectorAll('.modal-backdrop').forEach(function(modal) {
       modal.addEventListener('click', function(e) {
-        if (e.target === modal) {
-          closeModal(modal.id);
-        }
+        if (e.target === modal) closeModal(modal.id);
       });
     });
 
-    // ESC key closes any active modal
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
-        document.querySelectorAll('.modal-backdrop.active').forEach(function(m) {
-          closeModal(m.id);
+        document.querySelectorAll('.modal-backdrop.active').forEach(function(modal) {
+          closeModal(modal.id);
         });
       }
     });
 
-    function editRule(id, name, desc, max, penalty, active) {
-      document.getElementById('edit-form').action = '/rules/' + id + '/update';
-      document.getElementById('edit-rule-name').value = name;
-      document.getElementById('edit-description').value = desc;
-      document.getElementById('edit-max').value = max;
-      document.getElementById('edit-penalty').value = penalty;
-      document.getElementById('edit-active').checked = active;
-      openModal('edit-modal');
-    }
-
     document.querySelectorAll('.js-edit-rule').forEach(function(button) {
       button.addEventListener('click', function() {
-        editRule(
-          button.dataset.id,
-          button.dataset.ruleName || '',
-          button.dataset.description || '',
-          button.dataset.maxViolations || 3,
-          button.dataset.penalty || '',
-          button.dataset.isActive === 'true'
-        );
+        document.getElementById('edit-form').action = '/rules/' + button.dataset.id + '/update';
+        document.getElementById('edit-rule-name').value = button.dataset.ruleName || '';
+        document.getElementById('edit-description').value = button.dataset.description || '';
+        document.getElementById('edit-violation-type').value = button.dataset.violationTypeId || '';
+        document.getElementById('edit-penalty-type').value = button.dataset.penaltyTypeId || '';
+        document.getElementById('edit-active').checked = button.dataset.isActive === 'true';
+        openModal('edit-modal');
+      });
+    });
+
+    document.querySelectorAll('.js-edit-type').forEach(function(button) {
+      button.addEventListener('click', function() {
+        document.getElementById('edit-type-form').action = '/rules/types/' + button.dataset.id + '/update';
+        document.getElementById('edit-type-name').value = button.dataset.typeName || '';
+        document.getElementById('edit-type-code').value = button.dataset.typeCode || '';
+        document.getElementById('edit-type-max').value = button.dataset.maxViolations || 3;
+        document.getElementById('edit-type-active').checked = button.dataset.isActive === 'true';
+        openModal('edit-type-modal');
+      });
+    });
+
+    document.querySelectorAll('.js-edit-penalty').forEach(function(button) {
+      button.addEventListener('click', function() {
+        document.getElementById('edit-penalty-form').action = '/rules/penalties/' + button.dataset.id + '/update';
+        document.getElementById('edit-penalty-name').value = button.dataset.penaltyName || '';
+        document.getElementById('edit-penalty-description').value = button.dataset.description || '';
+        document.getElementById('edit-penalty-active').checked = button.dataset.isActive === 'true';
+        openModal('edit-penalty-modal');
+      });
+    });
+
+    document.querySelectorAll('input[name="type_code"]').forEach(function(input) {
+      input.addEventListener('input', function() {
+        input.value = input.value.toUpperCase().replace(/^IR-/, '').replace(/[^A-Z0-9]/g, '');
       });
     });
   </script>

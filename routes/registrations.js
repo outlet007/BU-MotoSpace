@@ -7,21 +7,67 @@ const { generateHash, compareHashes } = require('../utils/imageHash');
 
 router.use(isAuthenticated);
 
+async function ensureSummonsAppointmentColumn(conn, columnName, definition) {
+  const [column] = await conn.query(
+    `SELECT COLUMN_NAME
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'summons_appointments'
+       AND COLUMN_NAME = ?`,
+    [columnName]
+  );
+
+  if (!column) {
+    await conn.query(`ALTER TABLE summons_appointments ADD COLUMN ${columnName} ${definition}`);
+  }
+}
+
+async function ensureSummonsAppointmentIndex(conn, indexName, definition) {
+  const [index] = await conn.query(
+    `SELECT INDEX_NAME
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'summons_appointments'
+       AND INDEX_NAME = ?`,
+    [indexName]
+  );
+
+  if (!index) {
+    await conn.query(`ALTER TABLE summons_appointments ADD ${definition}`);
+  }
+}
+
 async function ensureSummonsAppointmentsTable(conn) {
   await conn.query(`
     CREATE TABLE IF NOT EXISTS summons_appointments (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      appointment_code VARCHAR(30) DEFAULT NULL,
       registration_id INT NOT NULL,
       scheduled_at DATETIME NOT NULL,
       note TEXT,
+      written_document VARCHAR(500) DEFAULT NULL,
+      written_document_original_name VARCHAR(255) DEFAULT NULL,
       summoned_by INT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
       FOREIGN KEY (summoned_by) REFERENCES admins(id) ON DELETE CASCADE,
+      UNIQUE KEY uq_summons_appointment_code (appointment_code),
       INDEX idx_registration_created (registration_id, created_at),
       INDEX idx_scheduled_at (scheduled_at)
     ) ENGINE=InnoDB
   `);
+  await ensureSummonsAppointmentColumn(conn, 'appointment_code', 'VARCHAR(30) DEFAULT NULL AFTER id');
+  await ensureSummonsAppointmentColumn(conn, 'written_document', 'VARCHAR(500) DEFAULT NULL');
+  await ensureSummonsAppointmentColumn(conn, 'written_document_original_name', 'VARCHAR(255) DEFAULT NULL');
+  await ensureSummonsAppointmentIndex(conn, 'uq_summons_appointment_code', 'UNIQUE INDEX uq_summons_appointment_code (appointment_code)');
+}
+
+function isValidDatetimeLocal(value) {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value || '');
+}
+
+function toSqlDatetime(datetimeLocal) {
+  return datetimeLocal.replace('T', ' ') + ':00';
 }
 
 // GET /registrations
@@ -210,11 +256,16 @@ router.get('/:id', isHead, async (req, res) => {
     }
 
     const violations = await conn.query(
-      `SELECT v.*, ru.rule_name, ru.max_violations, 
+      `SELECT v.*,
+              DATE_FORMAT(v.recorded_at, '%Y-%m-%dT%H:%i') AS recorded_at_input,
+              CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(v.id, 6, '0')) AS incident_code,
+              ru.rule_name, ru.max_violations,
+              COALESCE(vt.type_name, ru.rule_name) AS violation_type_name,
               a.full_name as recorded_by_name,
               rpa.full_name as reported_by_name
        FROM violations v
        JOIN rules ru ON v.rule_id = ru.id
+       LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
        JOIN admins a ON v.recorded_by = a.id
        LEFT JOIN violation_reports vr ON vr.violation_id = v.id
        LEFT JOIN admins rpa ON vr.reported_by = rpa.id
@@ -225,16 +276,43 @@ router.get('/:id', isHead, async (req, res) => {
 
     // Count violations per rule
     const violationCounts = await conn.query(
-      `SELECT v.rule_id, ru.rule_name, ru.max_violations, COUNT(*) as cnt
-       FROM violations v JOIN rules ru ON v.rule_id = ru.id
+      `SELECT COALESCE(ru.violation_type_id, ru.id) AS type_group_id,
+              COALESCE(vt.type_name, ru.rule_name) AS rule_name,
+              COALESCE(vt.max_violations, ru.max_violations) AS max_violations,
+              COUNT(*) as cnt
+       FROM violations v
+       JOIN rules ru ON v.rule_id = ru.id
+       LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
+       LEFT JOIN (
+         SELECT registration_id, violation_type_id, MAX(created_at) AS latest_reset_at
+         FROM summons_appointments
+         WHERE violation_type_id IS NOT NULL
+         GROUP BY registration_id, violation_type_id
+       ) sa_type ON sa_type.registration_id = v.registration_id
+                 AND sa_type.violation_type_id = ru.violation_type_id
+       LEFT JOIN (
+         SELECT registration_id, MAX(created_at) AS latest_reset_at
+         FROM summons_appointments
+         WHERE violation_type_id IS NULL
+         GROUP BY registration_id
+       ) sa_global ON sa_global.registration_id = v.registration_id
        WHERE v.registration_id = ?
-       GROUP BY v.rule_id`,
+         AND v.recorded_at > COALESCE(
+           GREATEST(
+             COALESCE(sa_type.latest_reset_at, '1000-01-01'),
+             COALESCE(sa_global.latest_reset_at, '1000-01-01')
+           ),
+           '1000-01-01 00:00:00'
+         )
+       GROUP BY type_group_id, rule_name, max_violations`,
       [req.params.id]
     );
 
     await ensureSummonsAppointmentsTable(conn);
     const summonsAppointments = await conn.query(
-      `SELECT sa.*, a.full_name AS summoned_by_name
+      `SELECT sa.*,
+              DATE_FORMAT(sa.scheduled_at, '%Y-%m-%dT%H:%i') AS scheduled_at_input,
+              a.full_name AS summoned_by_name
        FROM summons_appointments sa
        JOIN admins a ON sa.summoned_by = a.id
        WHERE sa.registration_id = ?
@@ -366,6 +444,68 @@ router.post('/:id/edit', isHead, upload.fields([
     if (conn) conn.release();
   }
   res.redirect('/registrations/' + req.params.id);
+});
+
+// POST /registrations/:id/summons/:appointmentId/edit
+router.post('/:id/summons/:appointmentId/edit', isHead, upload.single('written_document'), verifyCsrf, async (req, res) => {
+  const registrationId = parseInt(req.params.id, 10);
+  const appointmentId = parseInt(req.params.appointmentId, 10);
+  const scheduledAtRaw = (req.body.scheduled_at || '').trim();
+  const note = (req.body.note || '').trim() || null;
+  const returnTo = Number.isFinite(registrationId) && registrationId > 0
+    ? `/registrations/${registrationId}#summons-history`
+    : '/registrations';
+
+  if (!Number.isFinite(registrationId) || registrationId <= 0 || !Number.isFinite(appointmentId) || appointmentId <= 0) {
+    req.flash('error', 'ข้อมูลรายการเรียกพบไม่ถูกต้อง');
+    return res.redirect(returnTo);
+  }
+
+  if (!isValidDatetimeLocal(scheduledAtRaw)) {
+    req.flash('error', 'กรุณาระบุวันและเวลานัดหมายให้ถูกต้อง');
+    return res.redirect(returnTo);
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await ensureSummonsAppointmentsTable(conn);
+
+    const [appointment] = await conn.query(
+      `SELECT sa.id, r.first_name, r.last_name
+       FROM summons_appointments sa
+       JOIN registrations r ON sa.registration_id = r.id
+       WHERE sa.id = ? AND sa.registration_id = ?`,
+      [appointmentId, registrationId]
+    );
+
+    if (!appointment) {
+      req.flash('error', 'ไม่พบรายการเรียกพบที่ต้องการแก้ไข');
+      return res.redirect(returnTo);
+    }
+
+    let sql = `UPDATE summons_appointments
+       SET scheduled_at = ?, note = ?`;
+    const params = [toSqlDatetime(scheduledAtRaw), note];
+
+    if (req.file) {
+      sql += ', written_document = ?, written_document_original_name = ?';
+      params.push('/uploads/summons-documents/' + req.file.filename, req.file.originalname);
+    }
+
+    sql += ' WHERE id = ? AND registration_id = ?';
+    params.push(appointmentId, registrationId);
+
+    await conn.query(sql, params);
+    req.flash('success', `แก้ไขรายละเอียดการเรียกพบ ${appointment.first_name} ${appointment.last_name} เรียบร้อยแล้ว`);
+  } catch (err) {
+    console.error('POST /registrations/:id/summons/:appointmentId/edit error:', err);
+    req.flash('error', 'ไม่สามารถแก้ไขรายละเอียดการเรียกพบได้: ' + err.message);
+  } finally {
+    if (conn) conn.release();
+  }
+
+  return res.redirect(returnTo);
 });
 
 // POST /registrations/:id/delete

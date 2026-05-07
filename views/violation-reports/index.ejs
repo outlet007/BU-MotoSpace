@@ -18,6 +18,10 @@
     .status-confirmed { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
     .status-rejected  { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
     .row-hover:hover { background:#f8fafc; }
+    .violation-reports-table th,
+    .violation-reports-table td {
+      font-size: 12px;
+    }
   </style>
 </head>
 <body class="min-h-screen bg-slate-50">
@@ -59,6 +63,18 @@
                        placeholder="ชื่อ, รหัส, ป้ายทะเบียน, กฎ...">
               </div>
             </div>
+            <!-- Violation type filter -->
+            <div>
+              <label class="label">ประเภทความผิด</label>
+              <select name="violation_type_filter" id="violation-type-filter" class="input">
+                <option value="all" <%= (violation_type_filter || 'all') === 'all' ? 'selected' : '' %>>ทุกประเภท</option>
+                <% (violationTypes || []).forEach(function(type) { %>
+                  <option value="<%= type.id %>" <%= String(violation_type_filter) === String(type.id) ? 'selected' : '' %>>
+                    <%= type.type_code ? '[' + type.type_code + '] ' : '' %><%= type.type_name %><%= type.is_active ? '' : ' (ปิดใช้งาน)' %>
+                  </option>
+                <% }); %>
+              </select>
+            </div>
             <!-- Status filter -->
             <div>
               <label class="label">สถานะ</label>
@@ -82,15 +98,16 @@
 
         <!-- Table -->
         <div class="table-container">
-          <table class="data-table">
+          <table class="data-table violation-reports-table">
             <thead>
               <tr>
+                <th>รายการแจ้งเลขที่</th>
                 <th>วันที่</th>
                 <th>รหัส</th>
                 <th>ชื่อ-นามสกุล</th>
+                <th>ประเภทผู้ใช้</th>
                 <th>ป้ายทะเบียน</th>
                 <th>กฎที่ฝ่าฝืน</th>
-                <th>รายละเอียด</th>
                 <th>แจ้งโดย</th>
                 <th>สถานะ</th>
                 <th></th>
@@ -100,6 +117,10 @@
               <% if (reports && reports.length > 0) { %>
                 <% reports.forEach(function(rpt) { %>
                 <tr class="row-hover cursor-pointer" data-href="/violation-reports/<%= rpt.id %>">
+                  <!-- รายการแจ้งเลขที่ -->
+                  <td class="text-xs font-mono font-semibold text-brand-700 whitespace-nowrap">
+                    <%= rpt.report_code || ('IR-GEN-' + String(rpt.id).padStart(6, '0')) %>
+                  </td>
                   <!-- วันที่ -->
                   <td class="text-xs text-slate-500 whitespace-nowrap">
                     <%= new Date(rpt.reported_at).toLocaleDateString('th-TH', {
@@ -111,9 +132,12 @@
                   <!-- ชื่อ-นามสกุล -->
                   <td class="font-medium text-slate-800">
                     <%= rpt.first_name %> <%= rpt.last_name %>
-                    <div class="text-xs text-slate-400 mt-0.5">
+                  </td>
+                  <!-- ประเภทผู้ใช้ -->
+                  <td>
+                    <span class="badge <%= rpt.user_type === 'student' ? 'badge-success' : 'badge-info' %>">
                       <%= rpt.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %>
-                    </div>
+                    </span>
                   </td>
                   <!-- ป้ายทะเบียน -->
                   <td class="font-semibold text-slate-700"><%= rpt.license_plate %></td>
@@ -123,12 +147,6 @@
                       <i data-lucide="shield-alert" class="w-3 h-3"></i>
                       <%= rpt.rule_name %>
                     </span>
-                  </td>
-                  <!-- รายละเอียด -->
-                  <td class="text-sm text-slate-600 max-w-[180px] truncate" title="<%= rpt.description || '' %>">
-                    <% if (rpt.description) { %>
-                      <%= rpt.description %>
-                    <% } %>
                   </td>
                   <!-- บันทึกโดย -->
                   <td class="text-xs text-slate-500"><%= rpt.reported_by_name %></td>
@@ -161,7 +179,7 @@
                 <% }); %>
               <% } else { %>
               <tr>
-                <td colspan="9" class="text-center py-14">
+                <td colspan="10" class="text-center py-14">
                   <div class="flex flex-col items-center gap-3 text-slate-400">
                     <i data-lucide="clipboard-x" class="w-12 h-12 text-slate-300"></i>
                     <p class="text-sm font-medium">ไม่พบรายการ</p>
@@ -178,7 +196,7 @@
         <% if (totalPages > 1) { %>
         <div class="flex items-center justify-center gap-2 mt-6">
           <% for (var i = 1; i <= totalPages; i++) { %>
-            <a href="/violation-reports?page=<%= i %>&search=<%= encodeURIComponent(search) %>&status_filter=<%= status_filter %>"
+            <a href="/violation-reports?page=<%= i %>&search=<%= encodeURIComponent(search) %>&status_filter=<%= status_filter %>&violation_type_filter=<%= encodeURIComponent(violation_type_filter || 'all') %>"
                class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium transition-all
                       <%= i === currentPage ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' %>">
               <%= i %>

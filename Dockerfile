@@ -25,6 +25,7 @@ RUN mkdir -p uploads/motorcycles \
              uploads/plates \
              uploads/id-cards \
              uploads/evidence \
+             uploads/summons-documents \
              uploads/temp \
              uploads/misc
 

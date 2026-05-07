@@ -1,12 +1,20 @@
 const router = require('express').Router();
 const pool = require('../config/database');
 const upload = require('../middleware/upload');
-const { isAuthenticated } = require('../middleware/auth');
+const { isAuthenticated, isHead } = require('../middleware/auth');
 const { verifyCsrf } = require('../middleware/csrf');
 const { generateHash, compareHashes } = require('../utils/imageHash');
 const path = require('path');
 
 router.use(isAuthenticated);
+
+function isValidDatetimeLocal(value) {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value || '');
+}
+
+function toSqlDatetime(datetimeLocal) {
+  return datetimeLocal.replace('T', ' ') + ':00';
+}
 
 // GET /violations
 router.get('/', async (req, res) => {
@@ -199,12 +207,15 @@ router.get('/:id', async (req, res) => {
     conn = await pool.getConnection();
     const [violation] = await conn.query(
       `SELECT v.*, r.id_number, r.user_type, r.first_name, r.last_name, r.license_plate, r.province, r.phone,
+              DATE_FORMAT(v.recorded_at, '%Y-%m-%dT%H:%i') AS recorded_at_input,
+              CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(v.id, 6, '0')) AS incident_code,
               r.motorcycle_photo, r.plate_photo, r.id_card_photo,
               ru.rule_name, ru.description as rule_desc, ru.max_violations, ru.penalty,
               a.full_name as recorded_by_name
        FROM violations v
        JOIN registrations r ON v.registration_id = r.id
        JOIN rules ru ON v.rule_id = ru.id
+       LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
        JOIN admins a ON v.recorded_by = a.id
        WHERE v.id = ?`,
       [req.params.id]
@@ -221,10 +232,17 @@ router.get('/:id', async (req, res) => {
       [violation.registration_id, violation.rule_id]
     );
 
+    const rules = await conn.query(
+      `SELECT id, rule_name, is_active
+       FROM rules
+       ORDER BY is_active DESC, rule_name ASC`
+    );
+
     res.render('violations/detail', {
-      title: `รายละเอียดการกระทำผิด #${violation.id} - BU MotoSpace`,
+      title: `รายละเอียดการกระทำผิด ${violation.incident_code} - BU MotoSpace`,
       v: violation,
       violationCount: parseInt(vioCount.cnt),
+      rules,
     });
   } catch (err) {
     console.error(err);
@@ -288,5 +306,141 @@ router.post('/', upload.single('evidence_photo'), verifyCsrf, async (req, res) =
   }
 });
 
-module.exports = router;
+// POST /violations/:id/edit
+router.post('/:id/edit', isHead, upload.single('evidence_photo'), verifyCsrf, async (req, res) => {
+  const violationId = parseInt(req.params.id, 10);
+  const ruleId = parseInt(req.body.rule_id, 10);
+  const description = (req.body.description || '').trim() || null;
+  const recordedAtRaw = (req.body.recorded_at || '').trim();
+  const returnTo = Number.isFinite(violationId) && violationId > 0 ? `/violations/${violationId}` : '/violations';
 
+  if (!Number.isFinite(violationId) || violationId <= 0) {
+    req.flash('error', 'ข้อมูลรายการแจ้งไม่ถูกต้อง');
+    return res.redirect('/violations');
+  }
+
+  if (!Number.isFinite(ruleId) || ruleId <= 0) {
+    req.flash('error', 'กรุณาเลือกกฎที่กระทำผิด');
+    return res.redirect(returnTo);
+  }
+
+  if (!isValidDatetimeLocal(recordedAtRaw)) {
+    req.flash('error', 'กรุณาระบุวันที่บันทึกให้ถูกต้อง');
+    return res.redirect(returnTo);
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    const [violation] = await conn.query(
+      `SELECT id, registration_id
+       FROM violations
+       WHERE id = ?`,
+      [violationId]
+    );
+
+    if (!violation) {
+      req.flash('error', 'ไม่พบรายการแจ้งที่ต้องการแก้ไข');
+      return res.redirect('/violations');
+    }
+
+    const [rule] = await conn.query(
+      'SELECT id FROM rules WHERE id = ?',
+      [ruleId]
+    );
+
+    if (!rule) {
+      req.flash('error', 'ไม่พบกฎที่เลือก');
+      return res.redirect(returnTo);
+    }
+
+    let sql = `UPDATE violations
+       SET rule_id = ?, description = ?, recorded_at = ?`;
+    const params = [ruleId, description, toSqlDatetime(recordedAtRaw)];
+
+    if (req.file) {
+      sql += ', evidence_photo = ?';
+      params.push('/uploads/evidence/' + req.file.filename);
+    }
+
+    sql += ' WHERE id = ?';
+    params.push(violationId);
+
+    await conn.query(sql, params);
+
+    try {
+      let reportSql = 'UPDATE violation_reports SET rule_id = ?, description = ?';
+      const reportParams = [ruleId, description];
+
+      if (req.file) {
+        reportSql += ', evidence_photo = ?';
+        reportParams.push('/uploads/evidence/' + req.file.filename);
+      }
+
+      reportSql += ' WHERE violation_id = ?';
+      reportParams.push(violationId);
+      await conn.query(reportSql, reportParams);
+    } catch (updateReportErr) {
+      if (!['ER_NO_SUCH_TABLE', 'ER_BAD_FIELD_ERROR'].includes(updateReportErr.code)) throw updateReportErr;
+    }
+
+    req.flash('success', 'แก้ไขรายการแจ้งเรียบร้อยแล้ว');
+    return res.redirect(returnTo);
+  } catch (err) {
+    console.error('POST /violations/:id/edit error:', err);
+    req.flash('error', 'ไม่สามารถแก้ไขรายการแจ้งได้: ' + err.message);
+    return res.redirect(returnTo);
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// POST /violations/:id/delete
+router.post('/:id/delete', isHead, verifyCsrf, async (req, res) => {
+  const violationId = parseInt(req.params.id, 10);
+
+  if (!Number.isFinite(violationId) || violationId <= 0) {
+    req.flash('error', 'ข้อมูลรายการแจ้งไม่ถูกต้อง');
+    return res.redirect('/violations');
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    const [violation] = await conn.query(
+      `SELECT id, registration_id
+       FROM violations
+       WHERE id = ?`,
+      [violationId]
+    );
+
+    if (!violation) {
+      req.flash('error', 'ไม่พบรายการแจ้งที่ต้องการลบ');
+      return res.redirect('/violations');
+    }
+
+    try {
+      await conn.query(
+        'UPDATE violation_reports SET violation_id = NULL WHERE violation_id = ?',
+        [violationId]
+      );
+    } catch (updateReportErr) {
+      if (!['ER_NO_SUCH_TABLE', 'ER_BAD_FIELD_ERROR'].includes(updateReportErr.code)) throw updateReportErr;
+    }
+
+    await conn.query('DELETE FROM violations WHERE id = ?', [violationId]);
+
+    req.flash('success', 'ลบรายการแจ้งเรียบร้อยแล้ว');
+    return res.redirect(`/registrations/${violation.registration_id}#violations`);
+  } catch (err) {
+    console.error('POST /violations/:id/delete error:', err);
+    req.flash('error', 'ไม่สามารถลบรายการแจ้งได้: ' + err.message);
+    return res.redirect(`/violations/${violationId}`);
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+module.exports = router;

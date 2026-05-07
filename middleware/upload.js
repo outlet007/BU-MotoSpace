@@ -8,6 +8,7 @@ const storage = multer.diskStorage({
     else if (file.fieldname === 'plate_photo') folder += 'plates/';
     else if (file.fieldname === 'id_card_photo') folder += 'id-cards/';
     else if (file.fieldname === 'evidence_photo') folder += 'evidence/';
+    else if (file.fieldname === 'written_document') folder += 'summons-documents/';
     else if (file.fieldname === 'search_image') folder += 'temp/';
     else folder += 'misc/';
     cb(null, folder);
@@ -19,10 +20,29 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowed = /jpeg|jpg|png|webp/;
-  const ext = allowed.test(path.extname(file.originalname).toLowerCase());
-  const mime = allowed.test(file.mimetype);
-  if (ext && mime) {
+  const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
+  const imageExtensions = ['jpeg', 'jpg', 'png', 'webp'];
+  const imageMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+
+  if (file.fieldname === 'written_document') {
+    const documentExtensions = ['pdf', 'doc', 'docx', ...imageExtensions];
+    const documentMimeTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ...imageMimeTypes,
+    ];
+    const hasValidDocumentExt = documentExtensions.includes(ext);
+    const hasValidDocumentMime = documentMimeTypes.includes(file.mimetype) || file.mimetype === 'application/octet-stream';
+
+    if (hasValidDocumentExt && hasValidDocumentMime) {
+      return cb(null, true);
+    }
+
+    return cb(new Error('อนุญาตเฉพาะไฟล์ PDF, Word หรือรูปภาพ (JPEG, PNG, WebP)'), false);
+  }
+
+  if (imageExtensions.includes(ext) && imageMimeTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
     cb(new Error('อนุญาตเฉพาะไฟล์ภาพ (JPEG, PNG, WebP)'), false);

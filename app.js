@@ -15,7 +15,6 @@ const { generateSignedUrl, verifySignedUrl, resolveFilePath } = require('./utils
 
 const app = express();
 const PORT = process.env.APP_PORT || 3000;
-const SUMMONS_THRESHOLD_KEY = 'summons_total_threshold';
 const DEFAULT_SUMMONS_THRESHOLD = 3;
 
 // Ensure upload directories exist (OUTSIDE public/ for PDPA security)
@@ -24,6 +23,7 @@ const uploadDirs = [
   'uploads/plates',
   'uploads/id-cards',
   'uploads/evidence',
+  'uploads/summons-documents',
   'uploads/temp',
   'uploads/misc',
 ];
@@ -118,44 +118,178 @@ app.use(async (req, res, next) => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS summons_appointments (
         id INT AUTO_INCREMENT PRIMARY KEY,
+        appointment_code VARCHAR(30) DEFAULT NULL,
         registration_id INT NOT NULL,
         scheduled_at DATETIME NOT NULL,
         note TEXT,
+        written_document VARCHAR(500) DEFAULT NULL,
+        written_document_original_name VARCHAR(255) DEFAULT NULL,
         summoned_by INT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
         FOREIGN KEY (summoned_by) REFERENCES admins(id) ON DELETE CASCADE,
+        UNIQUE KEY uq_summons_appointment_code (appointment_code),
         INDEX idx_registration_created (registration_id, created_at),
         INDEX idx_scheduled_at (scheduled_at)
       ) ENGINE=InnoDB
     `);
-
-    const settingRows = await pool.query(
-      'SELECT setting_value FROM app_settings WHERE setting_key = ?',
-      [SUMMONS_THRESHOLD_KEY]
+    const summonsAppointmentCodeRows = await pool.query(
+      `SELECT COUNT(*) AS cnt
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'summons_appointments'
+         AND COLUMN_NAME = 'appointment_code'`
     );
-    const thresholdValue = parseInt(settingRows[0] && settingRows[0].setting_value, 10);
-    const summonsThreshold = Number.isFinite(thresholdValue) && thresholdValue > 0
-      ? thresholdValue
-      : DEFAULT_SUMMONS_THRESHOLD;
+    if (parseInt(summonsAppointmentCodeRows[0] && summonsAppointmentCodeRows[0].cnt, 10) === 0) {
+      await pool.query('ALTER TABLE summons_appointments ADD COLUMN appointment_code VARCHAR(30) DEFAULT NULL AFTER id');
+    }
+    const summonsAppointmentCodeIndexRows = await pool.query(
+      `SELECT COUNT(*) AS cnt
+       FROM information_schema.STATISTICS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'summons_appointments'
+         AND INDEX_NAME = 'uq_summons_appointment_code'`
+    );
+    if (parseInt(summonsAppointmentCodeIndexRows[0] && summonsAppointmentCodeIndexRows[0].cnt, 10) === 0) {
+      await pool.query('ALTER TABLE summons_appointments ADD UNIQUE INDEX uq_summons_appointment_code (appointment_code)');
+    }
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS violation_types (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        type_name VARCHAR(200) NOT NULL UNIQUE,
+        type_code VARCHAR(20) DEFAULT NULL,
+        max_violations INT NOT NULL DEFAULT 3,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_by INT DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_violation_type_code (type_code),
+        FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB
+    `);
+    const violationTypeCodeRows = await pool.query(
+      `SELECT COUNT(*) AS cnt
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'violation_types'
+         AND COLUMN_NAME = 'type_code'`
+    );
+    if (parseInt(violationTypeCodeRows[0] && violationTypeCodeRows[0].cnt, 10) === 0) {
+      await pool.query('ALTER TABLE violation_types ADD COLUMN type_code VARCHAR(20) DEFAULT NULL AFTER type_name');
+    }
+    const violationTypeCodeIndexRows = await pool.query(
+      `SELECT COUNT(*) AS cnt
+       FROM information_schema.STATISTICS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'violation_types'
+         AND INDEX_NAME = 'uq_violation_type_code'`
+    );
+    if (parseInt(violationTypeCodeIndexRows[0] && violationTypeCodeIndexRows[0].cnt, 10) === 0) {
+      await pool.query('ALTER TABLE violation_types ADD UNIQUE INDEX uq_violation_type_code (type_code)');
+    }
+    const ruleTypeColumnRows = await pool.query(
+      `SELECT COUNT(*) AS cnt
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'rules'
+         AND COLUMN_NAME = 'violation_type_id'`
+    );
+    if (parseInt(ruleTypeColumnRows[0] && ruleTypeColumnRows[0].cnt, 10) === 0) {
+      await pool.query('ALTER TABLE rules ADD COLUMN violation_type_id INT DEFAULT NULL AFTER description');
+    }
+    const violationTypeCountRows = await pool.query('SELECT COUNT(*) AS cnt FROM violation_types');
+    if (parseInt(violationTypeCountRows[0] && violationTypeCountRows[0].cnt, 10) === 0) {
+      const maxRows = await pool.query(
+        'SELECT DISTINCT max_violations FROM rules WHERE max_violations IS NOT NULL ORDER BY max_violations ASC'
+      );
+      const seedRows = maxRows.length > 0 ? maxRows : [{ max_violations: DEFAULT_SUMMONS_THRESHOLD }];
+
+      for (const row of seedRows) {
+        const maxViolations = Math.max(parseInt(row.max_violations, 10) || DEFAULT_SUMMONS_THRESHOLD, 1);
+        await pool.query(
+          `INSERT INTO violation_types (type_name, max_violations, is_active)
+           VALUES (?, ?, 1)
+           ON DUPLICATE KEY UPDATE max_violations = VALUES(max_violations)`,
+          [`ประเภทความผิด ${maxViolations} ครั้ง`, maxViolations]
+        );
+      }
+    }
+    const usedTypeCodeRows = await pool.query(
+      `SELECT UPPER(type_code) AS type_code
+       FROM violation_types
+       WHERE type_code IS NOT NULL AND TRIM(type_code) <> ''`
+    );
+    const usedTypeCodes = new Set(usedTypeCodeRows.map(row => row.type_code));
+    const missingTypeCodeRows = await pool.query(
+      `SELECT id, type_name
+       FROM violation_types
+       WHERE type_code IS NULL OR TRIM(type_code) = ''`
+    );
+    for (const row of missingTypeCodeRows) {
+      const name = String(row.type_name || '').toLowerCase();
+      let suggestedCode = null;
+      if (name.includes('เล็กน้อย') || name.includes('minor') || name.includes('min')) suggestedCode = 'MIN';
+      if (name.includes('ปานกลาง') || name.includes('major') || name.includes('maj')) suggestedCode = 'MAJ';
+      if (name.includes('ร้ายแรง') || name.includes('critical') || name.includes('cri')) suggestedCode = 'CRI';
+      if (suggestedCode && !usedTypeCodes.has(suggestedCode)) {
+        await pool.query('UPDATE violation_types SET type_code = ? WHERE id = ?', [suggestedCode, row.id]);
+        usedTypeCodes.add(suggestedCode);
+      }
+    }
+    const unassignedRuleRows = await pool.query(
+      'SELECT COUNT(*) AS cnt FROM rules WHERE violation_type_id IS NULL'
+    );
+    if (parseInt(unassignedRuleRows[0] && unassignedRuleRows[0].cnt, 10) > 0) {
+      const typeRows = await pool.query(
+        'SELECT id, max_violations FROM violation_types ORDER BY is_active DESC, id ASC'
+      );
+
+      for (const type of typeRows) {
+        await pool.query(
+          `UPDATE rules
+           SET violation_type_id = ?
+           WHERE violation_type_id IS NULL AND max_violations = ?`,
+          [type.id, type.max_violations]
+        );
+      }
+
+      if (typeRows.length > 0) {
+        await pool.query(
+          `UPDATE rules
+           SET violation_type_id = ?
+           WHERE violation_type_id IS NULL`,
+          [typeRows[0].id]
+        );
+      }
+    }
 
     const summonsRows = await pool.query(
       `SELECT COUNT(*) as count
        FROM (
-         SELECT r.id
-         FROM registrations r
-         LEFT JOIN (
-           SELECT registration_id, MAX(created_at) AS latest_reset_at
-           FROM summons_appointments
-           GROUP BY registration_id
-         ) sa ON sa.registration_id = r.id
-         JOIN violations v
-           ON v.registration_id = r.id
-          AND v.recorded_at > COALESCE(sa.latest_reset_at, '1000-01-01 00:00:00')
-         GROUP BY r.id
-         HAVING COUNT(v.id) >= ?
+         SELECT registration_id
+         FROM (
+           SELECT
+             r.id AS registration_id,
+             COALESCE(ru.violation_type_id, -ru.id) AS violation_group_id,
+             COUNT(v.id) AS type_violations,
+             COALESCE(MAX(vt.max_violations), MAX(ru.max_violations), ${DEFAULT_SUMMONS_THRESHOLD}) AS required_violations
+           FROM registrations r
+           LEFT JOIN (
+             SELECT registration_id, MAX(created_at) AS latest_reset_at
+             FROM summons_appointments
+             GROUP BY registration_id
+           ) sa ON sa.registration_id = r.id
+           JOIN violations v
+             ON v.registration_id = r.id
+            AND v.recorded_at > COALESCE(sa.latest_reset_at, '1000-01-01 00:00:00')
+           JOIN rules ru ON v.rule_id = ru.id
+           LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
+           GROUP BY r.id, COALESCE(ru.violation_type_id, -ru.id)
+           HAVING type_violations >= required_violations
+         ) qualified_by_type
+         GROUP BY registration_id
        ) candidates`,
-      [summonsThreshold]
     );
     res.locals.summonsCandidatesCount = Number(summonsRows[0].count);
   } catch(e) {
@@ -178,7 +312,7 @@ app.get('/img/:encoded', (req, res) => {
     return res.status(403).send(`
       <!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
       <title>ไม่มีสิทธิ์เข้าถึง</title></head>
-      <body style="font-family:sans-serif;text-align:center;margin-top:80px;">
+      <body style="font-family:'Noto Sans Thai',sans-serif;text-align:center;margin-top:80px;">
         <h2>🔒 403 — ไม่มีสิทธิ์เข้าถึง</h2>
         <p>คุณต้องเข้าสู่ระบบก่อนถึงจะดูไฟล์นี้ได้</p>
         <a href="/auth/login">เข้าสู่ระบบ</a>
@@ -194,7 +328,7 @@ app.get('/img/:encoded', (req, res) => {
     return res.status(403).send(`
       <!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
       <title>ลิงก์หมดอายุ</title></head>
-      <body style="font-family:sans-serif;text-align:center;margin-top:80px;">
+      <body style="font-family:'Noto Sans Thai',sans-serif;text-align:center;margin-top:80px;">
         <h2>⏰ 403 — ลิงก์หมดอายุหรือไม่ถูกต้อง</h2>
         <p>ลิงก์รูปภาพนี้หมดอายุแล้ว (15 นาที) กรุณาโหลดหน้าใหม่เพื่อรับลิงก์ใหม่</p>
         <button onclick="history.back()">← กลับ</button>
@@ -234,7 +368,7 @@ app.use('/uploads', (_req, res) => {
   res.status(403).send(`
     <!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
     <title>ไม่มีสิทธิ์เข้าถึง</title></head>
-    <body style="font-family:sans-serif;text-align:center;margin-top:80px;">
+    <body style="font-family:'Noto Sans Thai',sans-serif;text-align:center;margin-top:80px;">
       <h2>🔒 403 — ไม่อนุญาตให้เข้าถึงโดยตรง</h2>
       <p>ไฟล์นี้ถูกป้องกันตามนโยบาย PDPA</p>
     </body></html>`);

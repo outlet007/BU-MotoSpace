@@ -4,7 +4,6 @@ const { isAuthenticated, isHead } = require('../middleware/auth');
 
 router.use(isAuthenticated, isHead);
 
-const SUMMONS_THRESHOLD_KEY = 'summons_total_threshold';
 const DEFAULT_SUMMONS_THRESHOLD = 3;
 
 // GET /dashboard
@@ -33,6 +32,7 @@ router.get('/', async (req, res) => {
       await conn.query(`
         CREATE TABLE IF NOT EXISTS summons_appointments (
           id INT AUTO_INCREMENT PRIMARY KEY,
+          appointment_code VARCHAR(30) DEFAULT NULL,
           registration_id INT NOT NULL,
           scheduled_at DATETIME NOT NULL,
           note TEXT,
@@ -40,33 +40,82 @@ router.get('/', async (req, res) => {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
           FOREIGN KEY (summoned_by) REFERENCES admins(id) ON DELETE CASCADE,
+          UNIQUE KEY uq_summons_appointment_code (appointment_code),
           INDEX idx_registration_created (registration_id, created_at),
           INDEX idx_scheduled_at (scheduled_at)
         ) ENGINE=InnoDB
       `);
-      const [thresholdRow] = await conn.query(
-        'SELECT setting_value FROM app_settings WHERE setting_key = ?',
-        [SUMMONS_THRESHOLD_KEY]
-      ).catch(() => [null]);
-      const thresholdValue = parseInt(thresholdRow && thresholdRow.setting_value, 10);
-      const threshold = Number.isFinite(thresholdValue) && thresholdValue > 0 ? thresholdValue : DEFAULT_SUMMONS_THRESHOLD;
+      await conn.query(`
+        CREATE TABLE IF NOT EXISTS violation_types (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          type_name VARCHAR(200) NOT NULL UNIQUE,
+          type_code VARCHAR(20) DEFAULT NULL,
+          max_violations INT NOT NULL DEFAULT 3,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_by INT DEFAULT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY uq_violation_type_code (type_code),
+          FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB
+      `);
+      const [typeCodeColumn] = await conn.query(
+        `SELECT COUNT(*) AS cnt
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'violation_types'
+           AND COLUMN_NAME = 'type_code'`
+      );
+      if (parseInt(typeCodeColumn.cnt, 10) === 0) {
+        await conn.query('ALTER TABLE violation_types ADD COLUMN type_code VARCHAR(20) DEFAULT NULL AFTER type_name');
+      }
+      const [typeCodeIndex] = await conn.query(
+        `SELECT COUNT(*) AS cnt
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'violation_types'
+           AND INDEX_NAME = 'uq_violation_type_code'`
+      );
+      if (parseInt(typeCodeIndex.cnt, 10) === 0) {
+        await conn.query('ALTER TABLE violation_types ADD UNIQUE INDEX uq_violation_type_code (type_code)');
+      }
+      const [ruleTypeColumn] = await conn.query(
+        `SELECT COUNT(*) AS cnt
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'rules'
+           AND COLUMN_NAME = 'violation_type_id'`
+      );
+      if (parseInt(ruleTypeColumn.cnt, 10) === 0) {
+        await conn.query('ALTER TABLE rules ADD COLUMN violation_type_id INT DEFAULT NULL AFTER description');
+      }
+
       const [summonsRow] = await conn.query(
         `SELECT COUNT(*) AS cnt
          FROM (
-           SELECT r.id
-           FROM registrations r
-           LEFT JOIN (
-             SELECT registration_id, MAX(created_at) AS latest_reset_at
-             FROM summons_appointments
-             GROUP BY registration_id
-           ) sa ON sa.registration_id = r.id
-           JOIN violations v
-             ON v.registration_id = r.id
-            AND v.recorded_at > COALESCE(sa.latest_reset_at, '1000-01-01 00:00:00')
-           GROUP BY r.id
-           HAVING COUNT(v.id) >= ?
-         ) candidates`,
-        [threshold]
+           SELECT registration_id
+           FROM (
+             SELECT
+               r.id AS registration_id,
+               COALESCE(ru.violation_type_id, -ru.id) AS violation_group_id,
+               COUNT(v.id) AS type_violations,
+               COALESCE(MAX(vt.max_violations), MAX(ru.max_violations), ${DEFAULT_SUMMONS_THRESHOLD}) AS required_violations
+             FROM registrations r
+             LEFT JOIN (
+               SELECT registration_id, MAX(created_at) AS latest_reset_at
+               FROM summons_appointments
+               GROUP BY registration_id
+             ) sa ON sa.registration_id = r.id
+             JOIN violations v
+               ON v.registration_id = r.id
+              AND v.recorded_at > COALESCE(sa.latest_reset_at, '1000-01-01 00:00:00')
+             JOIN rules ru ON v.rule_id = ru.id
+             LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
+             GROUP BY r.id, COALESCE(ru.violation_type_id, -ru.id)
+             HAVING type_violations >= required_violations
+           ) qualified_by_type
+           GROUP BY registration_id
+         ) candidates`
       );
       summonsCandidatesCount = parseInt(summonsRow.cnt) || 0;
     } catch(e) {

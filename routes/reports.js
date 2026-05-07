@@ -1,49 +1,183 @@
 const router = require('express').Router();
 const pool = require('../config/database');
 const { requireRole } = require('../middleware/auth');
+const upload = require('../middleware/upload');
+const { verifyCsrf } = require('../middleware/csrf');
 
 router.use(requireRole('head', 'superadmin'));
 
-const SUMMONS_THRESHOLD_KEY = 'summons_total_threshold';
 const DEFAULT_SUMMONS_THRESHOLD = 3;
 
-async function ensureSettingsTable(conn) {
-  await conn.query(`
-    CREATE TABLE IF NOT EXISTS app_settings (
-      setting_key VARCHAR(100) PRIMARY KEY,
-      setting_value TEXT NOT NULL,
-      updated_by INT DEFAULT NULL,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (updated_by) REFERENCES admins(id) ON DELETE SET NULL
-    ) ENGINE=InnoDB
-  `);
+async function ensureSummonsAppointmentColumn(conn, columnName, definition) {
+  const [column] = await conn.query(
+    `SELECT COLUMN_NAME
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'summons_appointments'
+       AND COLUMN_NAME = ?`,
+    [columnName]
+  );
+
+  if (!column) {
+    await conn.query(`ALTER TABLE summons_appointments ADD COLUMN ${columnName} ${definition}`);
+  }
 }
 
-async function getSummonsThreshold(conn) {
-  await ensureSettingsTable(conn);
-  const [row] = await conn.query(
-    'SELECT setting_value FROM app_settings WHERE setting_key = ?',
-    [SUMMONS_THRESHOLD_KEY]
+async function ensureSummonsAppointmentIndex(conn, indexName, definition) {
+  const [index] = await conn.query(
+    `SELECT INDEX_NAME
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'summons_appointments'
+       AND INDEX_NAME = ?`,
+    [indexName]
   );
-  const value = parseInt(row && row.setting_value, 10);
-  return Number.isFinite(value) && value > 0 ? value : DEFAULT_SUMMONS_THRESHOLD;
+
+  if (!index) {
+    await conn.query(`ALTER TABLE summons_appointments ADD ${definition}`);
+  }
 }
 
 async function ensureSummonsAppointmentsTable(conn) {
   await conn.query(`
     CREATE TABLE IF NOT EXISTS summons_appointments (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      appointment_code VARCHAR(30) DEFAULT NULL,
       registration_id INT NOT NULL,
       scheduled_at DATETIME NOT NULL,
       note TEXT,
+      written_document VARCHAR(500) DEFAULT NULL,
+      written_document_original_name VARCHAR(255) DEFAULT NULL,
       summoned_by INT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
       FOREIGN KEY (summoned_by) REFERENCES admins(id) ON DELETE CASCADE,
+      UNIQUE KEY uq_summons_appointment_code (appointment_code),
       INDEX idx_registration_created (registration_id, created_at),
       INDEX idx_scheduled_at (scheduled_at)
     ) ENGINE=InnoDB
   `);
+  await ensureSummonsAppointmentColumn(conn, 'appointment_code', 'VARCHAR(30) DEFAULT NULL AFTER id');
+  await ensureSummonsAppointmentColumn(conn, 'written_document', 'VARCHAR(500) DEFAULT NULL');
+  await ensureSummonsAppointmentColumn(conn, 'written_document_original_name', 'VARCHAR(255) DEFAULT NULL');
+  await ensureSummonsAppointmentColumn(conn, 'violation_type_id', 'INT DEFAULT NULL');
+  await backfillMissingAppointmentCodes(conn);
+  await ensureSummonsAppointmentIndex(conn, 'uq_summons_appointment_code', 'UNIQUE INDEX uq_summons_appointment_code (appointment_code)');
+}
+
+function positiveInt(value, fallback = DEFAULT_SUMMONS_THRESHOLD) {
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+async function ensureViolationTypeSchema(conn) {
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS violation_types (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      type_name VARCHAR(200) NOT NULL UNIQUE,
+      type_code VARCHAR(20) DEFAULT NULL,
+      max_violations INT NOT NULL DEFAULT 3,
+      is_active BOOLEAN DEFAULT TRUE,
+      created_by INT DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_violation_type_code (type_code),
+      FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB
+  `);
+
+  const [typeCodeColumn] = await conn.query(
+    `SELECT COUNT(*) AS cnt
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'violation_types'
+       AND COLUMN_NAME = 'type_code'`
+  );
+  if (parseInt(typeCodeColumn.cnt, 10) === 0) {
+    await conn.query('ALTER TABLE violation_types ADD COLUMN type_code VARCHAR(20) DEFAULT NULL AFTER type_name');
+  }
+
+  const [typeCodeIndex] = await conn.query(
+    `SELECT COUNT(*) AS cnt
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'violation_types'
+       AND INDEX_NAME = 'uq_violation_type_code'`
+  );
+  if (parseInt(typeCodeIndex.cnt, 10) === 0) {
+    await conn.query('ALTER TABLE violation_types ADD UNIQUE INDEX uq_violation_type_code (type_code)');
+  }
+
+  const [column] = await conn.query(
+    `SELECT COUNT(*) AS cnt
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'rules'
+       AND COLUMN_NAME = 'violation_type_id'`
+  );
+
+  if (parseInt(column.cnt, 10) === 0) {
+    await conn.query('ALTER TABLE rules ADD COLUMN violation_type_id INT DEFAULT NULL AFTER description');
+  }
+
+  const [index] = await conn.query(
+    `SELECT COUNT(*) AS cnt
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'rules'
+       AND INDEX_NAME = 'idx_rules_violation_type'`
+  );
+
+  if (parseInt(index.cnt, 10) === 0) {
+    await conn.query('ALTER TABLE rules ADD INDEX idx_rules_violation_type (violation_type_id)');
+  }
+
+  const [typeCount] = await conn.query('SELECT COUNT(*) AS cnt FROM violation_types');
+
+  if (parseInt(typeCount.cnt, 10) === 0) {
+    const maxRows = await conn.query(
+      'SELECT DISTINCT max_violations FROM rules WHERE max_violations IS NOT NULL ORDER BY max_violations ASC'
+    );
+    const seedRows = maxRows.length > 0 ? maxRows : [{ max_violations: DEFAULT_SUMMONS_THRESHOLD }];
+
+    for (const row of seedRows) {
+      const maxViolations = positiveInt(row.max_violations);
+      await conn.query(
+        `INSERT INTO violation_types (type_name, max_violations, is_active)
+         VALUES (?, ?, 1)
+         ON DUPLICATE KEY UPDATE max_violations = VALUES(max_violations)`,
+        [`ประเภทความผิด ${maxViolations} ครั้ง`, maxViolations]
+      );
+    }
+  }
+
+  const unassignedRows = await conn.query(
+    'SELECT COUNT(*) AS cnt FROM rules WHERE violation_type_id IS NULL'
+  );
+
+  if (!unassignedRows[0] || parseInt(unassignedRows[0].cnt, 10) === 0) return;
+
+  const typeRows = await conn.query(
+    'SELECT id, max_violations FROM violation_types ORDER BY is_active DESC, id ASC'
+  );
+
+  for (const type of typeRows) {
+    await conn.query(
+      `UPDATE rules
+       SET violation_type_id = ?
+       WHERE violation_type_id IS NULL AND max_violations = ?`,
+      [type.id, type.max_violations]
+    );
+  }
+
+  if (typeRows.length > 0) {
+    await conn.query(
+      `UPDATE rules
+       SET violation_type_id = ?
+       WHERE violation_type_id IS NULL`,
+      [typeRows[0].id]
+    );
+  }
 }
 
 function isValidDatetimeLocal(value) {
@@ -52,6 +186,77 @@ function isValidDatetimeLocal(value) {
 
 function toSqlDatetime(datetimeLocal) {
   return datetimeLocal.replace('T', ' ') + ':00';
+}
+
+function formatMeetingDateKey(value = new Date()) {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return value.slice(0, 10).replace(/-/g, '');
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  const pad = input => String(input).padStart(2, '0');
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
+}
+
+function formatAppointmentCode(dateKey, sequence) {
+  return `MEET-${dateKey}-${String(sequence).padStart(3, '0')}`;
+}
+
+function normalizeAppointmentCode(value) {
+  const code = String(value || '').trim().toUpperCase();
+  return /^MEET-\d{8}-\d{3,}$/.test(code) ? code : null;
+}
+
+async function getMaxAppointmentSequence(conn, dateKey) {
+  const [row] = await conn.query(
+    `SELECT MAX(CAST(SUBSTRING(appointment_code, 15) AS UNSIGNED)) AS max_seq
+     FROM summons_appointments
+     WHERE appointment_code LIKE ?`,
+    [`MEET-${dateKey}-%`]
+  );
+
+  return parseInt(row && row.max_seq, 10) || 0;
+}
+
+async function appointmentCodeExists(conn, code) {
+  const [row] = await conn.query(
+    'SELECT COUNT(*) AS cnt FROM summons_appointments WHERE appointment_code = ?',
+    [code]
+  );
+  return parseInt(row && row.cnt, 10) > 0;
+}
+
+async function generateAppointmentCode(conn, requestedCode = null) {
+  const normalizedCode = normalizeAppointmentCode(requestedCode);
+  if (normalizedCode && !(await appointmentCodeExists(conn, normalizedCode))) {
+    return normalizedCode;
+  }
+
+  const dateKey = normalizedCode ? normalizedCode.slice(5, 13) : formatMeetingDateKey();
+  let sequence = await getMaxAppointmentSequence(conn, dateKey);
+  let code;
+
+  do {
+    sequence += 1;
+    code = formatAppointmentCode(dateKey, sequence);
+  } while (await appointmentCodeExists(conn, code));
+
+  return code;
+}
+
+async function backfillMissingAppointmentCodes(conn) {
+  const rows = await conn.query(
+    `SELECT id, created_at
+     FROM summons_appointments
+     WHERE appointment_code IS NULL OR TRIM(appointment_code) = ''
+     ORDER BY created_at ASC, id ASC`
+  );
+
+  for (const row of rows) {
+    const dateKey = formatMeetingDateKey(row.created_at || new Date());
+    const code = await generateAppointmentCode(conn, formatAppointmentCode(dateKey, (await getMaxAppointmentSequence(conn, dateKey)) + 1));
+    await conn.query('UPDATE summons_appointments SET appointment_code = ? WHERE id = ?', [code, row.id]);
+  }
 }
 
 async function fetchSummonsAppointments(conn, options = {}) {
@@ -96,12 +301,15 @@ async function fetchSummonsAppointments(conn, options = {}) {
   );
 
   const rows = await conn.query(
-    `SELECT
+     `SELECT
        sa.id,
+       sa.appointment_code,
        sa.registration_id,
        sa.scheduled_at,
        DATE_FORMAT(sa.scheduled_at, '%Y-%m-%dT%H:%i') AS scheduled_at_input,
        sa.note,
+       sa.written_document,
+       sa.written_document_original_name,
        sa.created_at,
        r.id_number,
        r.user_type,
@@ -239,13 +447,13 @@ async function fetchReport(conn, type, startDate, endDate) {
 
 async function fetchSummonsCandidates(conn, options = {}) {
   await ensureSummonsAppointmentsTable(conn);
+  await ensureViolationTypeSchema(conn);
 
   const {
     search = '',
     userType = '',
     page = 1,
     limit = 20,
-    threshold = 3,
     includeAll = false,
   } = options;
 
@@ -273,24 +481,48 @@ async function fetchSummonsCandidates(conn, options = {}) {
     params.push(userType);
   }
 
+  const qualifyingRowsSql = `
+    SELECT
+      r.id AS registration_id,
+      COALESCE(ru.violation_type_id, -ru.id) AS violation_group_id,
+      COALESCE(MAX(vt.type_name), MAX(ru.rule_name)) AS type_name,
+      COUNT(v.id) AS type_violations,
+      COALESCE(MAX(vt.max_violations), MAX(ru.max_violations), ${DEFAULT_SUMMONS_THRESHOLD}) AS required_violations,
+      MIN(v.recorded_at) AS first_recorded_at,
+      MAX(v.recorded_at) AS latest_recorded_at,
+      MAX(COALESCE(ru.violation_type_id, 0)) AS raw_violation_type_id
+    FROM registrations r
+    JOIN violations v ON v.registration_id = r.id
+    JOIN rules ru ON v.rule_id = ru.id
+    LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
+    LEFT JOIN (
+      SELECT registration_id, violation_type_id, MAX(created_at) AS latest_reset_at
+      FROM summons_appointments
+      WHERE violation_type_id IS NOT NULL
+      GROUP BY registration_id, violation_type_id
+    ) sa_type ON sa_type.registration_id = r.id
+              AND sa_type.violation_type_id = ru.violation_type_id
+    LEFT JOIN (
+      SELECT registration_id, MAX(created_at) AS latest_reset_at
+      FROM summons_appointments
+      WHERE violation_type_id IS NULL
+      GROUP BY registration_id
+    ) sa_global ON sa_global.registration_id = r.id
+    ${where}
+    AND v.recorded_at > COALESCE(
+      GREATEST(
+        COALESCE(sa_type.latest_reset_at, '1000-01-01'),
+        COALESCE(sa_global.latest_reset_at, '1000-01-01')
+      ),
+      '1000-01-01 00:00:00'
+    )
+    GROUP BY r.id, COALESCE(ru.violation_type_id, -ru.id)
+    HAVING type_violations >= required_violations
+  `;
+
   const [countRow] = await conn.query(
-    `SELECT COUNT(*) as cnt
-     FROM (
-       SELECT r.id
-       FROM registrations r
-       LEFT JOIN (
-         SELECT registration_id, MAX(created_at) AS latest_reset_at
-         FROM summons_appointments
-         GROUP BY registration_id
-       ) sa ON sa.registration_id = r.id
-       JOIN violations v
-         ON v.registration_id = r.id
-        AND v.recorded_at > COALESCE(sa.latest_reset_at, '1000-01-01 00:00:00')
-       ${where}
-       GROUP BY r.id
-       HAVING COUNT(v.id) >= ?
-     ) x`,
-    [...params, threshold]
+    `SELECT COUNT(*) as cnt FROM (${qualifyingRowsSql}) x`,
+    params
   );
 
   const total = parseInt(countRow.cnt) || 0;
@@ -298,77 +530,52 @@ async function fetchSummonsCandidates(conn, options = {}) {
   const pagingSql = includeAll ? '' : 'LIMIT ? OFFSET ?';
   const pagingParams = includeAll ? [] : [limit, offset];
 
-  const candidates = await conn.query(
-    `SELECT
-       r.id,
-       r.id_number,
-       r.user_type,
-       r.first_name,
-       r.last_name,
-       r.phone,
-       r.license_plate,
-       r.province,
-       COUNT(v.id) AS total_violations,
-       MIN(v.recorded_at) AS first_recorded_at,
-       MAX(v.recorded_at) AS latest_recorded_at,
-       sa.latest_reset_at
-     FROM registrations r
-     LEFT JOIN (
-       SELECT registration_id, MAX(created_at) AS latest_reset_at
-       FROM summons_appointments
-       GROUP BY registration_id
-     ) sa ON sa.registration_id = r.id
-     JOIN violations v
-       ON v.registration_id = r.id
-      AND v.recorded_at > COALESCE(sa.latest_reset_at, '1000-01-01 00:00:00')
-     ${where}
-     GROUP BY r.id, r.id_number, r.user_type, r.first_name, r.last_name, r.phone, r.license_plate, r.province, sa.latest_reset_at
-     HAVING COUNT(v.id) >= ?
-     ORDER BY total_violations DESC, latest_recorded_at DESC
+  const qualifiedRows = await conn.query(
+    `SELECT q.*,
+            r.id_number, r.user_type, r.first_name, r.last_name,
+            r.phone, r.license_plate, r.province
+     FROM (${qualifyingRowsSql}) q
+     JOIN registrations r ON r.id = q.registration_id
+     ORDER BY q.type_violations DESC, q.latest_recorded_at DESC
      ${pagingSql}`,
-    [...params, threshold, ...pagingParams]
+    [...params, ...pagingParams]
   );
 
-  if (candidates.length > 0) {
-    const ids = candidates.map(c => c.id);
-    const placeholders = ids.map(() => '?').join(',');
-    const breakdownRows = await conn.query(
-      `SELECT v.registration_id, ru.rule_name, COUNT(v.id) AS cnt
-       FROM violations v
-       JOIN rules ru ON v.rule_id = ru.id
-       LEFT JOIN (
-         SELECT registration_id, MAX(created_at) AS latest_reset_at
-         FROM summons_appointments
-         GROUP BY registration_id
-       ) sa ON sa.registration_id = v.registration_id
-       WHERE v.registration_id IN (${placeholders})
-         AND v.recorded_at > COALESCE(sa.latest_reset_at, '1000-01-01 00:00:00')
-       GROUP BY v.registration_id, ru.id, ru.rule_name
-       ORDER BY v.registration_id, cnt DESC, ru.rule_name`,
-      ids
-    );
+  const pendingDateKey = formatMeetingDateKey();
+  const pendingBaseSequence = await getMaxAppointmentSequence(conn, pendingDateKey);
 
-    const byRegistration = new Map();
-    breakdownRows.forEach(row => {
-      const regId = Number(row.registration_id);
-      if (!byRegistration.has(regId)) byRegistration.set(regId, []);
-      byRegistration.get(regId).push({
-        rule_name: row.rule_name,
-        cnt: Number(row.cnt),
-      });
-    });
-
-    candidates.forEach(candidate => {
-      candidate.total_violations = Number(candidate.total_violations);
-      candidate.user_type_label = candidate.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร';
-      candidate.full_name = `${candidate.first_name} ${candidate.last_name}`;
-      candidate.rule_breakdown = byRegistration.get(Number(candidate.id)) || [];
-      candidate.rule_summary = candidate.rule_breakdown
-        .map(rule => `${rule.rule_name} (${rule.cnt})`)
-        .join(', ');
-      candidate.appointment_note = '';
-    });
-  }
+  const candidates = qualifiedRows.map((row, index) => {
+    const violationTypeId = Number(row.raw_violation_type_id) || 0;
+    const violationGroupId = row.violation_group_id;
+    return {
+      appointment_code: formatAppointmentCode(pendingDateKey, pendingBaseSequence + offset + index + 1),
+      id: row.registration_id,
+      id_number: row.id_number,
+      user_type: row.user_type,
+      first_name: row.first_name,
+      last_name: row.last_name,
+      phone: row.phone,
+      license_plate: row.license_plate,
+      province: row.province,
+      total_violations: Number(row.type_violations),
+      first_recorded_at: row.first_recorded_at,
+      latest_recorded_at: row.latest_recorded_at,
+      user_type_label: row.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร',
+      full_name: `${row.first_name} ${row.last_name}`,
+      // Only the qualifying violation type for this row
+      rule_breakdown: [{
+        type_name: row.type_name,
+        max_violations: Number(row.required_violations),
+        cnt: Number(row.type_violations),
+        is_qualified: true,
+      }],
+      rule_summary: `${row.type_name} (${Number(row.type_violations)}/${Number(row.required_violations)})`,
+      appointment_note: '',
+      // For the confirm form
+      violation_type_id: violationTypeId > 0 ? violationTypeId : null,
+      violation_group_label: row.type_name,
+    };
+  });
 
   return {
     rows: candidates,
@@ -378,6 +585,7 @@ async function fetchSummonsCandidates(conn, options = {}) {
 }
 
 const SUMMONS_FIELDS = [
+  { label: 'รหัสนัดหมาย', key: 'appointment_code' },
   { label: 'รหัสประจำตัว', key: 'id_number' },
   { label: 'ประเภท', key: 'user_type_label' },
   { label: 'ชื่อ-นามสกุล', key: 'full_name' },
@@ -385,7 +593,7 @@ const SUMMONS_FIELDS = [
   { label: 'ป้ายทะเบียน', key: 'license_plate' },
   { label: 'จังหวัด', key: 'province' },
   { label: 'จำนวนครั้งรวม', key: 'total_violations' },
-  { label: 'สรุปกฎที่ฝ่าฝืน', key: 'rule_summary' },
+  { label: 'สรุปประเภทความผิด', key: 'rule_summary' },
   { label: 'วันที่ทำผิดครั้งแรก', key: 'first_recorded_at' },
   { label: 'วันที่ทำผิดล่าสุด', key: 'latest_recorded_at' },
   { label: 'หมายเหตุการนัดหมาย', key: 'appointment_note' },
@@ -399,11 +607,9 @@ router.get('/summons/export', async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
-    const threshold = await getSummonsThreshold(conn);
     const { rows } = await fetchSummonsCandidates(conn, {
       search,
       userType: user_type,
-      threshold,
       includeAll: true,
     });
 
@@ -428,10 +634,14 @@ router.get('/summons/export', async (req, res) => {
 });
 
 // POST /reports/summons/:registrationId/confirm
-router.post('/summons/:registrationId/confirm', async (req, res) => {
+router.post('/summons/:registrationId/confirm', upload.single('written_document'), verifyCsrf, async (req, res) => {
   const registrationId = parseInt(req.params.registrationId, 10);
   const scheduledAtRaw = (req.body.scheduled_at || '').trim();
   const note = (req.body.note || '').trim() || null;
+  const violationTypeIdRaw = req.body.violation_type_id;
+  const violationTypeId = violationTypeIdRaw ? parseInt(violationTypeIdRaw, 10) : null;
+  const violationGroupLabel = (req.body.violation_group_label || '').trim() || null;
+  const requestedAppointmentCode = req.body.appointment_code;
   const returnTo = req.body.return_to && req.body.return_to.startsWith('/reports/summons')
     ? req.body.return_to
     : '/reports/summons';
@@ -447,6 +657,8 @@ router.post('/summons/:registrationId/confirm', async (req, res) => {
   }
 
   const scheduledAt = toSqlDatetime(scheduledAtRaw);
+  const writtenDocument = req.file ? '/uploads/summons-documents/' + req.file.filename : null;
+  const writtenDocumentOriginalName = req.file ? req.file.originalname : null;
 
   let conn;
   try {
@@ -463,15 +675,19 @@ router.post('/summons/:registrationId/confirm', async (req, res) => {
       return res.redirect(returnTo);
     }
 
+    const appointmentCode = await generateAppointmentCode(conn, requestedAppointmentCode);
+
     await conn.query(
-      `INSERT INTO summons_appointments (registration_id, scheduled_at, note, summoned_by)
-       VALUES (?, ?, ?, ?)`,
-      [registrationId, scheduledAt, note, req.session.admin.id]
+      `INSERT INTO summons_appointments
+         (appointment_code, registration_id, scheduled_at, note, written_document, written_document_original_name, summoned_by, violation_type_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [appointmentCode, registrationId, scheduledAt, note, writtenDocument, writtenDocumentOriginalName, req.session.admin.id, violationTypeId]
     );
 
+    const typeLabel = violationGroupLabel ? ` (ประเภท: ${violationGroupLabel})` : '';
     req.flash(
       'success',
-      `บันทึกการเรียกพบ ${registration.first_name} ${registration.last_name} เรียบร้อยแล้ว และเริ่มนับจำนวนความผิดรอบใหม่`
+      `บันทึกการเรียกพบ ${registration.first_name} ${registration.last_name}${typeLabel} เรียบร้อยแล้ว และเริ่มนับจำนวนความผิดประเภทนี้รอบใหม่`
     );
     return res.redirect(returnTo);
   } catch (err) {
@@ -484,7 +700,7 @@ router.post('/summons/:registrationId/confirm', async (req, res) => {
 });
 
 // POST /reports/summons/appointments/:appointmentId/edit
-router.post('/summons/appointments/:appointmentId/edit', async (req, res) => {
+router.post('/summons/appointments/:appointmentId/edit', upload.single('written_document'), verifyCsrf, async (req, res) => {
   const appointmentId = parseInt(req.params.appointmentId, 10);
   const scheduledAtRaw = (req.body.scheduled_at || '').trim();
   const note = (req.body.note || '').trim() || null;
@@ -520,12 +736,19 @@ router.post('/summons/appointments/:appointmentId/edit', async (req, res) => {
       return res.redirect(returnTo);
     }
 
-    await conn.query(
-      `UPDATE summons_appointments
-       SET scheduled_at = ?, note = ?
-       WHERE id = ?`,
-      [toSqlDatetime(scheduledAtRaw), note, appointmentId]
-    );
+    let updateSql = `UPDATE summons_appointments
+       SET scheduled_at = ?, note = ?`;
+    const updateParams = [toSqlDatetime(scheduledAtRaw), note];
+
+    if (req.file) {
+      updateSql += ', written_document = ?, written_document_original_name = ?';
+      updateParams.push('/uploads/summons-documents/' + req.file.filename, req.file.originalname);
+    }
+
+    updateSql += ' WHERE id = ?';
+    updateParams.push(appointmentId);
+
+    await conn.query(updateSql, updateParams);
 
     req.flash('success', `แก้ไขรายการเรียกพบ ${appointment.first_name} ${appointment.last_name} เรียบร้อยแล้ว`);
     return res.redirect(returnTo);
@@ -551,13 +774,11 @@ router.get('/summons', async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
-    const threshold = await getSummonsThreshold(conn);
     const report = await fetchSummonsCandidates(conn, {
       search: pendingSearch,
       userType: pendingUserType,
       page,
       limit,
-      threshold,
     });
     const summonedReport = await fetchSummonsAppointments(conn, {
       search: completedSearch,
@@ -579,7 +800,6 @@ router.get('/summons', async (req, res) => {
       completedSearch,
       completedUserType,
       activeTab,
-      threshold,
     });
   } catch (err) {
     console.error('GET /reports/summons error:', err);
@@ -599,7 +819,6 @@ router.get('/summons', async (req, res) => {
       completedSearch,
       completedUserType,
       activeTab,
-      threshold: DEFAULT_SUMMONS_THRESHOLD,
     });
   } finally {
     if (conn) conn.release();

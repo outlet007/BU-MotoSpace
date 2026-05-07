@@ -85,16 +85,52 @@ async function setup() {
     console.log('  ✅ registrations');
 
     await conn.query(`
+      CREATE TABLE IF NOT EXISTS violation_types (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        type_name VARCHAR(200) NOT NULL UNIQUE,
+        type_code VARCHAR(20) DEFAULT NULL,
+        max_violations INT NOT NULL DEFAULT 3,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_by INT DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_violation_type_code (type_code),
+        FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB
+    `);
+    console.log('  OK violation_types');
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS penalty_types (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        penalty_name VARCHAR(200) NOT NULL UNIQUE,
+        description TEXT,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_by INT DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB
+    `);
+    console.log('  OK penalty_types');
+
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS rules (
         id INT AUTO_INCREMENT PRIMARY KEY,
         rule_name VARCHAR(200) NOT NULL,
         description TEXT,
+        violation_type_id INT DEFAULT NULL,
+        penalty_type_id INT DEFAULT NULL,
         max_violations INT NOT NULL DEFAULT 3,
         penalty TEXT,
         is_active BOOLEAN DEFAULT TRUE,
         created_by INT DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_rules_violation_type (violation_type_id),
+        INDEX idx_rules_penalty_type (penalty_type_id),
+        FOREIGN KEY (violation_type_id) REFERENCES violation_types(id) ON DELETE SET NULL,
+        FOREIGN KEY (penalty_type_id) REFERENCES penalty_types(id) ON DELETE SET NULL,
         FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
       ) ENGINE=InnoDB
     `);

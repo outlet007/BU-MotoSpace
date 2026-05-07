@@ -31,6 +31,9 @@
     .lightbox-thumb:hover { transform:scale(1.03); box-shadow:0 4px 20px rgba(0,0,0,0.15); }
     @keyframes lbFadeIn { from{opacity:0} to{opacity:1} }
     @keyframes lbZoomIn { from{transform:scale(0.85);opacity:0} to{transform:scale(1);opacity:1} }
+    @media (min-width:1024px) {
+      .registration-detail-grid { grid-template-columns:minmax(0,1fr) 24rem; }
+    }
   </style>
 </head>
 <body class="min-h-screen bg-slate-50">
@@ -46,9 +49,9 @@
           <i data-lucide="arrow-left" class="w-4 h-4"></i> กลับไปรายการ
         </a>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="registration-detail-grid grid grid-cols-1 gap-6">
           <!-- Left: Info -->
-          <div class="lg:col-span-2 space-y-6">
+          <div class="space-y-6">
             <div class="card p-6">
               <div class="flex items-center justify-between mb-6">
                 <div class="flex items-center gap-4">
@@ -142,16 +145,20 @@
               <% } %>
 
               <table class="data-table">
-                <thead><tr><th>กฎที่กระทำผิด</th><th>รายละเอียด</th><th>แจ้งโดย</th><th>ยืนยันโดย</th><th>วันที่</th><th></th></tr></thead>
+                <thead><tr><th style="font-size:12px;">รายการแจ้งเลขที่</th><th>วันที่</th><th>ประเภทความผิด</th><th>กฎที่กระทำผิด</th><th>แจ้งโดย</th><th>ยืนยันโดย</th><th></th></tr></thead>
                 <tbody>
                   <% if (violations.length > 0) { %>
                     <% violations.forEach(function(v) { %>
-                    <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors" data-href="/violations/<%= v.id %>">
-                      <td><span class="badge badge-danger"><%= v.rule_name %></span></td>
-                      <td><%= v.description || '-' %></td>
+                    <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors"
+                        data-href="/violations/<%= v.id %>">
+                      <td>
+                        <div class="font-semibold text-slate-800" style="font-size:12px;"><%= v.incident_code || ('IR-GEN-' + String(v.id).padStart(6, '0')) %></div>
+                      </td>
+                      <td class="text-xs whitespace-nowrap"><%= new Date(v.recorded_at).toLocaleDateString('th-TH') %></td>
+                      <td><span class="badge badge-danger"><%= v.violation_type_name %></span></td>
+                      <td class="text-sm text-slate-600"><%= v.rule_name %></td>
                       <td class="text-xs text-slate-600"><%= v.reported_by_name || v.recorded_by_name %></td>
                       <td class="text-xs font-medium text-brand-600"><%= v.recorded_by_name %></td>
-                      <td class="text-xs"><%= new Date(v.recorded_at).toLocaleDateString('th-TH') %></td>
                       <td class="text-right" data-no-nav>
                         <a href="/violations/<%= v.id %>" class="btn btn-secondary btn-sm justify-center whitespace-nowrap">
                           <i data-lucide="eye" class="w-3.5 h-3.5"></i>
@@ -161,7 +168,7 @@
                     </tr>
                     <% }); %>
                   <% } else { %>
-                    <tr><td colspan="6" class="text-center text-slate-400 py-6">ไม่มีประวัติการกระทำผิด</td></tr>
+                    <tr><td colspan="7" class="text-center text-slate-400 py-6">ไม่มีประวัติการกระทำผิด</td></tr>
                   <% } %>
                 </tbody>
               </table>
@@ -180,7 +187,8 @@
                 <thead>
                   <tr>
                     <th>วันเวลานัดหมาย</th>
-                    <th>หมายเหตุ</th>
+                    <th>รายละเอียดการเรียกพบ</th>
+                    <th>เอกสารแนบ</th>
                     <th>บันทึกโดย</th>
                     <th>วันที่บันทึก</th>
                     <th></th>
@@ -191,10 +199,14 @@
                     <% summonsAppointments.forEach(function(item) { %>
                     <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors"
                         data-summons-detail-row
+                        data-appointment-id="<%= item.id %>"
                         data-scheduled-at="<%= item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>"
+                        data-scheduled-at-input="<%= item.scheduled_at_input || '' %>"
                         data-note="<%= encodeURIComponent(item.note || '-') %>"
                         data-summoned-by="<%= item.summoned_by_name || '-' %>"
-                        data-created-at="<%= item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>">
+                        data-created-at="<%= item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>"
+                        data-document-url="<%= item.written_document ? signedUrl(item.written_document) : '' %>"
+                        data-document-name="<%= item.written_document_original_name || 'เอกสารแนบ' %>">
                       <td class="hidden" data-no-nav aria-hidden="true">
                         <button type="button"
                                 class="btn btn-secondary btn-sm justify-center whitespace-nowrap"
@@ -202,35 +214,66 @@
                                 data-scheduled-at="<%= item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>"
                                 data-note="<%= encodeURIComponent(item.note || '-') %>"
                                 data-summoned-by="<%= item.summoned_by_name || '-' %>"
-                                data-created-at="<%= item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>">
+                                data-created-at="<%= item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>"
+                                data-document-url="<%= item.written_document ? signedUrl(item.written_document) : '' %>"
+                                data-document-name="<%= item.written_document_original_name || 'เอกสารแนบ' %>">
                           <i data-lucide="eye" class="w-3.5 h-3.5"></i>
                           ดูรายละเอียด
                         </button>
                       </td>
-                      <td class="font-medium text-slate-700 whitespace-nowrap">
+                      <td class="font-medium text-slate-700 whitespace-nowrap" style="font-size:12px;">
                         <%= item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>
                       </td>
                       <td><%= item.note || '-' %></td>
+                      <td class="whitespace-nowrap" data-no-nav>
+                        <% if (item.written_document) { %>
+                          <a href="<%= signedUrl(item.written_document) %>"
+                             target="_blank"
+                             rel="noopener"
+                             download="<%= item.written_document_original_name || 'written-document' %>"
+                             class="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700 text-sm font-semibold">
+                            <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                            ดูเอกสาร
+                          </a>
+                        <% } else { %>
+                          -
+                        <% } %>
+                      </td>
                       <td class="text-xs font-medium text-brand-600"><%= item.summoned_by_name %></td>
                       <td class="text-xs text-slate-500 whitespace-nowrap">
                         <%= item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>
                       </td>
                       <td class="text-right" data-no-nav>
-                        <button type="button"
-                                class="btn btn-secondary btn-sm justify-center whitespace-nowrap"
-                                data-summons-detail-open
-                                data-scheduled-at="<%= item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>"
-                                data-note="<%= encodeURIComponent(item.note || '-') %>"
-                                data-summoned-by="<%= item.summoned_by_name || '-' %>"
-                                data-created-at="<%= item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>">
-                          <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-                          ดูรายละเอียด
-                        </button>
+                        <div class="flex flex-wrap justify-end gap-2">
+                          <button type="button"
+                                  class="btn btn-primary btn-sm justify-center whitespace-nowrap"
+                                  data-summons-edit
+                                  data-appointment-id="<%= item.id %>"
+                                  data-scheduled-at-input="<%= item.scheduled_at_input || '' %>"
+                                  data-note="<%= encodeURIComponent(item.note || '') %>"
+                                  data-document-url="<%= item.written_document ? signedUrl(item.written_document) : '' %>"
+                                  data-document-name="<%= item.written_document_original_name || 'เอกสารแนบ' %>">
+                            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                            แก้ไข
+                          </button>
+                          <button type="button"
+                                  class="btn btn-secondary btn-sm justify-center whitespace-nowrap"
+                                  data-summons-detail-open
+                                  data-scheduled-at="<%= item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>"
+                                  data-note="<%= encodeURIComponent(item.note || '-') %>"
+                                  data-summoned-by="<%= item.summoned_by_name || '-' %>"
+                                  data-created-at="<%= item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>"
+                                  data-document-url="<%= item.written_document ? signedUrl(item.written_document) : '' %>"
+                                  data-document-name="<%= item.written_document_original_name || 'เอกสารแนบ' %>">
+                            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                            ดูรายละเอียด
+                          </button>
+                        </div>
                       </td>
                     </tr>
                     <% }); %>
                   <% } else { %>
-                    <tr><td colspan="5" class="text-center text-slate-400 py-6">ไม่มีประวัติการเรียกพบ</td></tr>
+                    <tr><td colspan="6" class="text-center text-slate-400 py-6">ไม่มีประวัติการเรียกพบ</td></tr>
                   <% } %>
                 </tbody>
               </table>
@@ -276,6 +319,7 @@
       </main>
     </div>
   </div>
+
   <!-- Summons Detail Modal -->
   <div id="summonsDetailModal"
        style="display:none;position:fixed;inset:0;z-index:9998;align-items:center;justify-content:center;padding:1rem;"
@@ -307,6 +351,16 @@
           <p class="text-xs text-slate-400 mb-1">หมายเหตุ</p>
           <p id="summons-detail-note" class="text-sm text-slate-700 whitespace-pre-wrap">-</p>
         </div>
+        <div class="p-3 bg-slate-50 rounded-xl">
+          <p class="text-xs text-slate-400 mb-1">เอกสารแนบ</p>
+          <a id="summons-detail-document"
+             href="#"
+             target="_blank"
+             rel="noopener"
+             class="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:text-brand-700 underline">
+            -
+          </a>
+        </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="p-3 bg-slate-50 rounded-xl">
             <p class="text-xs text-slate-400 mb-1">บันทึกโดย</p>
@@ -321,6 +375,77 @@
       <div style="display:flex;justify-content:flex-end;padding:0 24px 22px;">
         <button type="button" data-summons-detail-close class="btn btn-secondary justify-center">ปิด</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Summons Edit Modal -->
+  <div id="summonsEditModal"
+       style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;padding:1rem;"
+       aria-modal="true" role="dialog" aria-labelledby="summons-edit-title">
+    <div data-summons-edit-close style="position:absolute;inset:0;background:rgba(15,23,42,.68);backdrop-filter:blur(4px);"></div>
+    <div style="position:relative;width:100%;max-width:520px;background:#fff;border-radius:16px;box-shadow:0 25px 60px rgba(15,23,42,.28);overflow:hidden;">
+      <div style="padding:20px 24px 14px;border-bottom:1px solid #f1f5f9;">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-xl bg-brand-100 text-brand-600 flex items-center justify-center flex-shrink-0">
+              <i data-lucide="pencil" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 id="summons-edit-title" class="text-base font-bold text-slate-800">แก้ไขรายละเอียดการเรียกพบ</h3>
+              <p class="text-sm text-slate-500 mt-1"><%= reg.first_name %> <%= reg.last_name %></p>
+            </div>
+          </div>
+          <button type="button" data-summons-edit-close class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label="ปิด">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+      <form id="summonsEditForm" method="POST" action="" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div style="padding:20px 24px;" class="space-y-4">
+          <div>
+            <label class="label" for="summons-edit-scheduled-at">วันเวลานัดหมาย</label>
+            <input id="summons-edit-scheduled-at" type="datetime-local" name="scheduled_at" class="input" required>
+          </div>
+          <div>
+            <label class="label" for="summons-edit-note">รายละเอียดการเรียกพบ</label>
+            <textarea id="summons-edit-note" name="note" class="input h-24 resize-none" placeholder="เช่น สถานที่นัดหมาย ผู้รับผิดชอบ หรือรายละเอียดเพิ่มเติม"></textarea>
+          </div>
+          <div>
+            <label class="label" for="summons-edit-written-document">เอกสารแนบ</label>
+            <input id="summons-edit-written-document"
+                   type="file"
+                   name="written_document"
+                   class="hidden"
+                   accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp">
+            <button id="summons-edit-written-document-button"
+                    type="button"
+                    class="btn btn-secondary justify-center">
+              <i data-lucide="paperclip" class="w-4 h-4"></i>
+              เปลี่ยนไฟล์เอกสาร
+            </button>
+            <p id="summons-edit-written-document-name" class="text-xs text-slate-500 mt-2">ยังไม่ได้เลือกไฟล์ใหม่</p>
+            <p class="text-xs text-slate-400 mt-1">ถ้าไม่เลือกไฟล์ใหม่ ระบบจะใช้เอกสารเดิม</p>
+            <div id="summons-edit-existing-document" class="mt-2 text-xs text-slate-500" style="display:none;">
+              เอกสารเดิม:
+              <a id="summons-edit-existing-document-link"
+                 href="#"
+                 target="_blank"
+                 rel="noopener"
+                 class="font-semibold text-brand-600 hover:text-brand-700 underline">
+                เอกสารแนบ
+              </a>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;padding:0 24px 22px;">
+          <button type="button" data-summons-edit-close class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary flex-1 justify-center">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            บันทึกการแก้ไข
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -348,6 +473,16 @@
       var noteEl = document.getElementById('summons-detail-note');
       var byEl = document.getElementById('summons-detail-by');
       var createdAtEl = document.getElementById('summons-detail-created-at');
+      var documentLink = document.getElementById('summons-detail-document');
+      var editModal = document.getElementById('summonsEditModal');
+      var editForm = document.getElementById('summonsEditForm');
+      var editScheduledInput = document.getElementById('summons-edit-scheduled-at');
+      var editNoteInput = document.getElementById('summons-edit-note');
+      var editDocumentInput = document.getElementById('summons-edit-written-document');
+      var editDocumentButton = document.getElementById('summons-edit-written-document-button');
+      var editDocumentName = document.getElementById('summons-edit-written-document-name');
+      var editExistingDocument = document.getElementById('summons-edit-existing-document');
+      var editExistingDocumentLink = document.getElementById('summons-edit-existing-document-link');
 
       function openDetail(button) {
         if (!modal) return;
@@ -355,11 +490,75 @@
         if (noteEl) noteEl.textContent = decodeURIComponent(button.dataset.note || '-');
         if (byEl) byEl.textContent = button.dataset.summonedBy || '-';
         if (createdAtEl) createdAtEl.textContent = button.dataset.createdAt || '-';
+        if (documentLink) {
+          var documentUrl = button.dataset.documentUrl || '';
+          var documentName = button.dataset.documentName || 'เอกสารแนบ';
+          if (documentUrl) {
+            documentLink.href = documentUrl;
+            documentLink.textContent = documentName;
+            documentLink.setAttribute('download', documentName);
+          } else {
+            documentLink.removeAttribute('href');
+            documentLink.removeAttribute('download');
+            documentLink.textContent = '-';
+          }
+        }
         modal.style.display = 'flex';
       }
 
       function closeDetail() {
         if (modal) modal.style.display = 'none';
+      }
+
+      function resetEditDocumentInput() {
+        if (editDocumentInput) editDocumentInput.value = '';
+        if (editDocumentName) editDocumentName.textContent = 'ยังไม่ได้เลือกไฟล์ใหม่';
+        if (editExistingDocument) editExistingDocument.style.display = 'none';
+        if (editExistingDocumentLink) {
+          editExistingDocumentLink.removeAttribute('href');
+          editExistingDocumentLink.removeAttribute('download');
+          editExistingDocumentLink.textContent = 'เอกสารแนบ';
+        }
+      }
+
+      function showExistingEditDocument(url, name) {
+        if (!editExistingDocument || !editExistingDocumentLink || !url) return;
+        editExistingDocumentLink.href = url;
+        editExistingDocumentLink.textContent = name || 'เอกสารแนบ';
+        editExistingDocumentLink.setAttribute('download', name || 'written-document');
+        editExistingDocument.style.display = 'block';
+      }
+
+      function openEdit(button) {
+        if (!editModal || !editForm) return;
+        var row = button && button.closest ? button.closest('[data-summons-detail-row]') : null;
+        var appointmentId = button.dataset.appointmentId || (row && row.dataset.appointmentId) || '';
+        if (!appointmentId) return;
+
+        editForm.action = '/registrations/<%= reg.id %>/summons/' + appointmentId + '/edit';
+        if (editScheduledInput) editScheduledInput.value = button.dataset.scheduledAtInput || (row && row.dataset.scheduledAtInput) || '';
+        if (editNoteInput) editNoteInput.value = decodeURIComponent(button.dataset.note || '');
+        resetEditDocumentInput();
+        showExistingEditDocument(button.dataset.documentUrl || (row && row.dataset.documentUrl) || '', button.dataset.documentName || (row && row.dataset.documentName) || '');
+        editModal.style.display = 'flex';
+        if (editScheduledInput) editScheduledInput.focus();
+      }
+
+      function closeEdit() {
+        if (editModal) editModal.style.display = 'none';
+      }
+
+      if (editDocumentButton && editDocumentInput) {
+        editDocumentButton.addEventListener('click', function() {
+          editDocumentInput.click();
+        });
+      }
+
+      if (editDocumentInput && editDocumentName) {
+        editDocumentInput.addEventListener('change', function() {
+          var file = editDocumentInput.files && editDocumentInput.files[0];
+          editDocumentName.textContent = file ? file.name : 'ยังไม่ได้เลือกไฟล์ใหม่';
+        });
       }
 
       document.querySelectorAll('[data-summons-detail-open]').forEach(function(button) {
@@ -379,7 +578,21 @@
         button.addEventListener('click', closeDetail);
       });
 
+      document.querySelectorAll('[data-summons-edit]').forEach(function(button) {
+        button.addEventListener('click', function() {
+          openEdit(button);
+        });
+      });
+
+      document.querySelectorAll('[data-summons-edit-close]').forEach(function(button) {
+        button.addEventListener('click', closeEdit);
+      });
+
       document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && editModal && editModal.style.display === 'flex') {
+          closeEdit();
+          return;
+        }
         if (e.key === 'Escape' && modal && modal.style.display === 'flex') {
           closeDetail();
         }

@@ -22,7 +22,8 @@ module.exports = {
         }
       },
       fontFamily: {
-        sans: ['Inter', 'Noto Sans Thai', 'sans-serif'],
+        sans: ['Noto Sans Thai', 'sans-serif'],
+        mono: ['Noto Sans Thai', 'sans-serif'],
       },
     },
   },

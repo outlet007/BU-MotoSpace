@@ -23,13 +23,18 @@
       gap: 6px;
       padding: 4px 8px;
       border-radius: 999px;
-      background: #fef2f2;
-      color: #b91c1c;
-      border: 1px solid #fecaca;
+      background: #f8fafc;
+      color: #475569;
+      border: 1px solid #e2e8f0;
       font-size: 12px;
       font-weight: 600;
       margin: 2px;
       white-space: nowrap;
+    }
+    .rule-chip.is-qualified {
+      background: #fef2f2;
+      color: #b91c1c;
+      border-color: #fecaca;
     }
     .summons-tab {
       display: inline-flex;
@@ -82,7 +87,7 @@
               <i data-lucide="user-check" class="w-7 h-7 text-orange-500"></i>
               รายงานผู้เข้าข่ายเรียกพบ
             </h2>
-            <p class="text-slate-500 mt-1">ผู้ที่มีประวัติกระทำผิดรวมทุกกฎและข้อบังคับตั้งแต่ <%= threshold %> ครั้งขึ้นไป</p>
+            <p class="text-slate-500 mt-1">ผู้ที่มีประวัติกระทำผิดครบจำนวนครั้งสูงสุดตามประเภทความผิดที่กำหนดไว้</p>
           </div>
           <a href="/reports/summons/export?pending_search=<%= encodeURIComponent(pendingSearch || '') %>&pending_user_type=<%= encodeURIComponent(pendingUserType || '') %>"
              class="btn btn-primary">
@@ -104,7 +109,7 @@
             </div>
             <div class="text-sm text-slate-600 md:text-right">
               <p class="font-semibold text-slate-700">เงื่อนไขรายงาน</p>
-              <p>นับจากประวัติการกระทำผิดที่ยืนยันแล้วในระบบ โดยรวมทุกกฎเข้าด้วยกัน</p>
+              <p>นับแยกตามประเภทความผิด หลังจากการเรียกพบครั้งล่าสุด หากประเภทใดครบจำนวนครั้งสูงสุดที่ตั้งไว้จะเข้าเกณฑ์</p>
             </div>
           </div>
         </div>
@@ -209,12 +214,13 @@
             <table class="data-table">
             <thead>
               <tr>
+                <th>รหัสนัดหมาย</th>
                 <th>รหัส</th>
                 <th>ชื่อ-นามสกุล</th>
                 <th>ป้ายทะเบียน</th>
                 <th>เบอร์โทร</th>
-                <th>จำนวนครั้งรวม</th>
-                <th>สรุปกฎที่ฝ่าฝืน</th>
+                <th>จำนวนครั้ง</th>
+                <th>สรุปประเภทความผิด</th>
                 <th>ล่าสุด</th>
                 <th></th>
               </tr>
@@ -225,13 +231,21 @@
                 <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors"
                     data-summons-open-row
                     data-registration-id="<%= item.id %>"
-                    data-full-name="<%= item.full_name %>">
+                    data-appointment-code="<%= item.appointment_code %>"
+                    data-full-name="<%= item.full_name %>"
+                    data-violation-type-id="<%= item.violation_type_id || '' %>"
+                    data-violation-group-label="<%= item.violation_group_label || '' %>">
+                  <td class="text-xs font-mono font-semibold text-brand-700 whitespace-nowrap"><%= item.appointment_code %></td>
                   <td class="text-xs font-mono text-slate-600"><%= item.id_number %></td>
                   <td>
                     <div class="font-semibold text-slate-800"><%= item.full_name %></div>
-                    <div class="text-xs text-slate-400 mt-0.5"><%= item.user_type_label %> · <%= item.province || '-' %></div>
                   </td>
-                  <td class="font-semibold text-slate-700"><%= item.license_plate %></td>
+                  <td class="text-center">
+                    <div class="inline-flex flex-col items-center">
+                      <div class="font-semibold text-slate-700"><%= item.license_plate %></div>
+                      <div class="text-xs text-slate-400 mt-0.5"><%= item.province || '-' %></div>
+                    </div>
+                  </td>
                   <td class="text-sm text-slate-600"><%= item.phone || '-' %></td>
                   <td>
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-200 text-xs font-bold">
@@ -242,7 +256,7 @@
                   <td>
                     <div class="flex flex-wrap max-w-md">
                       <% item.rule_breakdown.forEach(function(rule) { %>
-                        <span class="rule-chip"><%= rule.rule_name %> <%= rule.cnt %></span>
+                        <span class="rule-chip <%= rule.is_qualified ? 'is-qualified' : '' %>"><%= rule.type_name %> <%= rule.cnt %>/<%= rule.max_violations %></span>
                       <% }) %>
                     </div>
                   </td>
@@ -255,7 +269,10 @@
                               class="btn btn-primary btn-sm"
                               data-summons-open
                               data-registration-id="<%= item.id %>"
-                              data-full-name="<%= item.full_name %>">
+                              data-appointment-code="<%= item.appointment_code %>"
+                              data-full-name="<%= item.full_name %>"
+                              data-violation-type-id="<%= item.violation_type_id || '' %>"
+                              data-violation-group-label="<%= item.violation_group_label || '' %>">
                         <i data-lucide="calendar-check" class="w-3.5 h-3.5"></i>
                         ยืนยันเรียกพบ
                       </button>
@@ -269,10 +286,10 @@
                 <% }) %>
               <% } else { %>
               <tr>
-                <td colspan="8" class="text-center py-14">
+                <td colspan="9" class="text-center py-14">
                   <div class="flex flex-col items-center gap-3 text-slate-400">
                     <i data-lucide="clipboard-check" class="w-12 h-12 text-slate-300"></i>
-                    <p class="text-sm font-medium">ไม่พบผู้ที่กระทำผิดครบ <%= threshold %> ครั้ง</p>
+                    <p class="text-sm font-medium">ไม่พบผู้ที่กระทำผิดครบจำนวนครั้งสูงสุดตามประเภทความผิด</p>
                     <p class="text-xs">ลองเปลี่ยนคำค้นหาหรือตัวกรองประเภทผู้ใช้</p>
                   </div>
                 </td>
@@ -345,11 +362,13 @@
             <table class="data-table">
               <thead>
                 <tr>
+                  <th>รหัสนัดหมาย</th>
                   <th>รหัส</th>
                   <th>ชื่อ-นามสกุล</th>
                   <th>ป้ายทะเบียน</th>
                   <th>วันเวลานัดหมาย</th>
                   <th>หมายเหตุ</th>
+                  <th>เอกสารที่เป็นลายลักษณ์อักษร</th>
                   <th>บันทึกโดย</th>
                   <th></th>
                 </tr>
@@ -357,33 +376,67 @@
               <tbody>
                 <% if (typeof summonedAppointments !== 'undefined' && summonedAppointments.length > 0) { %>
                   <% summonedAppointments.forEach(function(item) { %>
-                  <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors" data-href="/registrations/<%= item.registration_id %>#summons-history">
+                  <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors"
+                      data-summons-detail-row
+                      data-appointment-code="<%= item.appointment_code %>"
+                      data-full-name="<%= item.full_name %>"
+                      data-id-number="<%= item.id_number %>"
+                      data-user-type-label="<%= item.user_type_label %>"
+                      data-license-plate="<%= item.license_plate %>"
+                      data-province="<%= item.province || '-' %>"
+                      data-scheduled-at="<%= item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>"
+                      data-note="<%= encodeURIComponent(item.note || '-') %>"
+                      data-summoned-by="<%= item.summoned_by_name || '-' %>"
+                      data-created-at="<%= item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>"
+                      data-document-url="<%= item.written_document ? signedUrl(item.written_document) : '' %>"
+                      data-document-name="<%= item.written_document_original_name || 'เอกสารที่เป็นลายลักษณ์อักษร' %>">
+                    <td class="text-xs font-mono font-semibold text-brand-700 whitespace-nowrap"><%= item.appointment_code || '-' %></td>
                     <td class="text-xs font-mono text-slate-600"><%= item.id_number %></td>
                     <td>
                       <div class="font-semibold text-slate-800"><%= item.full_name %></div>
-                      <div class="text-xs text-slate-400 mt-0.5"><%= item.user_type_label %> · <%= item.province || '-' %></div>
                     </td>
-                    <td class="font-semibold text-slate-700"><%= item.license_plate %></td>
+                    <td class="text-center">
+                      <div class="inline-flex flex-col items-center">
+                        <div class="font-semibold text-slate-700"><%= item.license_plate %></div>
+                        <div class="text-xs text-slate-400 mt-0.5"><%= item.province || '-' %></div>
+                      </div>
+                    </td>
                     <td class="text-xs text-slate-600 whitespace-nowrap">
                       <%= item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>
                     </td>
                     <td class="text-sm text-slate-600 max-w-xs">
                       <div class="line-clamp-2"><%= item.note || '-' %></div>
                     </td>
+                    <td class="text-sm text-slate-600 whitespace-nowrap">
+                      <% if (item.written_document) { %>
+                        <a href="<%= signedUrl(item.written_document) %>"
+                           target="_blank"
+                           rel="noopener"
+                           download="<%= item.written_document_original_name || 'written-document' %>"
+                           class="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700 font-semibold">
+                          <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                          ดูเอกสาร
+                        </a>
+                      <% } else { %>
+                        ไม่มี
+                      <% } %>
+                    </td>
                     <td class="text-xs font-medium text-brand-600 whitespace-nowrap"><%= item.summoned_by_name %></td>
                     <td class="text-right">
                       <div class="flex flex-wrap justify-end gap-2">
-                        <a href="/registrations/<%= item.registration_id %>#summons-history" class="btn btn-secondary btn-sm order-2">
+                        <button type="button" class="btn btn-secondary btn-sm order-2" data-summons-detail-open>
                           <i data-lucide="eye" class="w-3.5 h-3.5"></i>
                           ดูรายละเอียด
-                        </a>
+                        </button>
                         <button type="button"
                                 class="btn btn-primary btn-sm order-1"
                                 data-summons-edit
                                 data-appointment-id="<%= item.id %>"
                                 data-full-name="<%= item.full_name %>"
                                 data-scheduled-at="<%= item.scheduled_at_input || '' %>"
-                                data-note="<%= encodeURIComponent(item.note || '') %>">
+                                data-note="<%= encodeURIComponent(item.note || '') %>"
+                                data-document-url="<%= item.written_document ? signedUrl(item.written_document) : '' %>"
+                                data-document-name="<%= item.written_document_original_name || 'เอกสารที่เป็นลายลักษณ์อักษร' %>">
                           <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
                           แก้ไข
                         </button>
@@ -393,7 +446,7 @@
                   <% }) %>
                 <% } else { %>
                   <tr>
-                    <td colspan="7" class="text-center py-10">
+                    <td colspan="9" class="text-center py-10">
                       <div class="flex flex-col items-center gap-2 text-slate-400">
                         <i data-lucide="calendar-x" class="w-10 h-10 text-slate-300"></i>
                         <p class="text-sm font-medium">ยังไม่มีรายการที่เรียกพบไปแล้ว</p>
@@ -428,9 +481,12 @@
                 </button>
               </div>
             </div>
-            <form id="summons-form" method="POST" action="">
+            <form id="summons-form" method="POST" action="" enctype="multipart/form-data">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <input id="summons-return-to" type="hidden" name="return_to" value="<%= currentUrl %>">
+              <input id="summons-appointment-code" type="hidden" name="appointment_code" value="">
+              <input id="summons-violation-type-id" type="hidden" name="violation_type_id" value="">
+              <input id="summons-violation-group-label" type="hidden" name="violation_group_label" value="">
               <div style="padding:20px 24px;" class="space-y-4">
                 <div>
                   <label class="label" for="summons-scheduled-at">วันเวลานัดหมาย</label>
@@ -439,6 +495,32 @@
                 <div>
                   <label class="label" for="summons-note">หมายเหตุ</label>
                   <textarea id="summons-note" name="note" class="input h-24 resize-none" placeholder="เช่น สถานที่นัดหมาย หรือรายละเอียดเพิ่มเติม"></textarea>
+                </div>
+                <div>
+                  <label class="label" for="summons-written-document">เอกสารที่เป็นลายลักษณ์อักษร</label>
+                  <input id="summons-written-document"
+                         type="file"
+                         name="written_document"
+                         class="hidden"
+                         accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp">
+                  <button id="summons-written-document-button"
+                          type="button"
+                          class="btn btn-secondary justify-center">
+                    <i data-lucide="paperclip" class="w-4 h-4"></i>
+                    แนบไฟล์เอกสาร
+                  </button>
+                  <p id="summons-written-document-name" class="text-xs text-slate-500 mt-2">ยังไม่ได้เลือกไฟล์</p>
+                  <p class="text-xs text-slate-400 mt-1">รองรับไฟล์ PDF, Word หรือรูปภาพ ขนาดไม่เกิน 10MB</p>
+                  <div id="summons-existing-document" class="mt-2 text-xs text-slate-500" style="display:none;">
+                    เอกสารเดิม:
+                    <a id="summons-existing-document-link"
+                       href="#"
+                       target="_blank"
+                       rel="noopener"
+                       class="font-semibold text-brand-600 hover:text-brand-700 underline">
+                      เอกสารที่เป็นลายลักษณ์อักษร
+                    </a>
+                  </div>
                 </div>
                 <p class="text-xs text-slate-500">
                   เมื่อยืนยันแล้ว ระบบจะเริ่มนับจำนวนความผิดรอบใหม่ตั้งแต่เวลาบันทึกการเรียกพบนี้ โดยยังคงประวัติความผิดเดิมไว้
@@ -452,6 +534,80 @@
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+
+        <div id="summons-detail-modal"
+             style="display:none;position:fixed;inset:0;z-index:10001;align-items:center;justify-content:center;padding:1rem;"
+             aria-modal="true" role="dialog" aria-labelledby="summons-detail-title">
+          <div data-summons-detail-close style="position:absolute;inset:0;background:rgba(15,23,42,.68);backdrop-filter:blur(4px);"></div>
+          <div style="position:relative;width:100%;max-width:560px;background:#fff;border-radius:16px;box-shadow:0 25px 60px rgba(15,23,42,.28);overflow:hidden;">
+            <div style="padding:20px 24px 14px;border-bottom:1px solid #f1f5f9;">
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex items-start gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="calendar-check" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <h3 id="summons-detail-title" class="text-base font-bold text-slate-800">รายละเอียดการเรียกพบ</h3>
+                    <p id="summons-detail-person" class="text-sm text-slate-500 mt-1"></p>
+                  </div>
+                </div>
+                <button type="button" data-summons-detail-close class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label="ปิด">
+                  <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+              </div>
+            </div>
+            <div style="padding:20px 24px;" class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="p-3 bg-slate-50 rounded-xl">
+                  <p class="text-xs text-slate-400 mb-1">รหัสนัดหมาย</p>
+                  <p id="summons-detail-appointment-code" class="text-sm font-semibold text-brand-700">-</p>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl">
+                  <p class="text-xs text-slate-400 mb-1">รหัส</p>
+                  <p id="summons-detail-id-number" class="text-sm font-semibold text-slate-800">-</p>
+                </div>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="p-3 bg-slate-50 rounded-xl">
+                  <p class="text-xs text-slate-400 mb-1">ป้ายทะเบียน</p>
+                  <p id="summons-detail-license-plate" class="text-sm font-semibold text-slate-800">-</p>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl">
+                  <p class="text-xs text-slate-400 mb-1">จังหวัด</p>
+                  <p id="summons-detail-province" class="text-sm font-semibold text-slate-800">-</p>
+                </div>
+              </div>
+              <div class="p-3 bg-slate-50 rounded-xl">
+                <p class="text-xs text-slate-400 mb-1">วันเวลานัดหมาย</p>
+                <p id="summons-detail-scheduled-at" class="text-sm font-semibold text-slate-800">-</p>
+              </div>
+              <div class="p-3 bg-slate-50 rounded-xl">
+                <p class="text-xs text-slate-400 mb-1">หมายเหตุ</p>
+                <p id="summons-detail-note" class="text-sm text-slate-700 whitespace-pre-wrap">-</p>
+              </div>
+              <div class="p-3 bg-slate-50 rounded-xl">
+                <p class="text-xs text-slate-400 mb-1">เอกสารที่เป็นลายลักษณ์อักษร</p>
+                <a id="summons-detail-document"
+                   class="inline-flex items-center gap-1 text-sm text-slate-700">
+                  ไม่มี
+                </a>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="p-3 bg-slate-50 rounded-xl">
+                  <p class="text-xs text-slate-400 mb-1">บันทึกโดย</p>
+                  <p id="summons-detail-by" class="text-sm font-semibold text-brand-600">-</p>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl">
+                  <p class="text-xs text-slate-400 mb-1">วันที่บันทึก</p>
+                  <p id="summons-detail-created-at" class="text-sm text-slate-700">-</p>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;padding:0 24px 22px;">
+              <button type="button" data-summons-detail-close class="btn btn-secondary justify-center">ปิด</button>
+            </div>
           </div>
         </div>
       </main>
@@ -475,6 +631,23 @@
       var scheduledInput = document.getElementById('summons-scheduled-at');
       var noteInput = document.getElementById('summons-note');
       var returnToInput = document.getElementById('summons-return-to');
+      var appointmentCodeInput = document.getElementById('summons-appointment-code');
+      var documentInput = document.getElementById('summons-written-document');
+      var documentButton = document.getElementById('summons-written-document-button');
+      var documentName = document.getElementById('summons-written-document-name');
+      var existingDocument = document.getElementById('summons-existing-document');
+      var existingDocumentLink = document.getElementById('summons-existing-document-link');
+      var detailModal = document.getElementById('summons-detail-modal');
+      var detailPerson = document.getElementById('summons-detail-person');
+      var detailAppointmentCode = document.getElementById('summons-detail-appointment-code');
+      var detailIdNumber = document.getElementById('summons-detail-id-number');
+      var detailLicensePlate = document.getElementById('summons-detail-license-plate');
+      var detailProvince = document.getElementById('summons-detail-province');
+      var detailScheduledAt = document.getElementById('summons-detail-scheduled-at');
+      var detailNote = document.getElementById('summons-detail-note');
+      var detailDocument = document.getElementById('summons-detail-document');
+      var detailBy = document.getElementById('summons-detail-by');
+      var detailCreatedAt = document.getElementById('summons-detail-created-at');
 
       function toDatetimeLocalValue(date) {
         var pad = function(value) { return String(value).padStart(2, '0'); };
@@ -504,15 +677,47 @@
         return window.location.pathname + (query ? '?' + query : '') + (hash || '');
       }
 
+      function resetDocumentInput() {
+        if (documentInput) documentInput.value = '';
+        if (documentName) documentName.textContent = 'ยังไม่ได้เลือกไฟล์';
+        if (existingDocument) existingDocument.style.display = 'none';
+        if (existingDocumentLink) {
+          existingDocumentLink.removeAttribute('href');
+          existingDocumentLink.removeAttribute('download');
+          existingDocumentLink.textContent = 'เอกสารที่เป็นลายลักษณ์อักษร';
+        }
+      }
+
+      function showExistingDocument(url, name) {
+        if (!existingDocument || !existingDocumentLink || !url) return;
+        existingDocumentLink.href = url;
+        existingDocumentLink.textContent = name || 'เอกสารที่เป็นลายลักษณ์อักษร';
+        existingDocumentLink.setAttribute('download', name || 'written-document');
+        existingDocument.style.display = 'block';
+      }
+
       function openSummonsModal(button) {
         if (!modal || !form) return;
         var registrationId = button.dataset.registrationId;
+        var appointmentCode = button.dataset.appointmentCode || '';
         var fullName = button.dataset.fullName || '';
+        var violationTypeId = button.dataset.violationTypeId || '';
+        var violationGroupLabel = button.dataset.violationGroupLabel || '';
         form.action = '/reports/summons/' + registrationId + '/confirm';
         if (titleEl) titleEl.textContent = 'ยืนยันการเรียกพบ';
-        if (nameEl) nameEl.textContent = fullName;
+        if (nameEl) {
+          var subtitle = fullName;
+          if (violationGroupLabel) subtitle += ' — ประเภท: ' + violationGroupLabel;
+          nameEl.textContent = subtitle;
+        }
         if (noteInput) noteInput.value = '';
+        resetDocumentInput();
         if (returnToInput) returnToInput.value = buildReturnTo('pending', '');
+        if (appointmentCodeInput) appointmentCodeInput.value = appointmentCode;
+        var vtInput = document.getElementById('summons-violation-type-id');
+        var vgInput = document.getElementById('summons-violation-group-label');
+        if (vtInput) vtInput.value = violationTypeId;
+        if (vgInput) vgInput.value = violationGroupLabel;
         if (scheduledInput) {
           var defaultDate = new Date();
           defaultDate.setHours(defaultDate.getHours() + 1);
@@ -532,15 +737,99 @@
         if (nameEl) nameEl.textContent = fullName;
         if (scheduledInput) scheduledInput.value = button.dataset.scheduledAt || '';
         if (noteInput) noteInput.value = decodeURIComponent(button.dataset.note || '');
+        if (appointmentCodeInput) appointmentCodeInput.value = '';
+        resetDocumentInput();
+        showExistingDocument(button.dataset.documentUrl || '', button.dataset.documentName || '');
         if (returnToInput) returnToInput.value = buildReturnTo('completed', '#summoned-history');
         modal.style.display = 'flex';
         if (scheduledInput) scheduledInput.focus();
+      }
+
+      function openSummonsDetail(source) {
+        if (!detailModal) return;
+        var row = source && source.closest ? (source.closest('[data-summons-detail-row]') || source) : source;
+        if (!row) return;
+
+        var fullName = row.dataset.fullName || '-';
+        var userType = row.dataset.userTypeLabel || '';
+        var province = row.dataset.province || '';
+        var personDetail = fullName;
+        if (userType) {
+          personDetail += ' - ' + userType;
+        }
+
+        if (detailPerson) detailPerson.textContent = personDetail;
+        if (detailAppointmentCode) detailAppointmentCode.textContent = row.dataset.appointmentCode || '-';
+        if (detailIdNumber) detailIdNumber.textContent = row.dataset.idNumber || '-';
+        if (detailLicensePlate) detailLicensePlate.textContent = row.dataset.licensePlate || '-';
+        if (detailProvince) detailProvince.textContent = province || '-';
+        if (detailScheduledAt) detailScheduledAt.textContent = row.dataset.scheduledAt || '-';
+        if (detailNote) detailNote.textContent = decodeURIComponent(row.dataset.note || '-');
+        if (detailBy) detailBy.textContent = row.dataset.summonedBy || '-';
+        if (detailCreatedAt) detailCreatedAt.textContent = row.dataset.createdAt || '-';
+
+        if (detailDocument) {
+          var documentUrl = row.dataset.documentUrl || '';
+          var documentNameText = row.dataset.documentName || 'เอกสารที่เป็นลายลักษณ์อักษร';
+          if (documentUrl) {
+            detailDocument.href = documentUrl;
+            detailDocument.textContent = documentNameText;
+            detailDocument.target = '_blank';
+            detailDocument.rel = 'noopener';
+            detailDocument.setAttribute('download', documentNameText);
+            detailDocument.className = 'inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:text-brand-700 underline';
+          } else {
+            detailDocument.removeAttribute('href');
+            detailDocument.removeAttribute('target');
+            detailDocument.removeAttribute('rel');
+            detailDocument.removeAttribute('download');
+            detailDocument.textContent = 'ไม่มี';
+            detailDocument.className = 'inline-flex items-center gap-1 text-sm text-slate-700';
+          }
+        }
+
+        detailModal.style.display = 'flex';
+      }
+
+      function closeSummonsDetail() {
+        if (!detailModal) return;
+        detailModal.style.display = 'none';
       }
 
       function closeSummonsModal() {
         if (!modal) return;
         modal.style.display = 'none';
       }
+
+      if (documentButton && documentInput) {
+        documentButton.addEventListener('click', function() {
+          documentInput.click();
+        });
+      }
+
+      if (documentInput && documentName) {
+        documentInput.addEventListener('change', function() {
+          var file = documentInput.files && documentInput.files[0];
+          documentName.textContent = file ? file.name : 'ยังไม่ได้เลือกไฟล์';
+        });
+      }
+
+      document.querySelectorAll('[data-summons-detail-open]').forEach(function(button) {
+        button.addEventListener('click', function() {
+          openSummonsDetail(button);
+        });
+      });
+
+      document.querySelectorAll('[data-summons-detail-row]').forEach(function(row) {
+        row.addEventListener('click', function(e) {
+          if (e.target.closest('button, a, input, select, textarea, form, [data-no-nav]')) return;
+          openSummonsDetail(row);
+        });
+      });
+
+      document.querySelectorAll('[data-summons-detail-close]').forEach(function(button) {
+        button.addEventListener('click', closeSummonsDetail);
+      });
 
       document.querySelectorAll('[data-summons-open]').forEach(function(button) {
         button.addEventListener('click', function() {
@@ -583,6 +872,10 @@
       }
 
       document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && detailModal && detailModal.style.display === 'flex') {
+          closeSummonsDetail();
+          return;
+        }
         if (e.key === 'Escape' && modal && modal.style.display === 'flex') {
           closeSummonsModal();
         }
