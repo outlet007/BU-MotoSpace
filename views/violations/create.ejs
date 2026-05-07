@@ -154,13 +154,16 @@
     const resultsBox = document.getElementById('reg-search-results');
     const hiddenId = document.getElementById('selected-reg-id');
     const preview = document.getElementById('selected-reg-preview');
+    let latestSearchId = 0;
 
     if (searchInput) {
       let debounceTimer;
       searchInput.addEventListener('input', function() {
         clearTimeout(debounceTimer);
         const q = this.value.trim();
-        if (!q) { resultsBox.classList.add('hidden'); resultsBox.innerHTML = ''; return; }
+        hiddenId.value = '';
+        preview.classList.add('hidden');
+        if (!q) { resultsBox.classList.add('hidden'); clearNode(resultsBox); return; }
         debounceTimer = setTimeout(() => fetchResults(q), 250);
       });
 
@@ -173,49 +176,101 @@
       });
     }
 
+    function clearNode(node) {
+      while (node.firstChild) node.removeChild(node.firstChild);
+    }
+
+    function getTypeLabel(userType) {
+      return userType === 'student' ? 'นักศึกษา' : 'บุคลากร';
+    }
+
+    function registrationMetaText(r) {
+      return `${r.id_number || '-'} · ${r.license_plate || '-'} · ${getTypeLabel(r.user_type)}`;
+    }
+
+    function createMessage(className, text) {
+      const message = document.createElement('div');
+      message.className = className;
+      message.textContent = text;
+      return message;
+    }
+
     function fetchResults(q) {
+      const requestId = ++latestSearchId;
       fetch('/registrations/api/search?q=' + encodeURIComponent(q))
-        .then(r => r.json())
+        .then(r => {
+          if (!r.ok) throw new Error('Search request failed');
+          return r.json();
+        })
         .then(data => {
-          resultsBox.innerHTML = '';
-          if (!data.length) {
-            resultsBox.innerHTML = '<div class="px-4 py-3 text-sm text-slate-400">ไม่พบข้อมูล</div>';
+          if (requestId !== latestSearchId) return;
+          const rows = Array.isArray(data) ? data : [];
+          clearNode(resultsBox);
+          if (!rows.length) {
+            resultsBox.appendChild(createMessage('px-4 py-3 text-sm text-slate-400', 'ไม่พบข้อมูล'));
           } else {
-            data.forEach(r => {
+            rows.forEach(r => {
               const item = document.createElement('div');
               item.className = 'px-4 py-3 hover:bg-brand-50 cursor-pointer border-b border-slate-100 last:border-0';
-              const typeLabel = r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร';
               const statusColor = r.status === 'approved' ? '#22c55e' : r.status === 'pending' ? '#f59e0b' : '#ef4444';
-              item.innerHTML = `
-                <div class="flex items-center justify-between">
-                  <div>
-                    <p class="font-semibold text-slate-800 text-sm">${r.first_name} ${r.last_name}</p>
-                    <p class="text-xs text-slate-500">${r.id_number} · ${r.license_plate} · ${typeLabel}</p>
-                  </div>
-                  <span style="font-size:10px;padding:2px 8px;border-radius:999px;background:${statusColor}20;color:${statusColor};font-weight:600;">${r.status}</span>
-                </div>`;
+
+              const row = document.createElement('div');
+              row.className = 'flex items-center justify-between';
+
+              const info = document.createElement('div');
+              const name = document.createElement('p');
+              name.className = 'font-semibold text-slate-800 text-sm';
+              name.textContent = `${r.first_name || ''} ${r.last_name || ''}`.trim() || '-';
+              const meta = document.createElement('p');
+              meta.className = 'text-xs text-slate-500';
+              meta.textContent = registrationMetaText(r);
+              info.appendChild(name);
+              info.appendChild(meta);
+
+              const status = document.createElement('span');
+              status.style.cssText = `font-size:10px;padding:2px 8px;border-radius:999px;background:${statusColor}20;color:${statusColor};font-weight:600;`;
+              status.textContent = r.status || '-';
+
+              row.appendChild(info);
+              row.appendChild(status);
+              item.appendChild(row);
               item.addEventListener('click', () => selectReg(r));
               resultsBox.appendChild(item);
             });
           }
           resultsBox.classList.remove('hidden');
         })
-        .catch(() => { resultsBox.innerHTML = '<div class="px-4 py-3 text-sm text-red-400">เกิดข้อผิดพลาด</div>'; resultsBox.classList.remove('hidden'); });
+        .catch(() => {
+          if (requestId !== latestSearchId) return;
+          clearNode(resultsBox);
+          resultsBox.appendChild(createMessage('px-4 py-3 text-sm text-red-400', 'เกิดข้อผิดพลาด'));
+          resultsBox.classList.remove('hidden');
+        });
     }
 
     function selectReg(r) {
-      hiddenId.value = r.id;
-      searchInput.value = `${r.first_name} ${r.last_name} (${r.id_number}, ${r.license_plate})`;
-      preview.innerHTML = `
-        <div class="flex items-center gap-3">
-          <div style="width:36px;height:36px;background:#eff6ff;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="2"/></svg>
-          </div>
-          <div>
-            <p class="font-semibold text-slate-800">${r.first_name} ${r.last_name}</p>
-            <p class="text-xs text-slate-500">${r.id_number} · ${r.license_plate} · ${r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร'}</p>
-          </div>
-        </div>`;
+      const fullName = `${r.first_name || ''} ${r.last_name || ''}`.trim() || '-';
+      hiddenId.value = r.id || '';
+      searchInput.value = `${fullName} (${r.id_number || '-'}, ${r.license_plate || '-'})`;
+      clearNode(preview);
+
+      const card = document.createElement('div');
+      card.className = 'flex items-center gap-3';
+      const icon = document.createElement('div');
+      icon.style.cssText = 'width:36px;height:36px;background:#eff6ff;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#3b82f6;font-weight:700;font-size:12px;';
+      icon.textContent = 'ID';
+      const info = document.createElement('div');
+      const name = document.createElement('p');
+      name.className = 'font-semibold text-slate-800';
+      name.textContent = fullName;
+      const meta = document.createElement('p');
+      meta.className = 'text-xs text-slate-500';
+      meta.textContent = registrationMetaText(r);
+      info.appendChild(name);
+      info.appendChild(meta);
+      card.appendChild(icon);
+      card.appendChild(info);
+      preview.appendChild(card);
       preview.classList.remove('hidden');
       resultsBox.classList.add('hidden');
       document.getElementById('search-hint').classList.add('hidden');
@@ -223,4 +278,3 @@
   </script>
 </body>
 </html>
-

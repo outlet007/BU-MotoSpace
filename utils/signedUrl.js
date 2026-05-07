@@ -10,7 +10,19 @@
 const crypto = require('crypto');
 const path = require('path');
 
-const SECRET = process.env.IMAGE_SECRET || process.env.SESSION_SECRET || 'fallback_image_secret';
+function getSigningSecret() {
+  const secret = process.env.IMAGE_SECRET || (!process.env.NODE_ENV || process.env.NODE_ENV !== 'production'
+    ? process.env.SESSION_SECRET
+    : null);
+
+  if (!secret || (process.env.NODE_ENV === 'production' && secret.length < 32)) {
+    throw new Error('IMAGE_SECRET must be set to at least 32 characters in production');
+  }
+
+  return secret || 'development_image_secret_change_me';
+}
+
+const SECRET = getSigningSecret();
 const EXPIRY_SECONDS = 15 * 60; // 15 minutes
 
 /**
@@ -46,6 +58,8 @@ function verifySignedUrl(encoded, exp, sig) {
     // 2. Decode path
     const filePath = Buffer.from(encoded, 'base64url').toString('utf8');
 
+    if (!/^[0-9a-f]{64}$/i.test(String(sig || ''))) return null;
+
     // 3. Recompute expected signature
     const payload = `${filePath}:${exp}`;
     const expectedSig = crypto.createHmac('sha256', SECRET).update(payload).digest('hex');
@@ -71,7 +85,7 @@ function verifySignedUrl(encoded, exp, sig) {
 function resolveFilePath(filePath, appRoot) {
   // filePath like "/uploads/id-cards/xxx.jpg"
   const relative = filePath.startsWith('/') ? filePath.slice(1) : filePath;
-  return path.join(appRoot, relative);
+  return path.resolve(appRoot, relative);
 }
 
 module.exports = { generateSignedUrl, verifySignedUrl, resolveFilePath };

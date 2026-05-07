@@ -17,8 +17,17 @@ document.addEventListener('DOMContentLoaded', () => {
       th.classList.add('hover:bg-slate-100', 'transition-colors', 'select-none');
       th.title = 'คลิกเพื่อเรียงลำดับ';
       
-      // Inject sorting icon wrapper
-      th.innerHTML = `<div class="flex items-center gap-1">${th.innerHTML}<span class="sort-icon text-xs text-slate-400 opacity-50 transition-all">↕</span></div>`;
+      // Wrap existing header content without reparsing HTML.
+      const label = document.createElement('div');
+      label.className = 'flex items-center gap-1';
+      while (th.firstChild) {
+        label.appendChild(th.firstChild);
+      }
+      const sortIcon = document.createElement('span');
+      sortIcon.className = 'sort-icon text-xs text-slate-400 opacity-50 transition-all';
+      sortIcon.textContent = '\u2195';
+      label.appendChild(sortIcon);
+      th.appendChild(label);
 
       let asc = true;
       th.addEventListener('click', () => {
@@ -26,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
         headers.forEach(h => {
           const icon = h.querySelector('.sort-icon');
           if (icon) {
-            icon.textContent = '↕';
+            icon.textContent = '\u2195';
             icon.classList.remove('text-blue-600', 'font-bold');
             icon.classList.add('opacity-50');
           }
@@ -35,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update clicked icon
         const currentIcon = th.querySelector('.sort-icon');
         if (currentIcon) {
-          currentIcon.textContent = asc ? '↓' : '↑';
+          currentIcon.textContent = asc ? '\u2193' : '\u2191';
           currentIcon.classList.remove('opacity-50');
           currentIcon.classList.add('text-blue-600', 'font-bold');
         }

@@ -3,6 +3,7 @@ const bcrypt = require('bcrypt');
 const pool = require('../config/database');
 const rateLimit = require('express-rate-limit');
 const { SESSION_EXPIRED_MESSAGE } = require('../middleware/auth');
+const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'bu_motospace.sid';
 
 // ─── Brute Force Protection ───────────────────────────────────────────────────
 // จำกัด POST /auth/login ไม่เกิน 10 ครั้ง / 15 นาที / IP
@@ -55,7 +56,8 @@ router.get('/login', (req, res) => {
 
 // POST /auth/login
 router.post('/login', loginLimiter, async (req, res) => {
-  const { username, password } = req.body;
+  const username = (req.body.username || '').trim();
+  const password = req.body.password || '';
   let conn;
   try {
     conn = await pool.getConnection();
@@ -108,13 +110,18 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 });
 
-// GET /auth/logout
-router.get('/logout', (req, res) => {
+function logout(req, res) {
   req.session.destroy(() => {
     // ─── ลบ session cookie ออกจาก browser ด้วย ─────────────────────────────
-    res.clearCookie('connect.sid', { path: '/' });
+    res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
     res.redirect('/auth/login');
   });
+}
+
+// Logout must be a POST so a third-party image/link cannot log users out.
+router.post('/logout', logout);
+router.get('/logout', (req, res) => {
+  res.redirect(req.session && req.session.admin ? '/dashboard' : '/auth/login');
 });
 
 module.exports = router;

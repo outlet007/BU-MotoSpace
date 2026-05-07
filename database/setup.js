@@ -15,7 +15,7 @@ async function setup() {
     console.log('🔧 Connecting to MariaDB...');
     conn = await mariadb.createConnection({
       host: process.env.DB_HOST || '127.0.0.1',
-      port: parseInt(process.env.DB_PORT) || 3036,
+      port: parseInt(process.env.DB_PORT) || 3306,
       user: process.env.DB_USER || 'asset_user',
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_NAME || 'bu_motospace',
@@ -148,6 +148,17 @@ async function setup() {
     console.log('  ✅ app_settings');
 
     await conn.query(`
+      CREATE TABLE IF NOT EXISTS app_sessions (
+        sid VARCHAR(128) PRIMARY KEY,
+        sess LONGTEXT NOT NULL,
+        expires_at DATETIME NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_app_sessions_expires_at (expires_at)
+      ) ENGINE=InnoDB
+    `);
+    console.log('  OK app_sessions');
+
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS violations (
         id INT AUTO_INCREMENT PRIMARY KEY,
         registration_id INT NOT NULL,
@@ -160,10 +171,59 @@ async function setup() {
         FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE CASCADE,
         FOREIGN KEY (recorded_by) REFERENCES admins(id) ON DELETE CASCADE,
         INDEX idx_registration (registration_id),
-        INDEX idx_rule (rule_id)
+        INDEX idx_rule (rule_id),
+        INDEX idx_violations_registration_rule_recorded (registration_id, rule_id, recorded_at)
       ) ENGINE=InnoDB
     `);
     console.log('  ✅ violations');
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS summons_appointments (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        appointment_code VARCHAR(30) DEFAULT NULL,
+        registration_id INT NOT NULL,
+        scheduled_at DATETIME NOT NULL,
+        note TEXT,
+        written_document VARCHAR(500) DEFAULT NULL,
+        written_document_original_name VARCHAR(255) DEFAULT NULL,
+        violation_type_id INT DEFAULT NULL,
+        summoned_by INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
+        FOREIGN KEY (violation_type_id) REFERENCES violation_types(id) ON DELETE SET NULL,
+        FOREIGN KEY (summoned_by) REFERENCES admins(id) ON DELETE CASCADE,
+        UNIQUE KEY uq_summons_appointment_code (appointment_code),
+        INDEX idx_registration_created (registration_id, created_at),
+        INDEX idx_summons_violation_type (violation_type_id),
+        INDEX idx_scheduled_at (scheduled_at)
+      ) ENGINE=InnoDB
+    `);
+    console.log('  OK summons_appointments');
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS violation_reports (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        registration_id INT NOT NULL,
+        rule_id INT NOT NULL,
+        description TEXT,
+        evidence_photo VARCHAR(500),
+        reported_by INT NOT NULL,
+        reported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        status ENUM('pending','confirmed','rejected') NOT NULL DEFAULT 'pending',
+        reviewed_by INT DEFAULT NULL,
+        reviewed_at TIMESTAMP NULL,
+        review_note TEXT,
+        violation_id INT DEFAULT NULL,
+        FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
+        FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE CASCADE,
+        FOREIGN KEY (reported_by) REFERENCES admins(id) ON DELETE CASCADE,
+        FOREIGN KEY (reviewed_by) REFERENCES admins(id) ON DELETE SET NULL,
+        FOREIGN KEY (violation_id) REFERENCES violations(id) ON DELETE SET NULL,
+        INDEX idx_vr_registration (registration_id),
+        INDEX idx_vr_status (status)
+      ) ENGINE=InnoDB
+    `);
+    console.log('  OK violation_reports');
 
     await conn.query(`
       CREATE TABLE IF NOT EXISTS image_hashes (
@@ -182,12 +242,17 @@ async function setup() {
     // Seed admin
     const adminRows = await conn.query('SELECT COUNT(*) as cnt FROM admins');
     if (parseInt(adminRows[0].cnt) === 0) {
-      const hashedPw = await bcrypt.hash('admin123', 10);
+      const defaultAdminUsername = process.env.DEFAULT_ADMIN_USERNAME || 'admin';
+      const defaultAdminPassword = process.env.DEFAULT_ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'admin123');
+      if (!defaultAdminPassword || (process.env.NODE_ENV === 'production' && defaultAdminPassword.length < 12)) {
+        throw new Error('DEFAULT_ADMIN_PASSWORD must be set to at least 12 characters before creating the first production admin');
+      }
+      const hashedPw = await bcrypt.hash(defaultAdminPassword, 10);
       await conn.query(
         'INSERT INTO admins (username, password, full_name, role) VALUES (?, ?, ?, ?)',
-        ['admin', hashedPw, 'ผู้ดูแลระบบ', 'superadmin']
+        [defaultAdminUsername, hashedPw, 'ผู้ดูแลระบบ', 'superadmin']
       );
-      console.log('✅ Created default superadmin: admin / admin123');
+      console.log(`Created default superadmin account: ${defaultAdminUsername}`);
     } else {
       console.log('✅ Admin accounts already exist (' + adminRows[0].cnt + ')');
     }

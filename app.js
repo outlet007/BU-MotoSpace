@@ -4,9 +4,11 @@ const flash = require('connect-flash');
 const path = require('path');
 const fs = require('fs');
 const helmet = require('helmet');
+require('dotenv').config();
 const { csrfMiddleware, generateCsrfToken } = require('./middleware/csrf');
 const { idleSessionTimeout } = require('./middleware/auth');
-require('dotenv').config();
+const MariaDbSessionStore = require('./utils/mariadbSessionStore');
+const cleanupUploadedFiles = require('./middleware/upload').cleanupUploadedFiles;
 
 // ตั้งค่า Timezone ของระบบเป็นประเทศไทย (UTC+7)
 process.env.TZ = 'Asia/Bangkok';
@@ -16,6 +18,32 @@ const { generateSignedUrl, verifySignedUrl, resolveFilePath } = require('./utils
 const app = express();
 const PORT = process.env.APP_PORT || 3000;
 const DEFAULT_SUMMONS_THRESHOLD = 3;
+const NAV_COUNTER_CACHE_TTL_MS = 10 * 1000;
+const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'bu_motospace.sid';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const sessionStore = new MariaDbSessionStore(pool);
+let navCounterCache = { expiresAt: 0, values: null };
+
+function validateRuntimeConfig() {
+  if (!IS_PRODUCTION) return;
+
+  const requiredSecrets = [
+    ['SESSION_SECRET', process.env.SESSION_SECRET],
+    ['IMAGE_SECRET', process.env.IMAGE_SECRET],
+  ];
+
+  requiredSecrets.forEach(([name, value]) => {
+    if (!value || value.length < 32) {
+      throw new Error(`${name} must be set to at least 32 characters in production`);
+    }
+  });
+}
+
+validateRuntimeConfig();
+
+if (IS_PRODUCTION) {
+  app.set('trust proxy', 1);
+}
 
 // Ensure upload directories exist (OUTSIDE public/ for PDPA security)
 const uploadDirs = [
@@ -59,18 +87,21 @@ app.use(helmet({
 }));
 
 // Middlewares
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'secret',
+  name: SESSION_COOKIE_NAME,
+  store: sessionStore,
+  secret: process.env.SESSION_SECRET || 'development_session_secret_change_me',
   resave: false,
   saveUninitialized: false,
+  proxy: IS_PRODUCTION,
   cookie: {
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     httpOnly: true,               // ป้องกัน JS อ่าน cookie
     sameSite: 'lax',              // ป้องกัน CSRF ขั้นพื้นฐาน
-    secure: process.env.NODE_ENV === 'production', // HTTPS only ใน prod
+    secure: IS_PRODUCTION,         // HTTPS only in production
   },
 }));
 app.use(flash());
@@ -83,6 +114,62 @@ app.use(csrfMiddleware);
 // ตรวจสอบทุก request ว่าเวลาของ session ได้หมดอายุเนื่องจากไม่มีการใช้งานหรือยัง
 app.use(idleSessionTimeout);
 
+async function countSummonsCandidates() {
+  const rows = await pool.query(
+    `SELECT COUNT(*) as count
+     FROM (
+       SELECT registration_id
+       FROM (
+         SELECT
+           r.id AS registration_id,
+           COALESCE(ru.violation_type_id, -ru.id) AS violation_group_id,
+           COUNT(v.id) AS type_violations,
+           COALESCE(MAX(vt.max_violations), MAX(ru.max_violations), ${DEFAULT_SUMMONS_THRESHOLD}) AS required_violations
+         FROM registrations r
+         LEFT JOIN (
+           SELECT registration_id, MAX(created_at) AS latest_reset_at
+           FROM summons_appointments
+           GROUP BY registration_id
+         ) sa ON sa.registration_id = r.id
+         JOIN violations v
+           ON v.registration_id = r.id
+          AND v.recorded_at > COALESCE(sa.latest_reset_at, '1000-01-01 00:00:00')
+         JOIN rules ru ON v.rule_id = ru.id
+         LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
+         GROUP BY r.id, COALESCE(ru.violation_type_id, -ru.id)
+         HAVING type_violations >= required_violations
+       ) qualified_by_type
+       GROUP BY registration_id
+     ) candidates`
+  );
+
+  return Number(rows[0] && rows[0].count) || 0;
+}
+
+async function getNavbarCounters() {
+  const now = Date.now();
+  if (navCounterCache.values && navCounterCache.expiresAt > now) {
+    return navCounterCache.values;
+  }
+
+  const [pendingRows, pendingReportRows, summonsCandidatesCount] = await Promise.all([
+    pool.query("SELECT COUNT(*) as count FROM registrations WHERE status = 'pending'"),
+    pool.query("SELECT COUNT(*) as count FROM violation_reports WHERE status = 'pending'"),
+    countSummonsCandidates(),
+  ]);
+
+  navCounterCache = {
+    expiresAt: now + NAV_COUNTER_CACHE_TTL_MS,
+    values: {
+      pendingCount: Number(pendingRows[0] && pendingRows[0].count) || 0,
+      pendingReportsCount: Number(pendingReportRows[0] && pendingReportRows[0].count) || 0,
+      summonsCandidatesCount,
+    },
+  };
+
+  return navCounterCache.values;
+}
+
 // Global template variables
 app.use(async (req, res, next) => {
   res.locals.admin = req.session.admin || null;
@@ -90,210 +177,21 @@ app.use(async (req, res, next) => {
   res.locals.error = req.flash('error');
   res.locals.currentPath = req.path;
   res.locals.currentUrl = req.originalUrl;
-
-  // CSRF token สำหรับทุก form ใน EJS templates
   res.locals.csrfToken = generateCsrfToken(req);
-
-  // Signed URL helper — available in ALL EJS templates as signedUrl(path)
-  // Each call generates a fresh URL valid for 15 minutes
   res.locals.signedUrl = (filePath) => filePath ? generateSignedUrl(filePath) : '';
-  
-  try {
-    const rows = await pool.query("SELECT COUNT(*) as count FROM registrations WHERE status = 'pending'");
-    res.locals.pendingCount = Number(rows[0].count);
-  } catch(e) {
-    console.error('Error fetching pendingCount:', e);
-    res.locals.pendingCount = 0;
-  }
+  res.locals.pendingCount = 0;
+  res.locals.pendingReportsCount = 0;
+  res.locals.summonsCandidatesCount = 0;
+
+  if (!req.session.admin) return next();
 
   try {
-    const vrRows = await pool.query("SELECT COUNT(*) as count FROM violation_reports WHERE status = 'pending'");
-    res.locals.pendingReportsCount = Number(vrRows[0].count);
-  } catch(e) {
-    // Table may not exist yet on first boot — silently ignore
-    res.locals.pendingReportsCount = 0;
-  }
-
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS summons_appointments (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        appointment_code VARCHAR(30) DEFAULT NULL,
-        registration_id INT NOT NULL,
-        scheduled_at DATETIME NOT NULL,
-        note TEXT,
-        written_document VARCHAR(500) DEFAULT NULL,
-        written_document_original_name VARCHAR(255) DEFAULT NULL,
-        summoned_by INT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
-        FOREIGN KEY (summoned_by) REFERENCES admins(id) ON DELETE CASCADE,
-        UNIQUE KEY uq_summons_appointment_code (appointment_code),
-        INDEX idx_registration_created (registration_id, created_at),
-        INDEX idx_scheduled_at (scheduled_at)
-      ) ENGINE=InnoDB
-    `);
-    const summonsAppointmentCodeRows = await pool.query(
-      `SELECT COUNT(*) AS cnt
-       FROM information_schema.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE()
-         AND TABLE_NAME = 'summons_appointments'
-         AND COLUMN_NAME = 'appointment_code'`
-    );
-    if (parseInt(summonsAppointmentCodeRows[0] && summonsAppointmentCodeRows[0].cnt, 10) === 0) {
-      await pool.query('ALTER TABLE summons_appointments ADD COLUMN appointment_code VARCHAR(30) DEFAULT NULL AFTER id');
-    }
-    const summonsAppointmentCodeIndexRows = await pool.query(
-      `SELECT COUNT(*) AS cnt
-       FROM information_schema.STATISTICS
-       WHERE TABLE_SCHEMA = DATABASE()
-         AND TABLE_NAME = 'summons_appointments'
-         AND INDEX_NAME = 'uq_summons_appointment_code'`
-    );
-    if (parseInt(summonsAppointmentCodeIndexRows[0] && summonsAppointmentCodeIndexRows[0].cnt, 10) === 0) {
-      await pool.query('ALTER TABLE summons_appointments ADD UNIQUE INDEX uq_summons_appointment_code (appointment_code)');
-    }
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS violation_types (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        type_name VARCHAR(200) NOT NULL UNIQUE,
-        type_code VARCHAR(20) DEFAULT NULL,
-        max_violations INT NOT NULL DEFAULT 3,
-        is_active BOOLEAN DEFAULT TRUE,
-        created_by INT DEFAULT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_violation_type_code (type_code),
-        FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
-      ) ENGINE=InnoDB
-    `);
-    const violationTypeCodeRows = await pool.query(
-      `SELECT COUNT(*) AS cnt
-       FROM information_schema.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE()
-         AND TABLE_NAME = 'violation_types'
-         AND COLUMN_NAME = 'type_code'`
-    );
-    if (parseInt(violationTypeCodeRows[0] && violationTypeCodeRows[0].cnt, 10) === 0) {
-      await pool.query('ALTER TABLE violation_types ADD COLUMN type_code VARCHAR(20) DEFAULT NULL AFTER type_name');
-    }
-    const violationTypeCodeIndexRows = await pool.query(
-      `SELECT COUNT(*) AS cnt
-       FROM information_schema.STATISTICS
-       WHERE TABLE_SCHEMA = DATABASE()
-         AND TABLE_NAME = 'violation_types'
-         AND INDEX_NAME = 'uq_violation_type_code'`
-    );
-    if (parseInt(violationTypeCodeIndexRows[0] && violationTypeCodeIndexRows[0].cnt, 10) === 0) {
-      await pool.query('ALTER TABLE violation_types ADD UNIQUE INDEX uq_violation_type_code (type_code)');
-    }
-    const ruleTypeColumnRows = await pool.query(
-      `SELECT COUNT(*) AS cnt
-       FROM information_schema.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE()
-         AND TABLE_NAME = 'rules'
-         AND COLUMN_NAME = 'violation_type_id'`
-    );
-    if (parseInt(ruleTypeColumnRows[0] && ruleTypeColumnRows[0].cnt, 10) === 0) {
-      await pool.query('ALTER TABLE rules ADD COLUMN violation_type_id INT DEFAULT NULL AFTER description');
-    }
-    const violationTypeCountRows = await pool.query('SELECT COUNT(*) AS cnt FROM violation_types');
-    if (parseInt(violationTypeCountRows[0] && violationTypeCountRows[0].cnt, 10) === 0) {
-      const maxRows = await pool.query(
-        'SELECT DISTINCT max_violations FROM rules WHERE max_violations IS NOT NULL ORDER BY max_violations ASC'
-      );
-      const seedRows = maxRows.length > 0 ? maxRows : [{ max_violations: DEFAULT_SUMMONS_THRESHOLD }];
-
-      for (const row of seedRows) {
-        const maxViolations = Math.max(parseInt(row.max_violations, 10) || DEFAULT_SUMMONS_THRESHOLD, 1);
-        await pool.query(
-          `INSERT INTO violation_types (type_name, max_violations, is_active)
-           VALUES (?, ?, 1)
-           ON DUPLICATE KEY UPDATE max_violations = VALUES(max_violations)`,
-          [`ประเภทความผิด ${maxViolations} ครั้ง`, maxViolations]
-        );
-      }
-    }
-    const usedTypeCodeRows = await pool.query(
-      `SELECT UPPER(type_code) AS type_code
-       FROM violation_types
-       WHERE type_code IS NOT NULL AND TRIM(type_code) <> ''`
-    );
-    const usedTypeCodes = new Set(usedTypeCodeRows.map(row => row.type_code));
-    const missingTypeCodeRows = await pool.query(
-      `SELECT id, type_name
-       FROM violation_types
-       WHERE type_code IS NULL OR TRIM(type_code) = ''`
-    );
-    for (const row of missingTypeCodeRows) {
-      const name = String(row.type_name || '').toLowerCase();
-      let suggestedCode = null;
-      if (name.includes('เล็กน้อย') || name.includes('minor') || name.includes('min')) suggestedCode = 'MIN';
-      if (name.includes('ปานกลาง') || name.includes('major') || name.includes('maj')) suggestedCode = 'MAJ';
-      if (name.includes('ร้ายแรง') || name.includes('critical') || name.includes('cri')) suggestedCode = 'CRI';
-      if (suggestedCode && !usedTypeCodes.has(suggestedCode)) {
-        await pool.query('UPDATE violation_types SET type_code = ? WHERE id = ?', [suggestedCode, row.id]);
-        usedTypeCodes.add(suggestedCode);
-      }
-    }
-    const unassignedRuleRows = await pool.query(
-      'SELECT COUNT(*) AS cnt FROM rules WHERE violation_type_id IS NULL'
-    );
-    if (parseInt(unassignedRuleRows[0] && unassignedRuleRows[0].cnt, 10) > 0) {
-      const typeRows = await pool.query(
-        'SELECT id, max_violations FROM violation_types ORDER BY is_active DESC, id ASC'
-      );
-
-      for (const type of typeRows) {
-        await pool.query(
-          `UPDATE rules
-           SET violation_type_id = ?
-           WHERE violation_type_id IS NULL AND max_violations = ?`,
-          [type.id, type.max_violations]
-        );
-      }
-
-      if (typeRows.length > 0) {
-        await pool.query(
-          `UPDATE rules
-           SET violation_type_id = ?
-           WHERE violation_type_id IS NULL`,
-          [typeRows[0].id]
-        );
-      }
-    }
-
-    const summonsRows = await pool.query(
-      `SELECT COUNT(*) as count
-       FROM (
-         SELECT registration_id
-         FROM (
-           SELECT
-             r.id AS registration_id,
-             COALESCE(ru.violation_type_id, -ru.id) AS violation_group_id,
-             COUNT(v.id) AS type_violations,
-             COALESCE(MAX(vt.max_violations), MAX(ru.max_violations), ${DEFAULT_SUMMONS_THRESHOLD}) AS required_violations
-           FROM registrations r
-           LEFT JOIN (
-             SELECT registration_id, MAX(created_at) AS latest_reset_at
-             FROM summons_appointments
-             GROUP BY registration_id
-           ) sa ON sa.registration_id = r.id
-           JOIN violations v
-             ON v.registration_id = r.id
-            AND v.recorded_at > COALESCE(sa.latest_reset_at, '1000-01-01 00:00:00')
-           JOIN rules ru ON v.rule_id = ru.id
-           LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
-           GROUP BY r.id, COALESCE(ru.violation_type_id, -ru.id)
-           HAVING type_violations >= required_violations
-         ) qualified_by_type
-         GROUP BY registration_id
-       ) candidates`,
-    );
-    res.locals.summonsCandidatesCount = Number(summonsRows[0].count);
-  } catch(e) {
-    res.locals.summonsCandidatesCount = 0;
+    const counters = await getNavbarCounters();
+    res.locals.pendingCount = counters.pendingCount;
+    res.locals.pendingReportsCount = counters.pendingReportsCount;
+    res.locals.summonsCandidatesCount = counters.summonsCandidatesCount;
+  } catch (err) {
+    console.error('Error fetching navbar counters:', err.message);
   }
 
   next();
@@ -339,8 +237,8 @@ app.get('/img/:encoded', (req, res) => {
   const absPath = resolveFilePath(filePath, __dirname);
 
   // Safety check: path must stay within uploads directory
-  const uploadsDir = path.join(__dirname, 'uploads');
-  if (!absPath.startsWith(uploadsDir)) {
+  const uploadsDir = path.resolve(__dirname, 'uploads');
+  if (!absPath.startsWith(uploadsDir + path.sep)) {
     return res.status(400).end();
   }
 
@@ -349,7 +247,6 @@ app.get('/img/:encoded', (req, res) => {
   }
 
   // 4. Set strict security headers before serving
-  const isSensitive = filePath.includes('/id-cards/');
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.set('Pragma', 'no-cache');
   res.set('X-Content-Type-Options', 'nosniff');
@@ -400,6 +297,21 @@ app.use((req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
+  if (cleanupUploadedFiles) cleanupUploadedFiles(req);
+
+  if (err.name === 'MulterError') {
+    const message = err.code === 'LIMIT_FILE_SIZE'
+      ? 'ไฟล์มีขนาดใหญ่เกิน 10MB'
+      : 'ไม่สามารถอัปโหลดไฟล์ได้';
+    try { req.flash('error', message); } catch(e) {}
+    return res.redirect(req.get('referer') || '/dashboard');
+  }
+
+  if (err.code === 'EUPLOADTYPE') {
+    try { req.flash('error', err.message || 'ชนิดไฟล์ไม่ถูกต้อง'); } catch(e) {}
+    return res.redirect(req.get('referer') || '/dashboard');
+  }
+
   // CSRF token ไม่ถูกต้อง — แลสดงข้อความแล้วเด้งกลับหน้าครั้งที่ไประบบรู้จัก (login page)
   if (err.code === 'EBADCSRFTOKEN') {
     try { req.flash('error', '⚠️ Session หมดอายุหรือคำขอไม่ถูกต้อง กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง'); } catch(e) {}
@@ -416,6 +328,87 @@ app.use((err, req, res, next) => {
 // Database init & start
 const bcrypt = require('bcrypt');
 
+async function columnExists(conn, tableName, columnName) {
+  const [row] = await conn.query(
+    `SELECT COUNT(*) AS cnt
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND COLUMN_NAME = ?`,
+    [tableName, columnName]
+  );
+  return Number(row && row.cnt) > 0;
+}
+
+async function indexExists(conn, tableName, indexName) {
+  const [row] = await conn.query(
+    `SELECT COUNT(*) AS cnt
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND INDEX_NAME = ?`,
+    [tableName, indexName]
+  );
+  return Number(row && row.cnt) > 0;
+}
+
+async function ensureColumn(conn, tableName, columnName, definition) {
+  if (!(await columnExists(conn, tableName, columnName))) {
+    await conn.query(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
+}
+
+async function ensureIndex(conn, tableName, indexName, definition) {
+  if (!(await indexExists(conn, tableName, indexName))) {
+    await conn.query(`ALTER TABLE ${tableName} ADD ${definition}`);
+  }
+}
+
+async function ensureRuntimeSchema(conn) {
+  await ensureColumn(conn, 'admins', 'email', 'VARCHAR(200) DEFAULT NULL');
+  await ensureColumn(conn, 'admins', 'phone', 'VARCHAR(20) DEFAULT NULL');
+  await ensureColumn(conn, 'admins', 'department_id', 'INT DEFAULT NULL');
+
+  await ensureColumn(conn, 'rules', 'violation_type_id', 'INT DEFAULT NULL AFTER description');
+  await ensureColumn(conn, 'rules', 'penalty_type_id', 'INT DEFAULT NULL AFTER violation_type_id');
+  await ensureIndex(conn, 'rules', 'idx_rules_violation_type', 'INDEX idx_rules_violation_type (violation_type_id)');
+  await ensureIndex(conn, 'rules', 'idx_rules_penalty_type', 'INDEX idx_rules_penalty_type (penalty_type_id)');
+  await ensureIndex(conn, 'violations', 'idx_violations_registration_rule_recorded', 'INDEX idx_violations_registration_rule_recorded (registration_id, rule_id, recorded_at)');
+
+  await ensureColumn(conn, 'summons_appointments', 'appointment_code', 'VARCHAR(30) DEFAULT NULL AFTER id');
+  await ensureColumn(conn, 'summons_appointments', 'written_document', 'VARCHAR(500) DEFAULT NULL');
+  await ensureColumn(conn, 'summons_appointments', 'written_document_original_name', 'VARCHAR(255) DEFAULT NULL');
+  await ensureColumn(conn, 'summons_appointments', 'violation_type_id', 'INT DEFAULT NULL');
+  await ensureIndex(conn, 'summons_appointments', 'uq_summons_appointment_code', 'UNIQUE INDEX uq_summons_appointment_code (appointment_code)');
+  await ensureIndex(conn, 'summons_appointments', 'idx_summons_violation_type', 'INDEX idx_summons_violation_type (violation_type_id)');
+
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS violation_reports (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      registration_id INT NOT NULL,
+      rule_id INT NOT NULL,
+      description TEXT,
+      evidence_photo VARCHAR(500),
+      reported_by INT NOT NULL,
+      reported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      status ENUM('pending','confirmed','rejected') NOT NULL DEFAULT 'pending',
+      reviewed_by INT DEFAULT NULL,
+      reviewed_at TIMESTAMP NULL,
+      review_note TEXT,
+      violation_id INT DEFAULT NULL,
+      FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
+      FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE CASCADE,
+      FOREIGN KEY (reported_by) REFERENCES admins(id) ON DELETE CASCADE,
+      FOREIGN KEY (reviewed_by) REFERENCES admins(id) ON DELETE SET NULL,
+      FOREIGN KEY (violation_id) REFERENCES violations(id) ON DELETE SET NULL,
+      INDEX idx_vr_registration (registration_id),
+      INDEX idx_vr_status (status)
+    ) ENGINE=InnoDB
+  `);
+
+  await sessionStore.ready();
+}
+
 async function initDB() {
   let conn;
   try {
@@ -428,15 +421,24 @@ async function initDB() {
       await conn.query(stmt);
     }
 
+    await ensureRuntimeSchema(conn);
+
     // Check if superadmin exists
     const admins = await conn.query('SELECT COUNT(*) as cnt FROM admins');
     if (parseInt(admins[0].cnt) === 0) {
-      const hashedPw = await bcrypt.hash('admin123', 10);
+      const defaultAdminUsername = process.env.DEFAULT_ADMIN_USERNAME || 'admin';
+      const defaultAdminPassword = process.env.DEFAULT_ADMIN_PASSWORD || (IS_PRODUCTION ? '' : 'admin123');
+
+      if (!defaultAdminPassword || (IS_PRODUCTION && defaultAdminPassword.length < 12)) {
+        throw new Error('DEFAULT_ADMIN_PASSWORD must be set to at least 12 characters before creating the first production admin');
+      }
+
+      const hashedPw = await bcrypt.hash(defaultAdminPassword, 10);
       await conn.query(
         'INSERT INTO admins (username, password, full_name, role) VALUES (?, ?, ?, ?)',
-        ['admin', hashedPw, 'ผู้ดูแลระบบ', 'superadmin']
+        [defaultAdminUsername, hashedPw, 'ผู้ดูแลระบบ', 'superadmin']
       );
-      console.log('✅ Created default superadmin: admin / admin123');
+      console.log(`✅ Created default superadmin: ${defaultAdminUsername}`);
     }
 
     // Seed rules if empty
@@ -454,6 +456,7 @@ async function initDB() {
   } catch (err) {
     console.error('❌ Database initialization failed:', err.message);
     console.log('⚠️  Make sure MariaDB is running and check .env settings');
+    throw err;
   } finally {
     if (conn) conn.release();
   }
@@ -463,4 +466,6 @@ initDB().then(() => {
   app.listen(PORT, () => {
     console.log(`🏍️  BU MotoSpace running at http://localhost:${PORT}`);
   });
+}).catch(() => {
+  process.exit(1);
 });

@@ -31,7 +31,12 @@ function validateCsrf(req) {
   const bodyToken    = req.body   && req.body._csrf;
   const headerToken  = req.headers['x-csrf-token'];
   const submitted    = bodyToken || headerToken;
-  return !!(sessionToken && submitted && sessionToken === submitted);
+  if (!sessionToken || !submitted) return false;
+
+  const sessionBuffer = Buffer.from(String(sessionToken));
+  const submittedBuffer = Buffer.from(String(submitted));
+  return sessionBuffer.length === submittedBuffer.length &&
+    crypto.timingSafeEqual(sessionBuffer, submittedBuffer);
 }
 
 /**

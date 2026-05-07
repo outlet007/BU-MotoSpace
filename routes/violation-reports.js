@@ -370,7 +370,15 @@ router.get('/:id', isHead, async (req, res) => {
    POST /violation-reports  —  submit a new report
    ───────────────────────────────────────────────────────────────────────────── */
 router.post('/', upload.single('evidence_photo'), verifyCsrf, async (req, res) => {
-  const { registration_id, rule_id, description } = req.body;
+  const registrationId = parseInt(req.body.registration_id, 10);
+  const ruleId = parseInt(req.body.rule_id, 10);
+  const { description } = req.body;
+
+  if (!Number.isFinite(registrationId) || registrationId <= 0 || !Number.isFinite(ruleId) || ruleId <= 0) {
+    upload.cleanupUploadedFiles(req);
+    req.flash('error', 'กรุณาเลือกผู้ลงทะเบียนและกฎที่กระทำผิดให้ถูกต้อง');
+    return res.redirect('/violations');
+  }
   let conn;
   try {
     conn = await pool.getConnection();
@@ -382,13 +390,14 @@ router.post('/', upload.single('evidence_photo'), verifyCsrf, async (req, res) =
       `INSERT INTO violation_reports
          (registration_id, rule_id, description, evidence_photo, reported_by, status)
        VALUES (?, ?, ?, ?, ?, 'pending')`,
-      [registration_id, rule_id, description || null, evidencePhoto, req.session.admin.id]
+      [registrationId, ruleId, description || null, evidencePhoto, req.session.admin.id]
     );
 
     req.flash('success', 'แจ้งรายการกระทำผิดเรียบร้อยแล้ว รอการตรวจสอบจากผู้ดูแลระบบ');
     res.redirect('/violations');
   } catch (err) {
     console.error('POST /violation-reports error:', err);
+    upload.cleanupUploadedFiles(req);
     req.flash('error', 'เกิดข้อผิดพลาด: ' + err.message);
     res.redirect('/violations');
   } finally {
@@ -401,19 +410,25 @@ router.post('/', upload.single('evidence_photo'), verifyCsrf, async (req, res) =
    ───────────────────────────────────────────────────────────────────────────── */
 router.post('/:id/confirm', isHead, async (req, res) => {
   let conn;
+  let transactionStarted = false;
   try {
     conn = await pool.getConnection();
     await ensureTable(conn);
+    await conn.beginTransaction();
+    transactionStarted = true;
 
     const [report] = await conn.query(
       `SELECT vr.*, ru.max_violations, ru.rule_name, ru.penalty
        FROM violation_reports vr
        JOIN rules ru ON vr.rule_id = ru.id
-       WHERE vr.id = ?`,
+       WHERE vr.id = ? AND vr.status = 'pending'
+       FOR UPDATE`,
       [req.params.id]
     );
 
-    if (!report || report.status !== 'pending') {
+    if (!report) {
+      await conn.rollback();
+      transactionStarted = false;
       req.flash('error', 'ไม่พบรายการหรือรายการนี้ถูกดำเนินการแล้ว');
       return res.redirect('/violation-reports');
     }
@@ -453,13 +468,18 @@ router.post('/:id/confirm', isHead, async (req, res) => {
     }
 
     // Check violation limit
-    const [countResult] = await conn.query(
-      `SELECT COUNT(*) as cnt FROM violations WHERE registration_id = ? AND rule_id = ? AND recorded_at > ?`,
+    const existingViolations = await conn.query(
+      `SELECT id
+       FROM violations
+       WHERE registration_id = ? AND rule_id = ? AND recorded_at > ?
+       FOR UPDATE`,
       [report.registration_id, report.rule_id, latestResetAt]
     );
-    const currentCount = parseInt(countResult.cnt);
+    const currentCount = existingViolations.length;
 
     if (currentCount >= report.max_violations) {
+      await conn.rollback();
+      transactionStarted = false;
       req.flash('error', `ผู้นี้ครบจำนวนครั้งที่กำหนด (${report.max_violations} ครั้ง) สำหรับกฎ "${report.rule_name}" แล้ว`);
       return res.redirect(`/violation-reports/${req.params.id}`);
     }
@@ -475,12 +495,19 @@ router.post('/:id/confirm', isHead, async (req, res) => {
     const newViolationId = result.insertId;
 
     // Update report status
-    await conn.query(
+    const updateResult = await conn.query(
       `UPDATE violation_reports
        SET status = 'confirmed', reviewed_by = ?, reviewed_at = NOW(), violation_id = ?
-       WHERE id = ?`,
+       WHERE id = ? AND status = 'pending'`,
       [req.session.admin.id, newViolationId, req.params.id]
     );
+
+    if (!updateResult.affectedRows) {
+      throw new Error('Report was already processed');
+    }
+
+    await conn.commit();
+    transactionStarted = false;
 
     const remaining = report.max_violations - currentCount - 1;
     if (remaining <= 0) {
@@ -491,6 +518,9 @@ router.post('/:id/confirm', isHead, async (req, res) => {
 
     res.redirect('/violation-reports');
   } catch (err) {
+    if (transactionStarted && conn) {
+      try { await conn.rollback(); } catch (rollbackErr) { console.error('Rollback failed:', rollbackErr); }
+    }
     console.error('POST /violation-reports/:id/confirm error:', err);
     req.flash('error', 'เกิดข้อผิดพลาด: ' + err.message);
     res.redirect(`/violation-reports/${req.params.id}`);

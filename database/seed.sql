@@ -1,10 +1,5 @@
 USE bu_motospace;
 
--- Default superadmin (password: admin123)
-INSERT INTO admins (username, password, full_name, role) VALUES
-('admin', '$2b$10$YQ8GzWz5GzJ5X5A5X5e5eOJGz5X5X5X5X5X5X5X5X5X5X5X5X5X', 'ผู้ดูแลระบบ', 'superadmin');
--- Note: password will be generated on first run by seed script
-
 -- Default rules
 INSERT INTO rules (rule_name, description, max_violations, penalty, is_active) VALUES
 ('จอดรถในที่ห้ามจอด', 'จอดรถจักรยานยนต์ในพื้นที่ที่ไม่อนุญาต เช่น ทางเดินเท้า ประตูทางเข้า-ออก', 3, 'ตักเตือน / ระงับสิทธิ์การใช้ที่จอดรถ', TRUE),

@@ -10,6 +10,11 @@ const csvParser = require('csv-parser');
 
 router.use(isAuthenticated, isHead);
 
+const configuredImportLimit = parseInt(process.env.MAX_IMPORT_ROWS || '5000', 10);
+const MAX_IMPORT_ROWS = Number.isFinite(configuredImportLimit) && configuredImportLimit > 0
+  ? configuredImportLimit
+  : 5000;
+
 // Redirect /data to /data/import
 router.get('/', (req, res) => {
   res.redirect('/data/import');
@@ -152,14 +157,20 @@ router.post('/import/registrations', isHead, upload.single('file'), verifyCsrf, 
           .on('error', reject);
       });
     } else if (fileExt === 'xlsx' || fileExt === 'xls') {
-      const workbook = xlsx.readFile(filePath);
+      const workbook = xlsx.readFile(filePath, { sheetRows: MAX_IMPORT_ROWS + 1 });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
       const data = xlsx.utils.sheet_to_json(sheet);
       results.push(...data);
     } else {
-      fs.unlinkSync(filePath);
+      upload.cleanupUploadedFiles(req);
       req.flash('error', 'รองรับเฉพาะไฟล์ .csv, .xlsx และ .xls เท่านั้น');
+      return res.redirect('/data/import');
+    }
+
+    if (results.length > MAX_IMPORT_ROWS) {
+      upload.cleanupUploadedFiles(req);
+      req.flash('error', `นำเข้าได้สูงสุด ${MAX_IMPORT_ROWS} รายการต่อครั้ง`);
       return res.redirect('/data/import');
     }
 
@@ -189,14 +200,12 @@ router.post('/import/registrations', isHead, upload.single('file'), verifyCsrf, 
     }
 
     // Cleanup temp file
-    fs.unlinkSync(filePath);
+    upload.cleanupUploadedFiles(req);
 
     req.flash('success', `นำเข้าสำเร็จ ${imported} รายการ, ข้าม ${skipped} รายการ (อาจเป็นข้อมูลซ้ำ)`);
   } catch (err) {
     console.error(err);
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
+    upload.cleanupUploadedFiles(req);
     req.flash('error', 'เกิดข้อผิดพลาดในการนำเข้าข้อมูล. โปรดตรวจสอบรูปแบบไฟล์');
   } finally {
     if (conn) conn.release();

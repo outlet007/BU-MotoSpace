@@ -4,6 +4,9 @@ const upload = require('../middleware/upload');
 const { generateHash } = require('../utils/imageHash');
 const rateLimit = require('express-rate-limit');
 const https = require('https');
+const { verifyCsrf } = require('../middleware/csrf');
+
+const VALID_USER_TYPES = new Set(['student', 'staff']);
 
 // ─── Rate Limiter ─────────────────────────────────────────────────────────────
 // จำกัด POST /register ไม่เกิน 5 ครั้ง / 15 นาที / IP
@@ -25,7 +28,17 @@ async function verifyRecaptcha(token) {
   if (!secretKey || !token) return { success: false, score: 0 };
 
   return new Promise((resolve) => {
-    const postData = `secret=${secretKey}&response=${token}`;
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+
+    const postData = new URLSearchParams({
+      secret: secretKey,
+      response: token,
+    }).toString();
     const options = {
       hostname: 'www.google.com',
       path: '/recaptcha/api/siteverify',
@@ -40,11 +53,15 @@ async function verifyRecaptcha(token) {
       let data = '';
       resp.on('data', (chunk) => { data += chunk; });
       resp.on('end', () => {
-        try { resolve(JSON.parse(data)); }
-        catch { resolve({ success: false, score: 0 }); }
+        try { finish(JSON.parse(data)); }
+        catch { finish({ success: false, score: 0 }); }
       });
     });
-    reqHttp.on('error', () => resolve({ success: false, score: 0 }));
+    reqHttp.setTimeout(5000, () => {
+      reqHttp.destroy();
+      finish({ success: false, score: 0 });
+    });
+    reqHttp.on('error', () => finish({ success: false, score: 0 }));
     reqHttp.write(postData);
     reqHttp.end();
   });
@@ -63,16 +80,40 @@ router.post('/', registerLimiter, upload.fields([
   { name: 'motorcycle_photo', maxCount: 1 },
   { name: 'plate_photo', maxCount: 1 },
   { name: 'id_card_photo', maxCount: 1 },
-]), async (req, res) => {
-  const { user_type, id_number, first_name, last_name, phone, license_plate, province } = req.body;
+]), verifyCsrf, async (req, res) => {
+  const {
+    user_type,
+    id_number,
+    first_name,
+    last_name,
+    phone,
+    license_plate,
+    province,
+  } = req.body;
   let conn;
+  let transactionStarted = false;
   try {
     // ─── Layer 1: Honeypot Check ────────────────────────────────────────────
     // Field นี้ซ่อนจาก user จริง — bot มักกรอกทุก field
     const honeypot = req.body.website || '';
     if (honeypot.trim() !== '') {
       // Bot detected — reject แบบเงียบ (ไม่แจ้งว่าถูกตรวจจับ)
+      upload.cleanupUploadedFiles(req);
       req.flash('success', 'ลงทะเบียนเรียบร้อยแล้ว กรุณารอการอนุมัติจากเจ้าหน้าที่');
+      return res.redirect('/register');
+    }
+
+    const cleanUserType = VALID_USER_TYPES.has(user_type) ? user_type : null;
+    const cleanIdNumber = (id_number || '').trim();
+    const cleanFirstName = (first_name || '').trim();
+    const cleanLastName = (last_name || '').trim();
+    const cleanPhone = (phone || '').trim() || null;
+    const cleanLicensePlate = (license_plate || '').trim();
+    const cleanProvince = (province || '').trim();
+
+    if (!cleanUserType || !cleanIdNumber || !cleanFirstName || !cleanLastName || !cleanLicensePlate || !cleanProvince) {
+      upload.cleanupUploadedFiles(req);
+      req.flash('error', 'กรุณากรอกข้อมูลให้ครบถ้วน');
       return res.redirect('/register');
     }
 
@@ -84,6 +125,7 @@ router.post('/', registerLimiter, upload.fields([
     const score = recaptchaResult.score ?? 0;
     if (!recaptchaResult.success || score < 0.5) {
       console.warn(`[reCAPTCHA] BLOCKED — success=${recaptchaResult.success}, score=${score}, ip=${req.ip}`);
+      upload.cleanupUploadedFiles(req);
       req.flash('error', '❌ ไม่สามารถยืนยันตัวตนได้ กรุณาลองใหม่อีกครั้ง (reCAPTCHA failed)');
       return res.redirect('/register');
     }
@@ -92,10 +134,15 @@ router.post('/', registerLimiter, upload.fields([
 
     // ─── Layer 3: Business Logic ────────────────────────────────────────────
     conn = await pool.getConnection();
+    await conn.beginTransaction();
+    transactionStarted = true;
 
     // Check duplicate plate
-    const existing = await conn.query('SELECT id FROM registrations WHERE license_plate = ?', [license_plate]);
+    const existing = await conn.query('SELECT id FROM registrations WHERE license_plate = ?', [cleanLicensePlate]);
     if (existing.length > 0) {
+      await conn.rollback();
+      transactionStarted = false;
+      upload.cleanupUploadedFiles(req);
       req.flash('error', 'ป้ายทะเบียนนี้ได้ลงทะเบียนไว้แล้ว');
       return res.redirect('/register');
     }
@@ -107,7 +154,7 @@ router.post('/', registerLimiter, upload.fields([
     const result = await conn.query(
       `INSERT INTO registrations (user_type, id_number, first_name, last_name, phone, license_plate, province, motorcycle_photo, plate_photo, id_card_photo)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [user_type, id_number, first_name, last_name, phone, license_plate, province, motorcyclePhoto, platePhoto, idCardPhoto]
+      [cleanUserType, cleanIdNumber, cleanFirstName, cleanLastName, cleanPhone, cleanLicensePlate, cleanProvince, motorcyclePhoto, platePhoto, idCardPhoto]
     );
 
     const regId = Number(result.insertId);
@@ -128,11 +175,21 @@ router.post('/', registerLimiter, upload.fields([
       }
     }
 
+    await conn.commit();
+    transactionStarted = false;
     req.flash('success', 'ลงทะเบียนเรียบร้อยแล้ว กรุณารอการอนุมัติจากเจ้าหน้าที่');
     res.redirect('/register');
   } catch (err) {
     console.error(err);
-    req.flash('error', 'เกิดข้อผิดพลาด: ' + err.message);
+    if (transactionStarted && conn) {
+      await conn.rollback().catch(() => {});
+    }
+    upload.cleanupUploadedFiles(req);
+    if (err.code === 'ER_DUP_ENTRY') {
+      req.flash('error', 'ป้ายทะเบียนนี้ได้ลงทะเบียนไว้แล้ว');
+    } else {
+      req.flash('error', 'เกิดข้อผิดพลาดในการลงทะเบียน กรุณาลองใหม่อีกครั้ง');
+    }
     res.redirect('/register');
   } finally {
     if (conn) conn.release();

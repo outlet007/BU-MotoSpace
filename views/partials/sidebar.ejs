@@ -122,9 +122,12 @@
           <%= admin ? (admin.role === 'superadmin' ? 'ผู้ดูแลระบบ' : admin.role === 'head' ? 'หัวหน้า' : 'เจ้าหน้าที่') : '' %>
         </p>
       </div>
-      <a href="/auth/logout" class="text-slate-400 hover:text-white tooltip" data-tip="ออกจากระบบ">
-        <i data-lucide="log-out" class="w-4 h-4"></i>
-      </a>
+      <form method="POST" action="/auth/logout">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="text-slate-400 hover:text-white tooltip" data-tip="ออกจากระบบ" aria-label="ออกจากระบบ">
+          <i data-lucide="log-out" class="w-4 h-4"></i>
+        </button>
+      </form>
     </div>
   </div>
 </aside>

@@ -457,11 +457,13 @@ router.post('/:id/summons/:appointmentId/edit', isHead, upload.single('written_d
     : '/registrations';
 
   if (!Number.isFinite(registrationId) || registrationId <= 0 || !Number.isFinite(appointmentId) || appointmentId <= 0) {
+    upload.cleanupUploadedFiles(req);
     req.flash('error', 'ข้อมูลรายการเรียกพบไม่ถูกต้อง');
     return res.redirect(returnTo);
   }
 
   if (!isValidDatetimeLocal(scheduledAtRaw)) {
+    upload.cleanupUploadedFiles(req);
     req.flash('error', 'กรุณาระบุวันและเวลานัดหมายให้ถูกต้อง');
     return res.redirect(returnTo);
   }
@@ -480,6 +482,7 @@ router.post('/:id/summons/:appointmentId/edit', isHead, upload.single('written_d
     );
 
     if (!appointment) {
+      upload.cleanupUploadedFiles(req);
       req.flash('error', 'ไม่พบรายการเรียกพบที่ต้องการแก้ไข');
       return res.redirect(returnTo);
     }
@@ -500,6 +503,7 @@ router.post('/:id/summons/:appointmentId/edit', isHead, upload.single('written_d
     req.flash('success', `แก้ไขรายละเอียดการเรียกพบ ${appointment.first_name} ${appointment.last_name} เรียบร้อยแล้ว`);
   } catch (err) {
     console.error('POST /registrations/:id/summons/:appointmentId/edit error:', err);
+    upload.cleanupUploadedFiles(req);
     req.flash('error', 'ไม่สามารถแก้ไขรายละเอียดการเรียกพบได้: ' + err.message);
   } finally {
     if (conn) conn.release();

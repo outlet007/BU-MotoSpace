@@ -244,6 +244,38 @@ async function generateAppointmentCode(conn, requestedCode = null) {
   return code;
 }
 
+async function insertSummonsAppointmentWithRetry(conn, data) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const appointmentCode = await generateAppointmentCode(
+      conn,
+      attempt === 0 ? data.requestedAppointmentCode : null
+    );
+
+    try {
+      await conn.query(
+        `INSERT INTO summons_appointments
+           (appointment_code, registration_id, scheduled_at, note, written_document, written_document_original_name, summoned_by, violation_type_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          appointmentCode,
+          data.registrationId,
+          data.scheduledAt,
+          data.note,
+          data.writtenDocument,
+          data.writtenDocumentOriginalName,
+          data.summonedBy,
+          data.violationTypeId,
+        ]
+      );
+      return appointmentCode;
+    } catch (err) {
+      if (err.code !== 'ER_DUP_ENTRY') throw err;
+    }
+  }
+
+  throw new Error('Unable to allocate a unique appointment code');
+}
+
 async function backfillMissingAppointmentCodes(conn) {
   const rows = await conn.query(
     `SELECT id, created_at
@@ -647,11 +679,13 @@ router.post('/summons/:registrationId/confirm', upload.single('written_document'
     : '/reports/summons';
 
   if (!Number.isFinite(registrationId) || registrationId <= 0) {
+    upload.cleanupUploadedFiles(req);
     req.flash('error', 'ข้อมูลผู้เข้าข่ายเรียกพบไม่ถูกต้อง');
     return res.redirect(returnTo);
   }
 
   if (!isValidDatetimeLocal(scheduledAtRaw)) {
+    upload.cleanupUploadedFiles(req);
     req.flash('error', 'กรุณาระบุวันและเวลานัดหมายให้ถูกต้อง');
     return res.redirect(returnTo);
   }
@@ -671,18 +705,21 @@ router.post('/summons/:registrationId/confirm', upload.single('written_document'
     );
 
     if (!registration) {
+      upload.cleanupUploadedFiles(req);
       req.flash('error', 'ไม่พบข้อมูลผู้เข้าข่ายเรียกพบ');
       return res.redirect(returnTo);
     }
 
-    const appointmentCode = await generateAppointmentCode(conn, requestedAppointmentCode);
-
-    await conn.query(
-      `INSERT INTO summons_appointments
-         (appointment_code, registration_id, scheduled_at, note, written_document, written_document_original_name, summoned_by, violation_type_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [appointmentCode, registrationId, scheduledAt, note, writtenDocument, writtenDocumentOriginalName, req.session.admin.id, violationTypeId]
-    );
+    await insertSummonsAppointmentWithRetry(conn, {
+      requestedAppointmentCode,
+      registrationId,
+      scheduledAt,
+      note,
+      writtenDocument,
+      writtenDocumentOriginalName,
+      summonedBy: req.session.admin.id,
+      violationTypeId,
+    });
 
     const typeLabel = violationGroupLabel ? ` (ประเภท: ${violationGroupLabel})` : '';
     req.flash(
@@ -692,6 +729,7 @@ router.post('/summons/:registrationId/confirm', upload.single('written_document'
     return res.redirect(returnTo);
   } catch (err) {
     console.error('POST /reports/summons/:registrationId/confirm error:', err);
+    upload.cleanupUploadedFiles(req);
     req.flash('error', 'ไม่สามารถบันทึกการเรียกพบได้: ' + err.message);
     return res.redirect(returnTo);
   } finally {
@@ -709,11 +747,13 @@ router.post('/summons/appointments/:appointmentId/edit', upload.single('written_
     : '/reports/summons';
 
   if (!Number.isFinite(appointmentId) || appointmentId <= 0) {
+    upload.cleanupUploadedFiles(req);
     req.flash('error', 'ข้อมูลรายการเรียกพบไม่ถูกต้อง');
     return res.redirect(returnTo);
   }
 
   if (!isValidDatetimeLocal(scheduledAtRaw)) {
+    upload.cleanupUploadedFiles(req);
     req.flash('error', 'กรุณาระบุวันและเวลานัดหมายให้ถูกต้อง');
     return res.redirect(returnTo);
   }
@@ -732,6 +772,7 @@ router.post('/summons/appointments/:appointmentId/edit', upload.single('written_
     );
 
     if (!appointment) {
+      upload.cleanupUploadedFiles(req);
       req.flash('error', 'ไม่พบรายการเรียกพบที่ต้องการแก้ไข');
       return res.redirect(returnTo);
     }
@@ -754,6 +795,7 @@ router.post('/summons/appointments/:appointmentId/edit', upload.single('written_
     return res.redirect(returnTo);
   } catch (err) {
     console.error('POST /reports/summons/appointments/:appointmentId/edit error:', err);
+    upload.cleanupUploadedFiles(req);
     req.flash('error', 'ไม่สามารถแก้ไขรายการเรียกพบได้: ' + err.message);
     return res.redirect(returnTo);
   } finally {

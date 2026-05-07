@@ -4,6 +4,7 @@
 // ถ้า admin ไม่มีการใช้งานระบบใดๆ ภายใน IDLE_TIMEOUT_MS จะถูก logout อัตโนมัติ
 const IDLE_TIMEOUT_MS = 60 * 60 * 1000; // 1 ชั่วโมง
 const SESSION_EXPIRED_MESSAGE = 'เซสชันของคุณหมดเวลาเนื่องจากไม่มีการใช้งาน กรุณาเข้าสู่ระบบใหม่อีกครั้ง';
+const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'bu_motospace.sid';
 
 /**
  * Middleware: ตรวจสอบ idle session ทุก request
@@ -25,7 +26,7 @@ function idleSessionTimeout(req, res, next) {
     const wantsJson = req.xhr || req.headers['accept']?.includes('application/json');
 
     function respondAfterDestroy() {
-      res.clearCookie('connect.sid', { path: '/' });
+      res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
 
       if (wantsJson) {
         return res.status(401).json({

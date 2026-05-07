@@ -110,6 +110,14 @@ CREATE TABLE IF NOT EXISTS app_settings (
   FOREIGN KEY (updated_by) REFERENCES admins(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS app_sessions (
+  sid VARCHAR(128) PRIMARY KEY,
+  sess LONGTEXT NOT NULL,
+  expires_at DATETIME NOT NULL,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_app_sessions_expires_at (expires_at)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS violations (
   id INT AUTO_INCREMENT PRIMARY KEY,
   registration_id INT NOT NULL,
@@ -122,7 +130,8 @@ CREATE TABLE IF NOT EXISTS violations (
   FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE CASCADE,
   FOREIGN KEY (recorded_by) REFERENCES admins(id) ON DELETE CASCADE,
   INDEX idx_registration (registration_id),
-  INDEX idx_rule (rule_id)
+  INDEX idx_rule (rule_id),
+  INDEX idx_violations_registration_rule_recorded (registration_id, rule_id, recorded_at)
 ) ENGINE=InnoDB;
 
 -- ตารางบันทึกการนัดเรียกพบ
@@ -134,13 +143,38 @@ CREATE TABLE IF NOT EXISTS summons_appointments (
   note TEXT,
   written_document VARCHAR(500) DEFAULT NULL,
   written_document_original_name VARCHAR(255) DEFAULT NULL,
+  violation_type_id INT DEFAULT NULL,
   summoned_by INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
   FOREIGN KEY (summoned_by) REFERENCES admins(id) ON DELETE CASCADE,
+  FOREIGN KEY (violation_type_id) REFERENCES violation_types(id) ON DELETE SET NULL,
   UNIQUE KEY uq_summons_appointment_code (appointment_code),
   INDEX idx_registration_created (registration_id, created_at),
+  INDEX idx_summons_violation_type (violation_type_id),
   INDEX idx_scheduled_at (scheduled_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS violation_reports (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  registration_id INT NOT NULL,
+  rule_id INT NOT NULL,
+  description TEXT,
+  evidence_photo VARCHAR(500),
+  reported_by INT NOT NULL,
+  reported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  status ENUM('pending','confirmed','rejected') NOT NULL DEFAULT 'pending',
+  reviewed_by INT DEFAULT NULL,
+  reviewed_at TIMESTAMP NULL,
+  review_note TEXT,
+  violation_id INT DEFAULT NULL,
+  FOREIGN KEY (registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
+  FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE CASCADE,
+  FOREIGN KEY (reported_by) REFERENCES admins(id) ON DELETE CASCADE,
+  FOREIGN KEY (reviewed_by) REFERENCES admins(id) ON DELETE SET NULL,
+  FOREIGN KEY (violation_id) REFERENCES violations(id) ON DELETE SET NULL,
+  INDEX idx_vr_registration (registration_id),
+  INDEX idx_vr_status (status)
 ) ENGINE=InnoDB;
 
 -- ตาราง image fingerprints สำหรับค้นหาด้วยภาพ

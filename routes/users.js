@@ -6,6 +6,8 @@ const { isAuthenticated, isSuperAdmin } = require('../middleware/auth');
 router.use(isAuthenticated);
 router.use(isSuperAdmin);
 
+const VALID_ROLES = new Set(['officer', 'head', 'superadmin']);
+
 async function ensureDepartmentsTable(conn) {
   await conn.query(`
     CREATE TABLE IF NOT EXISTS departments (
@@ -90,6 +92,15 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const { username, password, full_name, email, phone, role } = req.body;
   const departmentId = req.body.department_id ? parseInt(req.body.department_id, 10) : null;
+  const cleanUsername = (username || '').trim();
+  const cleanFullName = (full_name || '').trim();
+  const cleanRole = VALID_ROLES.has(role) ? role : null;
+
+  if (!cleanUsername || !password || !cleanFullName || !cleanRole) {
+    req.flash('error', 'กรุณากรอกข้อมูลผู้ใช้ให้ครบถ้วน');
+    return res.redirect('/users');
+  }
+
   let conn;
   try {
     conn = await pool.getConnection();
@@ -97,7 +108,7 @@ router.post('/', async (req, res) => {
     const hashedPw = await bcrypt.hash(password, 10);
     await conn.query(
       'INSERT INTO admins (username, password, full_name, email, phone, department_id, role) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [username, hashedPw, full_name, email || null, phone || null, departmentId, role]
+      [cleanUsername, hashedPw, cleanFullName, email || null, phone || null, departmentId, cleanRole]
     );
     req.flash('success', 'เพิ่มผู้ใช้เรียบร้อยแล้ว');
   } catch (err) {
@@ -117,6 +128,14 @@ router.post('/', async (req, res) => {
 router.post('/:id/update', async (req, res) => {
   const { full_name, email, phone, role, is_active, password } = req.body;
   const departmentId = req.body.department_id ? parseInt(req.body.department_id, 10) : null;
+  const cleanFullName = (full_name || '').trim();
+  const cleanRole = VALID_ROLES.has(role) ? role : null;
+
+  if (!cleanFullName || !cleanRole) {
+    req.flash('error', 'กรุณากรอกข้อมูลผู้ใช้ให้ครบถ้วน');
+    return res.redirect('/users');
+  }
+
   let conn;
   try {
     conn = await pool.getConnection();
@@ -125,12 +144,12 @@ router.post('/:id/update', async (req, res) => {
       const hashedPw = await bcrypt.hash(password, 10);
       await conn.query(
         'UPDATE admins SET full_name = ?, email = ?, phone = ?, department_id = ?, role = ?, is_active = ?, password = ? WHERE id = ?',
-        [full_name, email || null, phone || null, departmentId, role, is_active === 'on' ? 1 : 0, hashedPw, req.params.id]
+        [cleanFullName, email || null, phone || null, departmentId, cleanRole, is_active === 'on' ? 1 : 0, hashedPw, req.params.id]
       );
     } else {
       await conn.query(
         'UPDATE admins SET full_name = ?, email = ?, phone = ?, department_id = ?, role = ?, is_active = ? WHERE id = ?',
-        [full_name, email || null, phone || null, departmentId, role, is_active === 'on' ? 1 : 0, req.params.id]
+        [cleanFullName, email || null, phone || null, departmentId, cleanRole, is_active === 'on' ? 1 : 0, req.params.id]
       );
     }
     req.flash('success', 'อัปเดตผู้ใช้เรียบร้อยแล้ว');

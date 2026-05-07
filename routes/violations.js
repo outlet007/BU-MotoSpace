@@ -256,7 +256,16 @@ router.get('/:id', async (req, res) => {
 // POST /violations — บันทึกเป็น "รายงานรอตรวจสอบ" ใน violation_reports (pending)
 // ไม่บันทึกลง violations โดยตรง — ต้องรอผู้ดูแลระบบยืนยันก่อน
 router.post('/', upload.single('evidence_photo'), verifyCsrf, async (req, res) => {
-  const { registration_id, rule_id, description } = req.body;
+  const registrationId = parseInt(req.body.registration_id, 10);
+  const ruleId = parseInt(req.body.rule_id, 10);
+  const { description } = req.body;
+
+  if (!Number.isFinite(registrationId) || registrationId <= 0 || !Number.isFinite(ruleId) || ruleId <= 0) {
+    upload.cleanupUploadedFiles(req);
+    req.flash('error', 'กรุณาเลือกผู้ลงทะเบียนและกฎที่กระทำผิดให้ถูกต้อง');
+    return res.redirect('/violations/create?reg_id=' + (req.body.registration_id || ''));
+  }
+
   let conn;
   try {
     conn = await pool.getConnection();
@@ -292,15 +301,16 @@ router.post('/', upload.single('evidence_photo'), verifyCsrf, async (req, res) =
       `INSERT INTO violation_reports
          (registration_id, rule_id, description, evidence_photo, reported_by, status)
        VALUES (?, ?, ?, ?, ?, 'pending')`,
-      [registration_id, rule_id, description || null, evidencePhoto, req.session.admin.id]
+      [registrationId, ruleId, description || null, evidencePhoto, req.session.admin.id]
     );
 
     req.flash('success', '📋 แจ้งรายการกระทำผิดเรียบร้อยแล้ว — รอการตรวจสอบและยืนยันจากผู้ดูแลระบบก่อนจึงจะบันทึกลงประวัติ');
     res.redirect('/violations');
   } catch (err) {
     console.error('POST /violations error:', err);
+    upload.cleanupUploadedFiles(req);
     req.flash('error', 'เกิดข้อผิดพลาด: ' + err.message);
-    res.redirect('/violations/create?reg_id=' + (registration_id || ''));
+    res.redirect('/violations/create?reg_id=' + (req.body.registration_id || ''));
   } finally {
     if (conn) conn.release();
   }
@@ -315,16 +325,19 @@ router.post('/:id/edit', isHead, upload.single('evidence_photo'), verifyCsrf, as
   const returnTo = Number.isFinite(violationId) && violationId > 0 ? `/violations/${violationId}` : '/violations';
 
   if (!Number.isFinite(violationId) || violationId <= 0) {
+    upload.cleanupUploadedFiles(req);
     req.flash('error', 'ข้อมูลรายการแจ้งไม่ถูกต้อง');
     return res.redirect('/violations');
   }
 
   if (!Number.isFinite(ruleId) || ruleId <= 0) {
+    upload.cleanupUploadedFiles(req);
     req.flash('error', 'กรุณาเลือกกฎที่กระทำผิด');
     return res.redirect(returnTo);
   }
 
   if (!isValidDatetimeLocal(recordedAtRaw)) {
+    upload.cleanupUploadedFiles(req);
     req.flash('error', 'กรุณาระบุวันที่บันทึกให้ถูกต้อง');
     return res.redirect(returnTo);
   }
@@ -341,6 +354,7 @@ router.post('/:id/edit', isHead, upload.single('evidence_photo'), verifyCsrf, as
     );
 
     if (!violation) {
+      upload.cleanupUploadedFiles(req);
       req.flash('error', 'ไม่พบรายการแจ้งที่ต้องการแก้ไข');
       return res.redirect('/violations');
     }
@@ -351,6 +365,7 @@ router.post('/:id/edit', isHead, upload.single('evidence_photo'), verifyCsrf, as
     );
 
     if (!rule) {
+      upload.cleanupUploadedFiles(req);
       req.flash('error', 'ไม่พบกฎที่เลือก');
       return res.redirect(returnTo);
     }
@@ -389,6 +404,7 @@ router.post('/:id/edit', isHead, upload.single('evidence_photo'), verifyCsrf, as
     return res.redirect(returnTo);
   } catch (err) {
     console.error('POST /violations/:id/edit error:', err);
+    upload.cleanupUploadedFiles(req);
     req.flash('error', 'ไม่สามารถแก้ไขรายการแจ้งได้: ' + err.message);
     return res.redirect(returnTo);
   } finally {
