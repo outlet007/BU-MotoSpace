@@ -2,7 +2,11 @@
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
       <!-- Hamburger (mobile) -->
-      <button onclick="toggleSidebar()" class="lg:hidden p-2 -ml-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors">
+      <button type="button"
+              data-sidebar-toggle
+              aria-controls="sidebar"
+              aria-expanded="false"
+              class="lg:hidden p-2 -ml-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors">
         <i data-lucide="menu" class="w-5 h-5"></i>
       </button>
       <h2 class="text-base sm:text-lg font-semibold text-slate-800 truncate"><%= typeof title !== 'undefined' ? title.split(' - ')[0] : 'BU MotoSpace' %></h2>

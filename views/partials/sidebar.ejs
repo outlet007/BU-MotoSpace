@@ -1,5 +1,5 @@
 <!-- Sidebar Overlay (mobile) -->
-<div id="sidebar-overlay" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-30 lg:hidden hidden" onclick="toggleSidebar()"></div>
+<div id="sidebar-overlay" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-30 lg:hidden hidden" data-sidebar-close></div>
 
 <aside id="sidebar" class="fixed left-0 top-0 bottom-0 w-72 sidebar-gradient text-white flex flex-col z-40 transition-transform duration-300 -translate-x-full lg:translate-x-0">
   <!-- Logo -->
@@ -14,7 +14,10 @@
       </div>
     </div>
     <!-- Close button (mobile) -->
-    <button onclick="toggleSidebar()" class="lg:hidden text-slate-400 hover:text-white p-1">
+    <button type="button"
+            data-sidebar-close
+            aria-controls="sidebar"
+            class="lg:hidden text-slate-400 hover:text-white p-1">
       <i data-lucide="x" class="w-5 h-5"></i>
     </button>
   </div>
@@ -291,20 +294,33 @@
 
 <script>
   /* ── Sidebar helpers ─────────────────────────────────── */
-  function toggleSidebar() {
+  function setSidebarOpen(isOpen) {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebar-overlay');
-    sidebar.classList.toggle('-translate-x-full');
-    overlay.classList.toggle('hidden');
+    if (!sidebar || !overlay) return;
+
+    sidebar.classList.toggle('-translate-x-full', !isOpen);
+    overlay.classList.toggle('hidden', !isOpen);
+
+    document.querySelectorAll('[data-sidebar-toggle]').forEach(function(button) {
+      button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
   }
+
+  function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+    setSidebarOpen(sidebar.classList.contains('-translate-x-full'));
+  }
+
   function closeSidebarOnMobile() {
     if (window.innerWidth < 1024) {
-      const sidebar = document.getElementById('sidebar');
-      const overlay = document.getElementById('sidebar-overlay');
-      sidebar.classList.add('-translate-x-full');
-      overlay.classList.add('hidden');
+      setSidebarOpen(false);
     }
   }
+
+  window.toggleSidebar = toggleSidebar;
+  window.closeSidebarOnMobile = closeSidebarOnMobile;
 
   /* ── Image Search Modal ──────────────────────────────── */
   function openImageSearchModal() {
@@ -419,7 +435,21 @@
   }
 
   /* Wire up sidebar button, close button, backdrop via addEventListener */
-  document.addEventListener('DOMContentLoaded', function() {});
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('[data-sidebar-toggle]').forEach(function(button) {
+      button.addEventListener('click', function(e) {
+        e.preventDefault();
+        toggleSidebar();
+      });
+    });
+
+    document.querySelectorAll('[data-sidebar-close]').forEach(function(button) {
+      button.addEventListener('click', function(e) {
+        e.preventDefault();
+        setSidebarOpen(false);
+      });
+    });
+  });
   (function() {
     var btnOpen = document.getElementById('btn-image-search');
     if (btnOpen) {
