@@ -84,8 +84,53 @@
           <p class="text-sm text-slate-500">พบ <span class="font-semibold text-slate-700"><%= total %></span> รายการ</p>
         </div>
 
+        <!-- Mobile Cards -->
+        <div class="sm:hidden space-y-3">
+          <% if (registrations.length > 0) { %>
+            <% registrations.forEach(function(r) { %>
+              <% const registrationStatusLabel = r.status === 'approved' ? 'อนุมัติ' : r.status === 'pending' ? 'รอดำเนินการ' : 'ปฏิเสธ'; %>
+              <a href="/registrations/<%= r.id %>" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm active:bg-slate-50">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="text-xs font-mono font-semibold text-brand-700 break-words"><%= r.id_number %></p>
+                    <p class="font-bold text-slate-800 mt-1 break-words"><%= r.first_name %> <%= r.last_name %></p>
+                  </div>
+                  <span class="badge <%= r.status === 'approved' ? 'badge-success' : r.status === 'pending' ? 'badge-warning' : 'badge-danger' %> flex-shrink-0"><%= registrationStatusLabel %></span>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mt-4">
+                  <div class="min-w-0">
+                    <p class="text-xs font-medium text-slate-400">ป้ายทะเบียน</p>
+                    <p class="font-semibold text-slate-700 break-words"><%= r.license_plate %></p>
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-xs font-medium text-slate-400">จังหวัด</p>
+                    <p class="text-sm text-slate-600 break-words"><%= r.province %></p>
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-xs font-medium text-slate-400">ประเภทผู้ใช้</p>
+                    <span class="badge <%= r.user_type === 'student' ? 'badge-success' : 'badge-info' %> mt-1"><%= r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %></span>
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-xs font-medium text-slate-400">วันที่ลงทะเบียน</p>
+                    <p class="text-sm text-slate-600"><%= new Date(r.registered_at).toLocaleDateString('th-TH') %></p>
+                  </div>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end text-sm font-semibold text-brand-600">
+                  ดูรายละเอียด
+                  <i data-lucide="chevron-right" class="w-4 h-4 ml-1"></i>
+                </div>
+              </a>
+            <% }); %>
+          <% } else { %>
+            <div class="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">
+              <i data-lucide="clipboard-x" class="w-10 h-10 mx-auto text-slate-300"></i>
+              <p class="text-sm font-medium mt-3">ไม่พบรายการ</p>
+            </div>
+          <% } %>
+        </div>
+
         <!-- Table -->
-        <div class="table-container">
+        <div class="table-container hidden sm:block">
           <table class="data-table">
             <thead>
               <tr>

@@ -135,6 +135,166 @@
   </div>
 </aside>
 
+<% if (admin) { %>
+<style>
+  :root {
+    --mobile-app-nav-offset: 0px;
+    --mobile-app-nav-reserve: 84px;
+  }
+
+  @media (max-width: 1023px) {
+    #sidebar-overlay {
+      z-index: 80;
+    }
+
+    #sidebar {
+      z-index: 90;
+    }
+
+    html {
+      scroll-padding-bottom: calc(var(--mobile-app-nav-reserve) + var(--mobile-app-nav-offset) + env(safe-area-inset-bottom));
+    }
+
+    body {
+      padding-bottom: calc(var(--mobile-app-nav-reserve) + var(--mobile-app-nav-offset) + env(safe-area-inset-bottom));
+      background: #f8fafc;
+    }
+
+    .mobile-app-nav {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: var(--mobile-app-nav-offset);
+      z-index: 60;
+      display: flex;
+      align-items: stretch;
+      gap: 2px;
+      padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+      background: rgba(255, 255, 255, 0.94);
+      border-top: 1px solid rgba(226, 232, 240, 0.95);
+      box-shadow: 0 -12px 28px rgba(15, 23, 42, 0.12);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      transform: translateZ(0);
+    }
+
+    .mobile-app-nav__item {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+      min-height: 58px;
+      border: 0;
+      border-radius: 14px;
+      background: transparent;
+      color: #64748b;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1.1;
+      text-align: center;
+      text-decoration: none;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .mobile-app-nav__item svg {
+      width: 21px;
+      height: 21px;
+      flex-shrink: 0;
+    }
+
+    .mobile-app-nav__item span {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .mobile-app-nav__item.is-active {
+      color: #16a34a;
+      background: #f0fdf4;
+    }
+
+    .mobile-app-nav__badge {
+      position: absolute;
+      top: 5px;
+      right: 14px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: #ef4444;
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 800;
+      font-style: normal;
+      line-height: 1;
+      box-shadow: 0 0 0 2px #fff;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .mobile-app-nav {
+      display: none !important;
+    }
+  }
+</style>
+
+<nav class="mobile-app-nav" aria-label="เมนูหลักสำหรับมือถือ">
+  <% if (admin.role === 'head' || admin.role === 'superadmin') { %>
+  <a href="/dashboard" class="mobile-app-nav__item <%= currentPath === '/dashboard' ? 'is-active' : '' %>">
+    <i data-lucide="layout-dashboard"></i>
+    <span>แดชบอร์ด</span>
+  </a>
+  <a href="/registrations?status=pending" class="mobile-app-nav__item <%= currentUrl.includes('/registrations') && currentUrl.includes('status=pending') ? 'is-active' : '' %>">
+    <i data-lucide="file-check"></i>
+    <span>การลงทะเบียน</span>
+    <% if (typeof pendingCount !== 'undefined' && pendingCount > 0) { %>
+      <em class="mobile-app-nav__badge"><%= pendingCount > 99 ? '99+' : pendingCount %></em>
+    <% } %>
+  </a>
+  <a href="/violations" class="mobile-app-nav__item <%= currentPath.startsWith('/violations') ? 'is-active' : '' %>">
+    <i data-lucide="alert-triangle"></i>
+    <span>แจ้งการทำผิดกฎ</span>
+  </a>
+  <a href="/violation-reports" class="mobile-app-nav__item <%= currentPath.startsWith('/violation-reports') ? 'is-active' : '' %>">
+    <i data-lucide="clipboard-check"></i>
+    <span>การกระทำผิดกฎ</span>
+    <% if (typeof pendingReportsCount !== 'undefined' && pendingReportsCount > 0) { %>
+      <em class="mobile-app-nav__badge"><%= pendingReportsCount > 99 ? '99+' : pendingReportsCount %></em>
+    <% } %>
+  </a>
+  <a href="/reports/summons" class="mobile-app-nav__item <%= currentPath.startsWith('/reports/summons') ? 'is-active' : '' %>">
+    <i data-lucide="user-check"></i>
+    <span>ผู้เข้าข่ายเรียกพบ</span>
+    <% if (typeof summonsCandidatesCount !== 'undefined' && summonsCandidatesCount > 0) { %>
+      <em class="mobile-app-nav__badge"><%= summonsCandidatesCount > 99 ? '99+' : summonsCandidatesCount %></em>
+    <% } %>
+  </a>
+  <% } else { %>
+  <button type="button" id="mobile-image-search" class="mobile-app-nav__item">
+    <i data-lucide="camera"></i>
+    <span>ค้นหาด้วยรูปภาพ</span>
+  </button>
+  <a href="/violations" class="mobile-app-nav__item <%= currentPath.startsWith('/violations') ? 'is-active' : '' %>">
+    <i data-lucide="alert-triangle"></i>
+    <span>แจ้งการทำผิดกฎ</span>
+  </a>
+  <% } %>
+</nav>
+
+<% } %>
+
 <!-- ======================================================
      Delete Confirmation Dialog
      ====================================================== -->
@@ -322,6 +482,38 @@
   window.toggleSidebar = toggleSidebar;
   window.closeSidebarOnMobile = closeSidebarOnMobile;
 
+  /* Keep the mobile bottom nav above browser UI when the visual viewport changes. */
+  (function() {
+    var root = document.documentElement;
+    var scheduled = false;
+
+    function updateMobileNavOffset() {
+      scheduled = false;
+      if (window.innerWidth >= 1024 || !window.visualViewport) {
+        root.style.setProperty('--mobile-app-nav-offset', '0px');
+        return;
+      }
+
+      var viewport = window.visualViewport;
+      var coveredBottom = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      root.style.setProperty('--mobile-app-nav-offset', Math.round(coveredBottom) + 'px');
+    }
+
+    function scheduleMobileNavOffsetUpdate() {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(updateMobileNavOffset);
+    }
+
+    updateMobileNavOffset();
+    window.addEventListener('resize', scheduleMobileNavOffsetUpdate, { passive: true });
+    window.addEventListener('orientationchange', scheduleMobileNavOffsetUpdate, { passive: true });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', scheduleMobileNavOffsetUpdate, { passive: true });
+      window.visualViewport.addEventListener('scroll', scheduleMobileNavOffsetUpdate, { passive: true });
+    }
+  })();
+
   /* ── Image Search Modal ──────────────────────────────── */
   function openImageSearchModal() {
     closeSidebarOnMobile();
@@ -451,13 +643,13 @@
     });
   });
   (function() {
-    var btnOpen = document.getElementById('btn-image-search');
-    if (btnOpen) {
+    [document.getElementById('btn-image-search'), document.getElementById('mobile-image-search')].forEach(function(btnOpen) {
+      if (!btnOpen) return;
       btnOpen.addEventListener('click', function(e) {
         e.stopPropagation();
         openImageSearchModal();
       });
-    }
+    });
     var btnClose = document.getElementById('btn-close-image-search');
     if (btnClose) {
       btnClose.addEventListener('click', function() { closeImageSearchModal(); });
