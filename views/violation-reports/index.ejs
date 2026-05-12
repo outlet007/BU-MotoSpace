@@ -195,13 +195,17 @@
         <!-- Pagination -->
         <% if (totalPages > 1) { %>
         <div class="flex items-center justify-center gap-2 mt-6">
-          <% for (var i = 1; i <= totalPages; i++) { %>
-            <a href="/violation-reports?page=<%= i %>&search=<%= encodeURIComponent(search) %>&status_filter=<%= status_filter %>&violation_type_filter=<%= encodeURIComponent(violation_type_filter || 'all') %>"
-               class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium transition-all
-                      <%= i === currentPage ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' %>">
-              <%= i %>
-            </a>
-          <% } %>
+          <% (paginationItems || []).forEach(function(item) { %>
+            <% if (item.type === 'ellipsis') { %>
+              <span class="w-9 h-9 flex items-center justify-center text-sm text-slate-400" aria-hidden="true">...</span>
+            <% } else { %>
+              <a href="/violation-reports?page=<%= item.page %>&search=<%= encodeURIComponent(search) %>&status_filter=<%= encodeURIComponent(status_filter) %>&violation_type_filter=<%= encodeURIComponent(violation_type_filter || 'all') %>"
+                 class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium transition-all
+                        <%= item.page === currentPage ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' %>">
+                <%= item.page %>
+              </a>
+            <% } %>
+          <% }); %>
         </div>
         <% } %>
 

@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS registrations (
   INDEX idx_id_number (id_number),
   INDEX idx_user_type (user_type),
   INDEX idx_status (status),
+  INDEX idx_status_regdate (status, registered_at),
+  INDEX idx_registrations_name (first_name, last_name),
   FOREIGN KEY (approved_by) REFERENCES admins(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
@@ -131,7 +133,9 @@ CREATE TABLE IF NOT EXISTS violations (
   FOREIGN KEY (recorded_by) REFERENCES admins(id) ON DELETE CASCADE,
   INDEX idx_registration (registration_id),
   INDEX idx_rule (rule_id),
-  INDEX idx_violations_registration_rule_recorded (registration_id, rule_id, recorded_at)
+  INDEX idx_violations_registration_rule_recorded (registration_id, rule_id, recorded_at),
+  INDEX idx_recorded_at (recorded_at),
+  INDEX idx_violations_rule_recorded (rule_id, recorded_at)
 ) ENGINE=InnoDB;
 
 -- ตารางบันทึกการนัดเรียกพบ
@@ -174,7 +178,10 @@ CREATE TABLE IF NOT EXISTS violation_reports (
   FOREIGN KEY (reviewed_by) REFERENCES admins(id) ON DELETE SET NULL,
   FOREIGN KEY (violation_id) REFERENCES violations(id) ON DELETE SET NULL,
   INDEX idx_vr_registration (registration_id),
-  INDEX idx_vr_status (status)
+  INDEX idx_vr_status (status),
+  INDEX idx_vr_status_reported (status, reported_at),
+  INDEX idx_vr_reported_at (reported_at),
+  INDEX idx_vr_rule_status_reported (rule_id, status, reported_at)
 ) ENGINE=InnoDB;
 
 -- ตาราง image fingerprints สำหรับค้นหาด้วยภาพ

@@ -3,8 +3,27 @@ const pool = require('../config/database');
 const upload = require('../middleware/upload');
 const { isAuthenticated, isHead } = require('../middleware/auth');
 const { verifyCsrf } = require('../middleware/csrf');
+const { parsePositiveInt, clampPage, buildPaginationItems } = require('../utils/pagination');
 
 router.use(isAuthenticated);
+
+async function indexExists(conn, tableName, indexName) {
+  const [row] = await conn.query(
+    `SELECT COUNT(*) AS cnt
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND INDEX_NAME = ?`,
+    [tableName, indexName]
+  );
+  return Number(row && row.cnt) > 0;
+}
+
+async function ensureIndex(conn, tableName, indexName, definition) {
+  if (!(await indexExists(conn, tableName, indexName))) {
+    await conn.query(`ALTER TABLE ${tableName} ADD ${definition}`);
+  }
+}
 
 function suggestViolationTypeCode(typeName) {
   const name = String(typeName || '').toLowerCase();
@@ -151,10 +170,16 @@ async function ensureTable(conn) {
       FOREIGN KEY (reviewed_by)     REFERENCES admins(id)         ON DELETE SET NULL,
       FOREIGN KEY (violation_id)    REFERENCES violations(id)     ON DELETE SET NULL,
       INDEX idx_vr_registration (registration_id),
-      INDEX idx_vr_status (status)
+      INDEX idx_vr_status (status),
+      INDEX idx_vr_status_reported (status, reported_at),
+      INDEX idx_vr_reported_at (reported_at),
+      INDEX idx_vr_rule_status_reported (rule_id, status, reported_at)
     ) ENGINE=InnoDB
   `);
 
+  await ensureIndex(conn, 'violation_reports', 'idx_vr_status_reported', 'INDEX idx_vr_status_reported (status, reported_at)');
+  await ensureIndex(conn, 'violation_reports', 'idx_vr_reported_at', 'INDEX idx_vr_reported_at (reported_at)');
+  await ensureIndex(conn, 'violation_reports', 'idx_vr_rule_status_reported', 'INDEX idx_vr_rule_status_reported (rule_id, status, reported_at)');
   await ensureViolationTypeMetadata(conn);
 }
 
@@ -171,10 +196,9 @@ router.get('/', isHead, async (req, res) => {
       search = '',
       status_filter = 'pending',
       violation_type_filter = 'all',
-      page = 1,
     } = req.query;
     const limit = 20;
-    const offset = (parseInt(page) - 1) * limit;
+    const requestedPage = parsePositiveInt(req.query.page, 1);
     const requestedViolationType = String(violation_type_filter || 'all').trim();
     const selectedViolationType = requestedViolationType === 'all' || /^\d+$/.test(requestedViolationType)
       ? requestedViolationType
@@ -216,8 +240,10 @@ router.get('/', isHead, async (req, res) => {
        ${where}`,
       params
     );
-    const total = parseInt(countRow.cnt);
+    const total = parseInt(countRow.cnt, 10);
     const totalPages = Math.ceil(total / limit);
+    const currentPage = clampPage(requestedPage, totalPages);
+    const offset = (currentPage - 1) * limit;
 
     const reports = await conn.query(
       `SELECT vr.id, vr.status, vr.reported_at, vr.description,
@@ -251,7 +277,8 @@ router.get('/', isHead, async (req, res) => {
       reports,
       total,
       totalPages,
-      currentPage: parseInt(page),
+      currentPage,
+      paginationItems: buildPaginationItems(currentPage, totalPages),
       search,
       status_filter,
       violation_type_filter: selectedViolationType,
@@ -267,6 +294,7 @@ router.get('/', isHead, async (req, res) => {
       total: 0,
       totalPages: 0,
       currentPage: 1,
+      paginationItems: [],
       search: '',
       status_filter: 'pending',
       violation_type_filter: 'all',

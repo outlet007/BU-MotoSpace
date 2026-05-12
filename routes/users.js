@@ -126,12 +126,14 @@ router.post('/', async (req, res) => {
 
 // POST /users/:id/update
 router.post('/:id/update', async (req, res) => {
-  const { full_name, email, phone, role, is_active, password } = req.body;
+  const { username, full_name, email, phone, role, is_active, password } = req.body;
+  const userId = parseInt(req.params.id, 10);
   const departmentId = req.body.department_id ? parseInt(req.body.department_id, 10) : null;
+  const cleanUsername = (username || '').trim();
   const cleanFullName = (full_name || '').trim();
   const cleanRole = VALID_ROLES.has(role) ? role : null;
 
-  if (!cleanFullName || !cleanRole) {
+  if (!Number.isFinite(userId) || userId <= 0 || !cleanUsername || !cleanFullName || !cleanRole) {
     req.flash('error', 'กรุณากรอกข้อมูลผู้ใช้ให้ครบถ้วน');
     return res.redirect('/users');
   }
@@ -143,19 +145,30 @@ router.post('/:id/update', async (req, res) => {
     if (password && password.trim()) {
       const hashedPw = await bcrypt.hash(password, 10);
       await conn.query(
-        'UPDATE admins SET full_name = ?, email = ?, phone = ?, department_id = ?, role = ?, is_active = ?, password = ? WHERE id = ?',
-        [cleanFullName, email || null, phone || null, departmentId, cleanRole, is_active === 'on' ? 1 : 0, hashedPw, req.params.id]
+        'UPDATE admins SET username = ?, full_name = ?, email = ?, phone = ?, department_id = ?, role = ?, is_active = ?, password = ? WHERE id = ?',
+        [cleanUsername, cleanFullName, email || null, phone || null, departmentId, cleanRole, is_active === 'on' ? 1 : 0, hashedPw, userId]
       );
     } else {
       await conn.query(
-        'UPDATE admins SET full_name = ?, email = ?, phone = ?, department_id = ?, role = ?, is_active = ? WHERE id = ?',
-        [cleanFullName, email || null, phone || null, departmentId, cleanRole, is_active === 'on' ? 1 : 0, req.params.id]
+        'UPDATE admins SET username = ?, full_name = ?, email = ?, phone = ?, department_id = ?, role = ?, is_active = ? WHERE id = ?',
+        [cleanUsername, cleanFullName, email || null, phone || null, departmentId, cleanRole, is_active === 'on' ? 1 : 0, userId]
       );
     }
+
+    if (req.session.admin && req.session.admin.id === userId) {
+      req.session.admin.username = cleanUsername;
+      req.session.admin.full_name = cleanFullName;
+      req.session.admin.role = cleanRole;
+    }
+
     req.flash('success', 'อัปเดตผู้ใช้เรียบร้อยแล้ว');
   } catch (err) {
     console.error(err);
-    req.flash('error', 'เกิดข้อผิดพลาด');
+    if (err.code === 'ER_DUP_ENTRY') {
+      req.flash('error', 'ชื่อผู้ใช้นี้มีอยู่แล้ว');
+    } else {
+      req.flash('error', 'เกิดข้อผิดพลาด');
+    }
   } finally {
     if (conn) conn.release();
   }

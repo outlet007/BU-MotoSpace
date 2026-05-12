@@ -373,7 +373,13 @@ async function ensureRuntimeSchema(conn) {
   await ensureColumn(conn, 'rules', 'penalty_type_id', 'INT DEFAULT NULL AFTER violation_type_id');
   await ensureIndex(conn, 'rules', 'idx_rules_violation_type', 'INDEX idx_rules_violation_type (violation_type_id)');
   await ensureIndex(conn, 'rules', 'idx_rules_penalty_type', 'INDEX idx_rules_penalty_type (penalty_type_id)');
+
+  await ensureIndex(conn, 'registrations', 'idx_status_regdate', 'INDEX idx_status_regdate (status, registered_at)');
+  await ensureIndex(conn, 'registrations', 'idx_registrations_name', 'INDEX idx_registrations_name (first_name, last_name)');
+
   await ensureIndex(conn, 'violations', 'idx_violations_registration_rule_recorded', 'INDEX idx_violations_registration_rule_recorded (registration_id, rule_id, recorded_at)');
+  await ensureIndex(conn, 'violations', 'idx_recorded_at', 'INDEX idx_recorded_at (recorded_at)');
+  await ensureIndex(conn, 'violations', 'idx_violations_rule_recorded', 'INDEX idx_violations_rule_recorded (rule_id, recorded_at)');
 
   await ensureColumn(conn, 'summons_appointments', 'appointment_code', 'VARCHAR(30) DEFAULT NULL AFTER id');
   await ensureColumn(conn, 'summons_appointments', 'written_document', 'VARCHAR(500) DEFAULT NULL');
@@ -402,9 +408,16 @@ async function ensureRuntimeSchema(conn) {
       FOREIGN KEY (reviewed_by) REFERENCES admins(id) ON DELETE SET NULL,
       FOREIGN KEY (violation_id) REFERENCES violations(id) ON DELETE SET NULL,
       INDEX idx_vr_registration (registration_id),
-      INDEX idx_vr_status (status)
+      INDEX idx_vr_status (status),
+      INDEX idx_vr_status_reported (status, reported_at),
+      INDEX idx_vr_reported_at (reported_at),
+      INDEX idx_vr_rule_status_reported (rule_id, status, reported_at)
     ) ENGINE=InnoDB
   `);
+
+  await ensureIndex(conn, 'violation_reports', 'idx_vr_status_reported', 'INDEX idx_vr_status_reported (status, reported_at)');
+  await ensureIndex(conn, 'violation_reports', 'idx_vr_reported_at', 'INDEX idx_vr_reported_at (reported_at)');
+  await ensureIndex(conn, 'violation_reports', 'idx_vr_rule_status_reported', 'INDEX idx_vr_rule_status_reported (rule_id, status, reported_at)');
 
   await sessionStore.ready();
 }

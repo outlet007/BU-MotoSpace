@@ -132,7 +132,7 @@
             <tbody>
               <% users.forEach(function(u) { %>
               <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors"
-                  data-uid="<%= u.id %>" data-fullname="<%= u.full_name %>"
+                  data-uid="<%= u.id %>" data-username="<%= u.username %>" data-fullname="<%= u.full_name %>"
                   data-email="<%= (u.email || '') %>" data-phone="<%= (u.phone || '') %>"
                   data-department-id="<%= u.department_id || '' %>"
                   data-role="<%= u.role %>" data-active="<%= u.is_active ? '1' : '0' %>">
@@ -310,6 +310,10 @@
               <form id="edit-user-form" method="POST" class="space-y-4">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <div>
+                  <label class="label">ชื่อผู้ใช้ <span class="text-red-500">*</span></label>
+                  <input type="text" name="username" id="eu-username" class="input" required placeholder="username">
+                </div>
+                <div>
                   <label class="label">ชื่อ-นามสกุล <span class="text-red-500">*</span></label>
                   <input type="text" name="full_name" id="eu-fullname" class="input" required>
                 </div>
@@ -458,6 +462,7 @@
     // ── ฟังก์ชันเปิด Edit modal พร้อมข้อมูล ──
     function openEditModal(tr) {
       var id       = tr.dataset.uid;
+      var username = tr.dataset.username;
       var fullName = tr.dataset.fullname;
       var email    = tr.dataset.email;
       var phone    = tr.dataset.phone;
@@ -465,6 +470,7 @@
       var role     = tr.dataset.role;
       var active   = tr.dataset.active === '1';
       document.getElementById('edit-user-form').action = '/users/' + id + '/update';
+      document.getElementById('eu-username').value = username;
       document.getElementById('eu-fullname').value = fullName;
       document.getElementById('eu-email').value    = email;
       document.getElementById('eu-phone').value    = phone;

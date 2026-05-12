@@ -14,6 +14,10 @@
     .tooltip { position: relative; }
     .tooltip::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); padding: 4px 8px; background: #1e293b; color: white; font-size: 12px; border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
     .tooltip:hover::after { opacity: 1; }
+    .violation-summary-grid { display: none; }
+    @media (min-width: 640px) {
+      .violation-summary-grid { display: grid; }
+    }
   </style>
 </head>
 <body class="min-h-screen bg-slate-50">
@@ -35,7 +39,7 @@
 
         <% if (admin && (admin.role === 'head' || admin.role === 'superadmin')) { %>
         <!-- Dashboard Summary -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+        <div class="violation-summary-grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
 
           <!-- Top 5 Violators -->
           <div class="card p-5">
@@ -138,8 +142,51 @@
         <!-- Info -->
         <p class="text-sm text-slate-500 mb-4">พบข้อมูลผู้ลงทะเบียน <span class="font-semibold text-slate-700"><%= typeof regTotal !== 'undefined' ? regTotal : 0 %></span> รายการ</p>
 
+        <!-- Mobile Cards -->
+        <div class="sm:hidden space-y-3">
+          <% if (typeof approvedRegistrations !== 'undefined' && approvedRegistrations.length > 0) { %>
+            <% approvedRegistrations.forEach(function(r) { %>
+            <a href="/violations/create?reg_id=<%= r.id %>" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm active:bg-slate-50">
+              <div class="grid grid-cols-2 gap-3">
+                <div class="min-w-0">
+                  <p class="text-xs font-medium text-slate-400">รหัส</p>
+                  <p class="font-medium text-slate-700 break-words"><%= r.id_number %></p>
+                </div>
+                <div class="min-w-0">
+                  <p class="text-xs font-medium text-slate-400">ชื่อ-นามสกุล</p>
+                  <p class="font-semibold text-slate-800 break-words"><%= r.first_name %> <%= r.last_name %></p>
+                </div>
+                <div class="min-w-0">
+                  <p class="text-xs font-medium text-slate-400">ป้ายทะเบียน</p>
+                  <p class="font-semibold text-slate-700 break-words"><%= r.license_plate %></p>
+                </div>
+                <div class="min-w-0">
+                  <p class="text-xs font-medium text-slate-400">จังหวัด</p>
+                  <p class="font-medium text-slate-700 break-words"><%= r.province %></p>
+                </div>
+                <div class="min-w-0">
+                  <p class="text-xs font-medium text-slate-400">ประเภท</p>
+                  <p class="font-medium text-slate-700"><%= r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %></p>
+                </div>
+                <div class="min-w-0">
+                  <p class="text-xs font-medium text-slate-400">วันที่ลงทะเบียน</p>
+                  <p class="font-medium text-slate-700"><%= new Date(r.registered_at).toLocaleDateString('th-TH') %></p>
+                </div>
+              </div>
+
+              <div class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-orange-600 px-3 py-2 text-sm font-semibold text-white">
+                <i data-lucide="send" class="w-4 h-4"></i>
+                แจ้งการกระทำผิด
+              </div>
+            </a>
+            <% }); %>
+          <% } else { %>
+            <div class="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">ไม่พบข้อมูล</div>
+          <% } %>
+        </div>
+
         <!-- Table -->
-        <div class="table-container">
+        <div class="table-container hidden sm:block">
           <table class="data-table">
             <thead>
               <tr>
@@ -220,13 +267,17 @@
         <!-- Pagination -->
         <% if (typeof regTotalPages !== 'undefined' && regTotalPages > 1) { %>
         <div class="flex items-center justify-center gap-2 mt-6">
-          <% for (var i = 1; i <= regTotalPages; i++) { %>
-            <a href="/violations?reg_page=<%= i %>&reg_search=<%= typeof regSearch !== 'undefined' ? regSearch : '' %>"
-              class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium transition-all
-                     <%= i === regCurrentPage ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' %>">
-              <%= i %>
-            </a>
-          <% } %>
+          <% (regPaginationItems || []).forEach(function(item) { %>
+            <% if (item.type === 'ellipsis') { %>
+              <span class="w-9 h-9 flex items-center justify-center text-sm text-slate-400" aria-hidden="true">...</span>
+            <% } else { %>
+              <a href="/violations?reg_page=<%= item.page %>&reg_search=<%= typeof regSearchEncoded !== 'undefined' ? regSearchEncoded : '' %>"
+                class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium transition-all
+                       <%= item.page === regCurrentPage ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' %>">
+                <%= item.page %>
+              </a>
+            <% } %>
+          <% }); %>
         </div>
         <% } %>
       </main>

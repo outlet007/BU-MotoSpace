@@ -4,6 +4,7 @@ const upload = require('../middleware/upload');
 const { isAuthenticated, isHead } = require('../middleware/auth');
 const { verifyCsrf } = require('../middleware/csrf');
 const { generateHash, compareHashes } = require('../utils/imageHash');
+const { parsePositiveInt, clampPage, buildPaginationItems } = require('../utils/pagination');
 const path = require('path');
 
 router.use(isAuthenticated);
@@ -21,9 +22,9 @@ router.get('/', async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
-    const { search, rule_id, page = 1 } = req.query;
+    const { search, rule_id } = req.query;
     const limit = 20;
-    const offset = (page - 1) * limit;
+    const requestedPage = parsePositiveInt(req.query.page, 1);
 
     let where = 'WHERE 1=1';
     const params = [];
@@ -46,8 +47,10 @@ router.get('/', async (req, res) => {
     const [countResult] = await conn.query(
       `SELECT COUNT(*) as cnt FROM violations v JOIN registrations r ON v.registration_id = r.id ${where}`, params
     );
-    const total = parseInt(countResult.cnt);
+    const total = parseInt(countResult.cnt, 10);
     const totalPages = Math.ceil(total / limit);
+    const currentPage = clampPage(requestedPage, totalPages);
+    const offset = (currentPage - 1) * limit;
 
     const violations = await conn.query(
       `SELECT v.*, r.first_name, r.last_name, r.license_plate, r.user_type, r.id_number,
@@ -85,9 +88,8 @@ router.get('/', async (req, res) => {
 
     // --- Approved Registrations list (for recording violations) ---
     const regSearch = req.query.reg_search || '';
-    const regPage = parseInt(req.query.reg_page) || 1;
+    const requestedRegPage = parsePositiveInt(req.query.reg_page, 1);
     const regLimit = 20;
-    const regOffset = (regPage - 1) * regLimit;
 
     let regWhere = "WHERE r.status = 'approved'";
     const regParams = [];
@@ -109,8 +111,10 @@ router.get('/', async (req, res) => {
     const [regCountResult] = await conn.query(
       `SELECT COUNT(*) as cnt FROM registrations r ${regWhere}`, regParams
     );
-    const regTotal = parseInt(regCountResult.cnt);
+    const regTotal = parseInt(regCountResult.cnt, 10);
     const regTotalPages = Math.ceil(regTotal / regLimit);
+    const regPage = clampPage(requestedRegPage, regTotalPages);
+    const regOffset = (regPage - 1) * regLimit;
 
     const approvedRegistrations = await conn.query(
       `SELECT r.* FROM registrations r ${regWhere} ORDER BY r.registered_at DESC LIMIT ? OFFSET ?`,
@@ -129,7 +133,8 @@ router.get('/', async (req, res) => {
       rules,
       total,
       totalPages,
-      currentPage: parseInt(page),
+      currentPage,
+      paginationItems: buildPaginationItems(currentPage, totalPages),
       search: search || '',
       rule_id: rule_id || '',
       topViolators,
@@ -138,7 +143,9 @@ router.get('/', async (req, res) => {
       regTotal,
       regTotalPages,
       regCurrentPage: regPage,
+      regPaginationItems: buildPaginationItems(regPage, regTotalPages),
       regSearch,
+      regSearchEncoded: encodeURIComponent(regSearch),
       imageSearchResults,
     });
   } catch (err) {
@@ -151,6 +158,7 @@ router.get('/', async (req, res) => {
       total: 0,
       totalPages: 0,
       currentPage: 1,
+      paginationItems: [],
       search: req.query.search || '',
       rule_id: req.query.rule_id || '',
       topViolators: [],
@@ -159,7 +167,9 @@ router.get('/', async (req, res) => {
       regTotal: 0,
       regTotalPages: 0,
       regCurrentPage: 1,
+      regPaginationItems: [],
       regSearch: '',
+      regSearchEncoded: '',
       imageSearchResults: null,
     });
   } finally {

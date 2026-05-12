@@ -11,6 +11,9 @@ ALTER TABLE registrations
 ALTER TABLE registrations
   ADD INDEX idx_status_regdate (status, registered_at DESC);
 
+ALTER TABLE registrations
+  ADD INDEX idx_registrations_name (first_name, last_name);
+
 -- 3. Composite index for type + status filter
 ALTER TABLE registrations
   ADD INDEX idx_type_status (user_type, status);
@@ -22,6 +25,18 @@ ALTER TABLE registrations
 -- 5. Composite index for violations date queries
 ALTER TABLE violations
   ADD INDEX idx_recorded_at (recorded_at);
+
+ALTER TABLE violations
+  ADD INDEX idx_violations_rule_recorded (rule_id, recorded_at);
+
+ALTER TABLE violation_reports
+  ADD INDEX idx_vr_status_reported (status, reported_at);
+
+ALTER TABLE violation_reports
+  ADD INDEX idx_vr_reported_at (reported_at);
+
+ALTER TABLE violation_reports
+  ADD INDEX idx_vr_rule_status_reported (rule_id, status, reported_at);
 
 -- 6. Index for province aggregation in reports
 ALTER TABLE registrations
