@@ -142,7 +142,7 @@
                   <% if (rows.length === 0) { %>
                     <tr>
                       <td colspan="5" class="text-center py-10 text-slate-400">
-                        <%= activeView === 'deleted' ? 'ยังไม่มีข้อมูลที่ถูก soft delete' : 'ไม่พบข้อมูลตามช่วงวันที่ที่เลือก' %>
+                        <%= activeView === 'deleted' ? 'ยังไม่มีข้อมูลที่ถูกลบชั่วคราว' : 'ไม่พบข้อมูลตามช่วงวันที่ที่เลือก' %>
                       </td>
                     </tr>
                   <% } %>
@@ -181,7 +181,7 @@
                         </td>
                         <td>
                           <% if (row.deleted_at) { %>
-                            <span class="badge badge-danger">Soft deleted</span>
+                            <span class="badge badge-danger">ลบข้อมูลชั่วคราว</span>
                             <% if (row.deleted_by_name) { %>
                               <div class="text-xs text-slate-500 mt-1">ลบโดย <%= row.deleted_by_name %></div>
                             <% } %>
@@ -231,11 +231,11 @@
             <div class="grid grid-cols-1 xl:grid-cols-[220px_1fr_220px_180px] gap-3 items-end">
               <div>
                 <label class="label">รูปแบบการลบ</label>
-                <div class="input bg-red-50 border-red-200 text-red-700 font-semibold">Hard delete</div>
+                <div class="input bg-red-50 border-red-200 text-red-700 font-semibold">ลบข้อมูลถาวร</div>
               </div>
               <div>
                 <label class="label" for="deleted_reason">เหตุผล / หมายเหตุ</label>
-                <input id="deleted_reason" name="reason" class="input" placeholder="เช่น เคลียร์ข้อมูลที่ soft delete แล้วออกจากระบบถาวร">
+                <input id="deleted_reason" name="reason" class="input" placeholder="เช่น เคลียร์ข้อมูลที่ลบชั่วคราวแล้วออกจากระบบถาวร">
               </div>
               <div>
                 <label class="label text-red-700" for="confirm_hard_delete">พิมพ์ DELETE เพื่อยืนยัน</label>
@@ -243,17 +243,18 @@
               </div>
               <button id="submit-hard-delete" type="submit" class="btn btn-danger justify-center" <%= total > 0 ? '' : 'disabled' %>
                       data-delete-confirm
-                      data-delete-title="ยืนยันการลบถาวรข้อมูล Soft deleted"
-                      data-delete-item="<%= `${total.toLocaleString('th-TH')} รายการที่ลบแล้ว` %>"
-                      data-delete-warning="การลบนี้เป็น hard delete และไม่สามารถกู้คืนจากตารางหลักได้ ระบบจะบันทึก snapshot ลง audit log ก่อนลบ"
-                      data-delete-confirm-text="ยืนยันลบถาวร">
+                      data-delete-title="ยืนยันการลบถาวรข้อมูลที่ลบชั่วคราว"
+                      data-delete-item="<%= `${total.toLocaleString('th-TH')} รายการ` %>"
+                      data-delete-warning="การลบนี้เป็นการลบข้อมูลถาวร และไม่สามารถกู้คืนจากตารางหลักได้ ระบบจะบันทึก snapshot ลง audit log ก่อนลบ"
+                      data-delete-confirm-text="ยืนยันลบถาวร"
+                      data-delete-final-confirm="ยืนยันอีกครั้ง: ต้องการลบข้อมูลถาวรจริงหรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้">
                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                 ลบข้อมูลถาวร
               </button>
             </div>
             <p class="text-xs text-slate-500 mt-3">
               เงื่อนไขปัจจุบัน: <%= hasDateRange ? `${registeredFrom} ถึง ${registeredTo}` : 'ข้อมูลที่ถูกลบชั่วคราว ทั้งหมด' %>
-              · ระบบจะลบถาวรเฉพาะข้อมูลที่ถูก soft delete แล้ว
+              · ระบบจะลบถาวรเฉพาะข้อมูลที่ถูกลบชั่วคราวแล้ว
             </p>
           </form>
           <% } else { %>
@@ -267,7 +268,7 @@
             <div class="grid grid-cols-1 xl:grid-cols-[220px_1fr_220px_180px] gap-3 items-end">
               <div>
                 <label class="label">รูปแบบการลบ</label>
-                <div class="input bg-amber-50 border-amber-200 text-amber-800 font-semibold">Soft delete</div>
+                <div class="input bg-amber-50 border-amber-200 text-amber-800 font-semibold">ลบข้อมูลชั่วคราว</div>
               </div>
               <div>
                 <label class="label" for="reason">เหตุผล / หมายเหตุ</label>
@@ -280,10 +281,10 @@
               </a>
               <button id="submit-delete" type="submit" class="btn btn-danger justify-center" <%= hasDateRange && total > 0 ? '' : 'disabled' %>
                       data-delete-confirm
-                      data-delete-title="ยืนยันการลบข้อมูลแบบ Soft delete"
+                      data-delete-title="ยืนยันการลบข้อมูลชั่วคราว"
                       data-delete-item="<%= hasDateRange ? `${total.toLocaleString('th-TH')} ทะเบียน` : 'ยังไม่ได้เลือกช่วงวันที่' %>"
-                      data-delete-warning="การลบจะทำกับทะเบียนทั้งหมดในช่วงวันที่ที่ filter พร้อมข้อมูลที่เกี่ยวข้อง และเป็นการ soft delete เท่านั้น"
-                      data-delete-confirm-text="ยืนยัน Soft delete">
+                      data-delete-warning="การลบจะทำกับทะเบียนทั้งหมดในช่วงวันที่ที่ filter พร้อมข้อมูลที่เกี่ยวข้อง และเป็นการลบข้อมูลชั่วคราวเท่านั้น"
+                      data-delete-confirm-text="ยืนยันลบข้อมูลชั่วคราว">
                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                 ลบข้อมูลชั่วคราว
               </button>

@@ -175,7 +175,7 @@ router.post('/:id/update', async (req, res) => {
   res.redirect('/users');
 });
 
-// POST /users/:id/deactivate — Soft delete (ปิดสถานะ ไม่ลบจริง)
+// POST /users/:id/deactivate — ลบข้อมูลชั่วคราว (ปิดสถานะ ไม่ลบจริง)
 router.post('/:id/deactivate', async (req, res) => {
   if (parseInt(req.params.id) === req.session.admin.id) {
     req.flash('error', 'ไม่สามารถปิดตัวเองได้');
@@ -211,7 +211,7 @@ router.post('/:id/restore', async (req, res) => {
   res.redirect('/users');
 });
 
-// POST /users/:id/delete — Hard delete
+// POST /users/:id/delete — ลบข้อมูลถาวร
 router.post('/:id/delete', async (req, res) => {
   if (parseInt(req.params.id, 10) === req.session.admin.id) {
     req.flash('error', 'ไม่สามารถลบบัญชีของตัวเองได้');

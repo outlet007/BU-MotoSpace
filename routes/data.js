@@ -674,7 +674,7 @@ router.post('/manage/delete', verifyCsrf, async (req, res) => {
     );
 
     await conn.commit();
-    req.flash('success', `ลบแบบ soft delete สำเร็จ ${registrationIds.length} ทะเบียน, ${violations.length} รายการกระทำผิด, ${reports.length} รายงาน และ ${summons.length} รายการเรียกพบ พร้อมบันทึก snapshot แล้ว`);
+    req.flash('success', `ลบข้อมูลชั่วคราวสำเร็จ ${registrationIds.length} ทะเบียน, ${violations.length} รายการกระทำผิด, ${reports.length} รายงาน และ ${summons.length} รายการเรียกพบ พร้อมบันทึก snapshot แล้ว`);
   } catch (err) {
     if (conn) await conn.rollback();
     console.error('POST /data/manage/delete error:', err);
@@ -708,7 +708,7 @@ router.post('/manage/hard-delete-soft-deleted', verifyCsrf, async (req, res) => 
     const snapshots = await fetchSoftDeletedSnapshots(conn, filters);
     if (!snapshots.length) {
       await conn.rollback();
-      req.flash('error', 'ยังไม่มีข้อมูลที่ถูก soft delete ตามเงื่อนไขนี้');
+      req.flash('error', 'ยังไม่มีข้อมูลที่ถูกลบชั่วคราวตามเงื่อนไขนี้');
       return res.redirect(returnUrl);
     }
 
@@ -720,7 +720,7 @@ router.post('/manage/hard-delete-soft-deleted', verifyCsrf, async (req, res) => 
   } catch (err) {
     if (conn) await conn.rollback();
     console.error('POST /data/manage/hard-delete-soft-deleted error:', err);
-    req.flash('error', 'ไม่สามารถลบข้อมูล Soft deleted แบบถาวรได้: ' + err.message);
+    req.flash('error', 'ไม่สามารถลบข้อมูลที่ถูกลบชั่วคราวแบบถาวรได้: ' + err.message);
   } finally {
     if (conn) conn.release();
   }

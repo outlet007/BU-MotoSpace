@@ -56,7 +56,7 @@
       <i data-lucide="file-check" class="w-5 h-5"></i>
       <span class="flex-1">ตรวจสอบการลงทะเบียนใหม่</span>
       <% if (typeof pendingCount !== 'undefined' && pendingCount > 0) { %>
-        <span class="bg-red-500 text-white text-[11px] font-bold w-5 h-5 flex items-center justify-center rounded-full ml-auto"><%= pendingCount %></span>
+        <span class="sidebar-count-badge bg-red-500"><%= pendingCount > 99 ? '99+' : pendingCount %></span>
       <% } %>
     </a>
 
@@ -64,15 +64,15 @@
       <i data-lucide="clipboard-check" class="w-5 h-5"></i>
       <span class="flex-1">ตรวจสอบการกระทำผิดกฎ</span>
       <% if (typeof pendingReportsCount !== 'undefined' && pendingReportsCount > 0) { %>
-        <span style="background:#f97316;color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;border-radius:9999px;padding:0 4px;flex-shrink:0;"><%= pendingReportsCount %></span>
+        <span class="sidebar-count-badge" style="background:#f97316;"><%= pendingReportsCount > 99 ? '99+' : pendingReportsCount %></span>
       <% } %>
     </a>
 
     <a href="/reports/summons" class="sidebar-link <%= currentPath.startsWith('/reports/summons') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
       <i data-lucide="user-check" class="w-5 h-5"></i>
       <span class="flex-1">รายงานผู้เข้าข่ายเรียกพบ</span>
-      <% if (typeof summonsCandidatesCount !== 'undefined') { %>
-        <span style="background:#22c55e;color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;border-radius:9999px;padding:0 4px;flex-shrink:0;"><%= summonsCandidatesCount > 99 ? '99+' : summonsCandidatesCount %></span>
+      <% if (typeof summonsCandidatesCount !== 'undefined' && summonsCandidatesCount > 0) { %>
+        <span class="sidebar-count-badge" style="background:#22c55e;"><%= summonsCandidatesCount > 99 ? '99+' : summonsCandidatesCount %></span>
       <% } %>
     </a>
 
@@ -140,6 +140,24 @@
   :root {
     --mobile-app-nav-offset: 0px;
     --mobile-app-nav-reserve: 84px;
+  }
+
+  .sidebar-count-badge {
+    min-width: 24px;
+    height: 24px;
+    padding: 0 7px;
+    border-radius: 9999px;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-left: auto;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
   }
 
   @media (max-width: 1023px) {
@@ -224,21 +242,23 @@
 
     .mobile-app-nav__badge {
       position: absolute;
-      top: 5px;
-      right: 14px;
-      min-width: 18px;
-      height: 18px;
-      padding: 0 5px;
+      top: 3px;
+      right: 12px;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 6px;
       border-radius: 999px;
       background: #ef4444;
       color: #fff;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 800;
       font-style: normal;
       line-height: 1;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
       box-shadow: 0 0 0 2px #fff;
     }
   }
@@ -663,6 +683,7 @@
   /* Shared delete confirmation dialog */
   (function() {
     var pendingDeleteForm = null;
+    var pendingDeleteTrigger = null;
     var modal = document.getElementById('delete-confirm-modal');
     var titleEl = document.getElementById('delete-confirm-title');
     var leadEl = document.getElementById('delete-confirm-lead');
@@ -675,32 +696,41 @@
 
     function closeDeleteConfirm() {
       pendingDeleteForm = null;
+      pendingDeleteTrigger = null;
       if (modal) modal.style.display = 'none';
     }
 
-    function openDeleteConfirm(form) {
+    function openDeleteConfirm(form, trigger) {
       pendingDeleteForm = form;
-      if (titleEl) titleEl.textContent = form.dataset.deleteTitle || 'ยืนยันการลบข้อมูล';
-      if (leadEl) leadEl.textContent = form.dataset.deleteLead || 'คุณกำลังจะลบ:';
-      if (itemEl) itemEl.textContent = form.dataset.deleteItem || 'รายการนี้';
-      if (detailEl) {
-        detailEl.textContent = form.dataset.deleteDetail || '';
-        detailEl.style.display = form.dataset.deleteDetail ? 'block' : 'none';
+      pendingDeleteTrigger = trigger || form;
+      var triggerData = (pendingDeleteTrigger && pendingDeleteTrigger.dataset) || {};
+      var formData = form.dataset || {};
+      function deleteData(key, fallback) {
+        return triggerData[key] || formData[key] || fallback;
       }
-      if (warningEl) warningEl.textContent = form.dataset.deleteWarning || 'การลบนี้อาจส่งผลต่อข้อมูลที่เกี่ยวข้อง และไม่ควรทำหากยังไม่แน่ใจ';
-      if (btnSubmit) btnSubmit.textContent = form.dataset.deleteConfirmText || 'ยืนยันลบ';
+      if (titleEl) titleEl.textContent = deleteData('deleteTitle', 'ยืนยันการลบข้อมูล');
+      if (leadEl) leadEl.textContent = deleteData('deleteLead', 'คุณกำลังจะลบ:');
+      if (itemEl) itemEl.textContent = deleteData('deleteItem', 'รายการนี้');
+      if (detailEl) {
+        detailEl.textContent = deleteData('deleteDetail', '');
+        detailEl.style.display = deleteData('deleteDetail', '') ? 'block' : 'none';
+      }
+      if (warningEl) warningEl.textContent = deleteData('deleteWarning', 'การลบนี้อาจส่งผลต่อข้อมูลที่เกี่ยวข้อง และไม่ควรทำหากยังไม่แน่ใจ');
+      if (btnSubmit) btnSubmit.textContent = deleteData('deleteConfirmText', 'ยืนยันลบ');
       if (modal) modal.style.display = 'flex';
     }
 
     document.addEventListener('submit', function(e) {
       var submittedForm = e.target.closest('form');
       if (!submittedForm) return;
+      var submitter = e.submitter || document.activeElement;
       var action = submittedForm.getAttribute('action') || '';
-      var isDeleteForm = submittedForm.hasAttribute('data-delete-confirm') || /\/delete(?:\?|$)/.test(action);
+      var trigger = submitter && submitter.form === submittedForm ? submitter : submittedForm;
+      var isDeleteForm = submittedForm.hasAttribute('data-delete-confirm') || (trigger && trigger.hasAttribute && trigger.hasAttribute('data-delete-confirm')) || /\/delete(?:\?|$)/.test(action);
       var form = isDeleteForm ? submittedForm : null;
       if (!form || form.dataset.deleteConfirmed === 'true') return;
       e.preventDefault();
-      openDeleteConfirm(form);
+      openDeleteConfirm(form, trigger);
     });
 
     if (btnCancel) btnCancel.addEventListener('click', closeDeleteConfirm);
@@ -709,6 +739,8 @@
     if (btnSubmit) {
       btnSubmit.addEventListener('click', function() {
         if (!pendingDeleteForm) return;
+        var finalMessage = pendingDeleteTrigger && pendingDeleteTrigger.dataset ? pendingDeleteTrigger.dataset.deleteFinalConfirm : '';
+        if (finalMessage && !window.confirm(finalMessage)) return;
         pendingDeleteForm.dataset.deleteConfirmed = 'true';
         HTMLFormElement.prototype.submit.call(pendingDeleteForm);
       });

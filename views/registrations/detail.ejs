@@ -361,8 +361,8 @@
               <form method="POST"
                     action="/registrations/<%= reg.id %>/delete"
                     data-delete-confirm
-                    data-delete-item="ทะเบียนรถ: <%= reg.license_plate %>"
-                    data-delete-detail="<%= reg.first_name %> <%= reg.last_name %> · <%= reg.id_number %> · <%= reg.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %>"
+                    data-delete-item="<%= reg.first_name %> <%= reg.last_name %>"
+                    data-delete-detail="ทะเบียนรถ: <%= reg.license_plate %> · <%= reg.id_number %> · <%= reg.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %>"
                     data-delete-confirm-text="ลบข้อมูลทะเบียน">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button type="submit" class="btn btn-secondary w-full justify-center text-red-500 hover:bg-red-50">
