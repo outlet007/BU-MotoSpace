@@ -78,8 +78,9 @@ router.get('/', isHead, async (req, res) => {
     const { search, type, status, page = 1 } = req.query;
     const limit = 20;
     const offset = (page - 1) * limit;
+    const isDeletedView = status === 'deleted';
 
-    let where = 'WHERE deleted_at IS NULL';
+    let where = isDeletedView ? 'WHERE r.deleted_at IS NOT NULL' : 'WHERE r.deleted_at IS NULL';
     const params = [];
 
     if (search) {
@@ -89,27 +90,35 @@ router.get('/', isHead, async (req, res) => {
       // Also search by combined full name (first_name + space + last_name)
       const sName = `%${searchTrimmed}%`;
       where += ` AND (
-        id_number LIKE ? OR
-        first_name LIKE ? OR
-        last_name LIKE ? OR
-        CONCAT(first_name, ' ', last_name) LIKE ? OR
-        license_plate LIKE ? OR
-        REPLACE(license_plate, ' ', '') LIKE ? OR
-        phone LIKE ?
+        r.id_number LIKE ? OR
+        r.first_name LIKE ? OR
+        r.last_name LIKE ? OR
+        CONCAT(r.first_name, ' ', r.last_name) LIKE ? OR
+        r.license_plate LIKE ? OR
+        REPLACE(r.license_plate, ' ', '') LIKE ? OR
+        r.phone LIKE ?
       )`;
       const sNoSpace = `%${searchTrimmed.replace(/\s+/g, '')}%`;
       params.push(s, s, s, sName, s, sNoSpace, s);
     }
-    if (type) { where += ' AND user_type = ?'; params.push(type); }
-    if (status) { where += ' AND status = ?'; params.push(status); }
+    if (type) { where += ' AND r.user_type = ?'; params.push(type); }
+    if (status && !isDeletedView) { where += ' AND r.status = ?'; params.push(status); }
 
-    const [countResult] = await conn.query(`SELECT COUNT(*) as cnt FROM registrations ${where}`, params);
+    const [countResult] = await conn.query(`SELECT COUNT(*) as cnt FROM registrations r ${where}`, params);
     const total = parseInt(countResult.cnt);
     const totalPages = Math.ceil(total / limit);
 
     const rows = await conn.query(
-      `SELECT id, id_number, user_type, first_name, last_name, phone, license_plate, province, status, registered_at
-       FROM registrations ${where} ORDER BY registered_at DESC LIMIT ? OFFSET ?`,
+      `SELECT r.id, r.id_number, r.user_type, r.first_name, r.last_name, r.phone, r.license_plate,
+              r.province, r.status, r.registered_at, r.deleted_at, r.delete_reason,
+              a.full_name AS deleted_by_name,
+              ap.full_name AS approved_by_name
+       FROM registrations r
+       LEFT JOIN admins a ON r.deleted_by = a.id
+       LEFT JOIN admins ap ON r.approved_by = ap.id
+       ${where}
+       ORDER BY ${isDeletedView ? 'r.deleted_at' : 'r.registered_at'} DESC
+       LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
 
@@ -117,7 +126,18 @@ router.get('/', isHead, async (req, res) => {
     const imageSearchResults = req.session.imageSearchResults || null;
     if (req.session.imageSearchResults) delete req.session.imageSearchResults;
 
-    const pageTitle = status === 'pending' ? 'ตรวจสอบการลงทะเบียนใหม่' : 'จัดการทะเบียน';
+    // Summary counts for cards
+    const [totalRegResult] = await conn.query('SELECT COUNT(*) as cnt FROM registrations WHERE deleted_at IS NULL');
+    const [deletedRegResult] = await conn.query('SELECT COUNT(*) as cnt FROM registrations WHERE deleted_at IS NOT NULL');
+    const totalRegistrations = parseInt(totalRegResult.cnt);
+    const deletedCount = parseInt(deletedRegResult.cnt);
+
+    // Per-status counts
+    const statusRows = await conn.query('SELECT status, COUNT(*) as cnt FROM registrations WHERE deleted_at IS NULL GROUP BY status');
+    const statusCountMap = { pending: 0, approved: 0, rejected: 0 };
+    statusRows.forEach(r => { statusCountMap[r.status] = parseInt(r.cnt); });
+
+    const pageTitle = status === 'pending' ? 'ตรวจสอบการลงทะเบียนใหม่' : isDeletedView ? 'ข้อมูลทะเบียนที่ถูกลบชั่วคราว' : 'จัดการทะเบียน';
 
     res.render('registrations/index', {
       title: `${pageTitle} - BU MotoSpace`,
@@ -128,7 +148,11 @@ router.get('/', isHead, async (req, res) => {
       search: search || '',
       type: type || '',
       status: status || '',
+      isDeletedView,
       imageSearchResults,
+      totalRegistrations,
+      deletedCount,
+      statusCountMap,
     });
   } catch (err) {
     console.error('GET /registrations error:', err);
@@ -145,7 +169,11 @@ router.get('/', isHead, async (req, res) => {
       search: req.query.search || '',
       type: req.query.type || '',
       status: req.query.status || '',
+      isDeletedView: req.query.status === 'deleted',
       imageSearchResults: null,
+      totalRegistrations: 0,
+      deletedCount: 0,
+      statusCountMap: { pending: 0, approved: 0, rejected: 0 },
     });
   } finally {
     if (conn) conn.release();
@@ -249,7 +277,7 @@ router.get('/:id', isHead, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
-    const [reg] = await conn.query('SELECT * FROM registrations WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+    const [reg] = await conn.query('SELECT r.*, a.full_name AS deleted_by_name, ap.full_name AS approved_by_name FROM registrations r LEFT JOIN admins a ON r.deleted_by = a.id LEFT JOIN admins ap ON r.approved_by = ap.id WHERE r.id = ?', [req.params.id]);
     if (!reg) {
       req.flash('error', 'ไม่พบข้อมูล');
       return res.redirect('/registrations');
@@ -340,7 +368,6 @@ router.get('/:id', isHead, async (req, res) => {
     if (conn) conn.release();
   }
 });
-
 // POST /registrations/:id/approve
 router.post('/:id/approve', isHead, async (req, res) => {
   let conn;
@@ -366,8 +393,8 @@ router.post('/:id/reject', isHead, async (req, res) => {
   try {
     conn = await pool.getConnection();
     await conn.query(
-      'UPDATE registrations SET status = ?, notes = ? WHERE id = ?',
-      ['rejected', req.body.notes || '', req.params.id]
+      'UPDATE registrations SET status = ?, notes = ?, approved_by = ?, approved_at = NOW() WHERE id = ?',
+      ['rejected', req.body.notes || '', req.session.admin.id, req.params.id]
     );
     req.flash('success', 'ปฏิเสธเรียบร้อยแล้ว');
   } catch (err) {
@@ -518,19 +545,107 @@ router.post('/:id/summons/:appointmentId/edit', isHead, upload.single('written_d
 });
 
 // POST /registrations/:id/delete
-router.post('/:id/delete', isHead, async (req, res) => {
+router.post('/:id/delete', isHead, verifyCsrf, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
-    await conn.query('DELETE FROM registrations WHERE id = ?', [req.params.id]);
-    req.flash('success', 'ลบข้อมูลเรียบร้อยแล้ว');
+    await conn.beginTransaction();
+
+    const [reg] = await conn.query('SELECT id FROM registrations WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+    if (!reg) {
+      await conn.rollback();
+      req.flash('error', 'ไม่พบข้อมูลทะเบียน หรือข้อมูลถูกลบชั่วคราวแล้ว');
+      return res.redirect('/registrations');
+    }
+
+    const reason = 'ลบจากหน้าจัดการทะเบียนรถ';
+    await conn.query(
+      `UPDATE violation_reports
+       SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+       WHERE registration_id = ? AND deleted_at IS NULL`,
+      [req.session.admin.id, reason, req.params.id]
+    );
+    await conn.query(
+      `UPDATE summons_appointments
+       SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+       WHERE registration_id = ? AND deleted_at IS NULL`,
+      [req.session.admin.id, reason, req.params.id]
+    );
+    await conn.query(
+      `UPDATE violations
+       SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+       WHERE registration_id = ? AND deleted_at IS NULL`,
+      [req.session.admin.id, reason, req.params.id]
+    );
+    await conn.query(
+      `UPDATE registrations
+       SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+       WHERE id = ? AND deleted_at IS NULL`,
+      [req.session.admin.id, reason, req.params.id]
+    );
+
+    await conn.commit();
+    req.flash('success', 'ลบข้อมูลชั่วคราวเรียบร้อยแล้ว สามารถกู้คืนได้จากหน้าจัดการทะเบียนรถ');
   } catch (err) {
+    if (conn) await conn.rollback();
     console.error(err);
     req.flash('error', 'เกิดข้อผิดพลาด');
   } finally {
     if (conn) conn.release();
   }
   res.redirect('/registrations');
+});
+
+// POST /registrations/:id/restore
+router.post('/:id/restore', isHead, verifyCsrf, async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [reg] = await conn.query('SELECT id FROM registrations WHERE id = ? AND deleted_at IS NOT NULL', [req.params.id]);
+    if (!reg) {
+      await conn.rollback();
+      req.flash('error', 'ไม่พบข้อมูลที่ถูกลบชั่วคราว');
+      return res.redirect('/registrations?status=deleted');
+    }
+
+    await conn.query(
+      `UPDATE registrations
+       SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL
+       WHERE id = ?`,
+      [req.params.id]
+    );
+    await conn.query(
+      `UPDATE violations
+       SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL
+       WHERE registration_id = ?`,
+      [req.params.id]
+    );
+    await conn.query(
+      `UPDATE violation_reports
+       SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL
+       WHERE registration_id = ?`,
+      [req.params.id]
+    );
+    await conn.query(
+      `UPDATE summons_appointments
+       SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL
+       WHERE registration_id = ?`,
+      [req.params.id]
+    );
+
+    await conn.commit();
+    req.flash('success', 'กู้คืนข้อมูลทะเบียนรถเรียบร้อยแล้ว');
+  } catch (err) {
+    if (conn) await conn.rollback();
+    console.error(err);
+    req.flash('error', 'ไม่สามารถกู้คืนข้อมูลได้');
+  } finally {
+    if (conn) conn.release();
+  }
+
+  res.redirect('/registrations?status=deleted');
 });
 
 module.exports = router;

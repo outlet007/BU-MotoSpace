@@ -248,7 +248,7 @@ router.get('/', isHead, async (req, res) => {
     const reports = await conn.query(
       `SELECT vr.id, vr.status, vr.reported_at, vr.description,
               CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(vr.id, 6, '0')) AS report_code,
-              r.id_number, r.first_name, r.last_name, r.license_plate, r.user_type,
+              r.id_number, r.first_name, r.last_name, r.phone, r.license_plate, r.province, r.user_type,
               ru.rule_name,
               a.full_name AS reported_by_name
        FROM violation_reports vr
@@ -272,6 +272,13 @@ router.get('/', isHead, async (req, res) => {
        ORDER BY is_active DESC, type_code IS NULL, type_code ASC, type_name ASC`
     );
 
+    // Status counts for cards
+    const statusCounts = await conn.query(
+      `SELECT status, COUNT(*) as cnt FROM violation_reports WHERE deleted_at IS NULL GROUP BY status`
+    );
+    const countMap = { pending: 0, confirmed: 0, rejected: 0 };
+    statusCounts.forEach(r => { countMap[r.status] = parseInt(r.cnt); });
+
     res.render('violation-reports/index', {
       title: 'ตรวจสอบการกระทำผิดกฎ - BU MotoSpace',
       reports,
@@ -284,6 +291,7 @@ router.get('/', isHead, async (req, res) => {
       violation_type_filter: selectedViolationType,
       violationTypes,
       pendingReportsCount: parseInt(pendingRow.cnt),
+      countMap,
     });
   } catch (err) {
     console.error('GET /violation-reports error:', err);
@@ -300,6 +308,7 @@ router.get('/', isHead, async (req, res) => {
       violation_type_filter: 'all',
       violationTypes: [],
       pendingReportsCount: 0,
+      countMap: { pending: 0, confirmed: 0, rejected: 0 },
     });
   } finally {
     if (conn) conn.release();

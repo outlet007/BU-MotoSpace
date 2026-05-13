@@ -14,6 +14,11 @@
     .tooltip { position: relative; }
     .tooltip::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); padding: 4px 8px; background: #1e293b; color: white; font-size: 12px; border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
     .tooltip:hover::after { opacity: 1; }
+    .metric-card { text-decoration: none; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+    .metric-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(15, 23, 42, .10); }
+    .metric-card.active { border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22, 163, 74, .22), 0 12px 28px rgba(15, 23, 42, .10); }
+    .metric-card.danger.active { border-color: #ef4444; box-shadow: 0 0 0 2px rgba(239, 68, 68, .20), 0 12px 28px rgba(15, 23, 42, .10); }
+    .metric-card.warning.active { border-color: #f59e0b; box-shadow: 0 0 0 2px rgba(245, 158, 11, .20), 0 12px 28px rgba(15, 23, 42, .10); }
   </style>
 </head>
 <body class="min-h-screen bg-slate-50">
@@ -25,12 +30,13 @@
         <%- include('../partials/flash') %>
 
         <% const isNewPage = currentUrl.includes('status=pending'); %>
+        <% const viewingDeleted = typeof isDeletedView !== 'undefined' && isDeletedView; %>
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
-              <i data-lucide="<%= isNewPage ? 'file-check' : 'clipboard-list' %>" class="w-7 h-7 text-brand-500"></i> <%= isNewPage ? 'ตรวจสอบการลงทะเบียนใหม่' : 'จัดการทะเบียนรถ' %>
+              <i data-lucide="<%= viewingDeleted ? 'archive-x' : isNewPage ? 'file-check' : 'clipboard-list' %>" class="w-7 h-7 text-brand-500"></i> <%= viewingDeleted ? 'ข้อมูลทะเบียนที่ถูกลบชั่วคราว' : isNewPage ? 'ตรวจสอบการลงทะเบียนใหม่' : 'จัดการทะเบียนรถ' %>
             </h2>
-            <p class="text-slate-500 mt-1"><%= isNewPage ? 'ตรวจสอบรายละเอียด การลงทะเบียนรถจักรยานยนต์ใหม่' : 'ค้นหา จัดการ และตรวจสอบข้อมูลทะเบียนรถจักรยานยนต์ทั้งหมด' %></p>
+            <p class="text-slate-500 mt-1"><%= viewingDeleted ? 'ตรวจสอบรายการที่ถูกลบชั่วคราว และกู้คืนได้เมื่อมีการลบผิด' : isNewPage ? 'ตรวจสอบรายละเอียด การลงทะเบียนรถจักรยานยนต์ใหม่' : 'ค้นหา จัดการ และตรวจสอบข้อมูลทะเบียนรถจักรยานยนต์ทั้งหมด' %></p>
           </div>
           <!-- Summary badges -->
           <div class="flex items-center gap-3 flex-shrink-0">
@@ -40,6 +46,88 @@
             </div>
           </div>
         </div>
+
+        <% if (isNewPage) { %>
+        <!-- Status Cards for new registration review -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <a href="/registrations?status=pending" class="stat-card metric-card warning active">
+            <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <i data-lucide="clock" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">รอตรวจสอบ</p>
+              <p class="text-3xl font-bold text-slate-800"><%= statusCountMap.pending.toLocaleString('th-TH') %></p>
+            </div>
+          </a>
+          <a href="/registrations?status=approved" class="stat-card metric-card">
+            <div class="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center" style="color: var(--color-brand-600);">
+              <i data-lucide="check-circle" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">อนุมัติ</p>
+              <p class="text-3xl font-bold text-slate-800"><%= statusCountMap.approved.toLocaleString('th-TH') %></p>
+            </div>
+          </a>
+          <a href="/registrations?status=rejected" class="stat-card metric-card danger">
+            <div class="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
+              <i data-lucide="x-circle" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">ปฏิเสธ</p>
+              <p class="text-3xl font-bold text-slate-800"><%= statusCountMap.rejected.toLocaleString('th-TH') %></p>
+            </div>
+          </a>
+          <a href="/registrations?status=deleted" class="stat-card metric-card">
+            <div class="w-12 h-12 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center">
+              <i data-lucide="archive-x" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">ถูกลบชั่วคราว</p>
+              <p class="text-3xl font-bold text-slate-800"><%= deletedCount.toLocaleString('th-TH') %></p>
+            </div>
+          </a>
+        </div>
+        <% } else { %>
+        <!-- Summary Cards for manage/deleted view -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <a href="/registrations" class="stat-card metric-card <%= !viewingDeleted ? 'active' : '' %>">
+            <div class="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center" style="color: var(--color-brand-600);">
+              <i data-lucide="check-circle" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">อนุมัติ</p>
+              <p class="text-3xl font-bold text-slate-800"><%= statusCountMap.approved.toLocaleString('th-TH') %></p>
+            </div>
+          </a>
+          <a href="/registrations?status=pending" class="stat-card metric-card warning">
+            <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <i data-lucide="clock" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">รอดำเนินการ</p>
+              <p class="text-3xl font-bold text-slate-800"><%= statusCountMap.pending.toLocaleString('th-TH') %></p>
+            </div>
+          </a>
+          <a href="/registrations?status=rejected" class="stat-card metric-card danger">
+            <div class="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
+              <i data-lucide="x-circle" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">ปฏิเสธ</p>
+              <p class="text-3xl font-bold text-slate-800"><%= statusCountMap.rejected.toLocaleString('th-TH') %></p>
+            </div>
+          </a>
+          <a href="/registrations?status=deleted" class="stat-card metric-card <%= viewingDeleted ? 'active' : '' %>" style="<%= viewingDeleted ? 'border-color:#64748b;box-shadow:0 0 0 2px rgba(100,116,139,.20),0 12px 28px rgba(15,23,42,.10)' : '' %>">
+            <div class="w-12 h-12 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center">
+              <i data-lucide="archive-x" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">ถูกลบชั่วคราว</p>
+              <p class="text-3xl font-bold text-slate-800"><%= deletedCount.toLocaleString('th-TH') %></p>
+            </div>
+          </a>
+        </div>
+        <% } %>
 
         <!-- Filters -->
         <div class="card p-4 mb-6">
@@ -66,12 +154,13 @@
                 <option value="pending" <%= status === 'pending' ? 'selected' : '' %>>รอดำเนินการ</option>
                 <option value="approved" <%= status === 'approved' ? 'selected' : '' %>>อนุมัติ</option>
                 <option value="rejected" <%= status === 'rejected' ? 'selected' : '' %>>ปฏิเสธ</option>
+                <option value="deleted" <%= status === 'deleted' ? 'selected' : '' %>>ข้อมูลที่ถูกลบชั่วคราว</option>
               </select>
             </div>
             <button type="submit" class="btn btn-primary">
               <i data-lucide="search" class="w-4 h-4"></i> ค้นหา
             </button>
-            <% if (!isNewPage) { %>
+            <% if (!isNewPage && !viewingDeleted) { %>
             <button type="button" class="btn btn-secondary" onclick="openImageSearchModal()">
               <i data-lucide="image" class="w-4 h-4"></i> ค้นหาด้วยภาพ
             </button>
@@ -89,37 +178,63 @@
           <% if (registrations.length > 0) { %>
             <% registrations.forEach(function(r) { %>
               <% const registrationStatusLabel = r.status === 'approved' ? 'อนุมัติ' : r.status === 'pending' ? 'รอดำเนินการ' : 'ปฏิเสธ'; %>
-              <a href="/registrations/<%= r.id %>" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm active:bg-slate-50">
+              <div class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm active:bg-slate-50">
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
                     <p class="text-xs font-mono font-semibold text-brand-700 break-words"><%= r.id_number %></p>
                     <p class="font-bold text-slate-800 mt-1 break-words"><%= r.first_name %> <%= r.last_name %></p>
                   </div>
-                  <span class="badge <%= r.status === 'approved' ? 'badge-success' : r.status === 'pending' ? 'badge-warning' : 'badge-danger' %> flex-shrink-0"><%= registrationStatusLabel %></span>
+                  <span class="badge <%= viewingDeleted ? 'badge-danger' : r.status === 'approved' ? 'badge-success' : r.status === 'pending' ? 'badge-warning' : 'badge-danger' %> flex-shrink-0"><%= viewingDeleted ? 'ถูกลบชั่วคราว' : registrationStatusLabel %></span>
                 </div>
                 <div class="grid grid-cols-2 gap-3 mt-4">
                   <div class="min-w-0">
                     <p class="text-xs font-medium text-slate-400">ป้ายทะเบียน</p>
                     <p class="font-semibold text-slate-700 break-words"><%= r.license_plate %></p>
-                  </div>
-                  <div class="min-w-0">
-                    <p class="text-xs font-medium text-slate-400">จังหวัด</p>
-                    <p class="text-sm text-slate-600 break-words"><%= r.province %></p>
+                    <p class="text-xs text-slate-500 break-words"><%= r.province || '-' %></p>
                   </div>
                   <div class="min-w-0">
                     <p class="text-xs font-medium text-slate-400">ประเภทผู้ใช้</p>
                     <span class="badge <%= r.user_type === 'student' ? 'badge-success' : 'badge-info' %> mt-1"><%= r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %></span>
                   </div>
                   <div class="min-w-0">
+                    <p class="text-xs font-medium text-slate-400">ผู้ดำเนินการ</p>
+                    <p class="text-sm text-slate-600 break-words"><%= r.approved_by_name || '-' %></p>
+                  </div>
+                  <div class="min-w-0">
                     <p class="text-xs font-medium text-slate-400">วันที่ลงทะเบียน</p>
                     <p class="text-sm text-slate-600"><%= new Date(r.registered_at).toLocaleDateString('th-TH') %></p>
+                    <% if (viewingDeleted && r.deleted_at) { %>
+                      <p class="text-xs text-red-500 mt-1">ลบเมื่อ <%= new Date(r.deleted_at).toLocaleDateString('th-TH') %></p>
+                    <% } %>
                   </div>
                 </div>
-                <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end text-sm font-semibold text-brand-600">
-                  ดูรายละเอียด
-                  <i data-lucide="chevron-right" class="w-4 h-4 ml-1"></i>
+                <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2 text-sm font-semibold text-brand-600">
+                  <% if (viewingDeleted) { %>
+                    <a href="/registrations/<%= r.id %>" class="btn btn-secondary btn-sm justify-center">
+                      <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                      ดูรายละเอียด
+                    </a>
+                    <form method="POST" action="/registrations/<%= r.id %>/restore"
+                          data-delete-confirm
+                          data-delete-title="ยืนยันการกู้คืนข้อมูล"
+                          data-delete-lead="คุณกำลังจะกู้คืน:"
+                          data-delete-item="ทะเบียนรถ: <%= r.license_plate %>"
+                          data-delete-warning="ระบบจะนำข้อมูลทะเบียนและข้อมูลที่เกี่ยวข้องกลับมาใช้งานอีกครั้ง"
+                          data-delete-confirm-text="กู้คืนข้อมูล">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button type="submit" class="btn btn-primary btn-sm justify-center">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                        กู้คืนข้อมูล
+                      </button>
+                    </form>
+                  <% } else { %>
+                    <a href="/registrations/<%= r.id %>" class="inline-flex items-center">
+                      ดูรายละเอียด
+                      <i data-lucide="chevron-right" class="w-4 h-4 ml-1"></i>
+                    </a>
+                  <% } %>
                 </div>
-              </a>
+              </div>
             <% }); %>
           <% } else { %>
             <div class="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">
@@ -136,10 +251,11 @@
               <tr>
                 <th>รหัสผู้ใช้</th>
                 <th>ชื่อ-นามสกุล</th>
+                <th>เบอร์โทร</th>
                 <th>ป้ายทะเบียน</th>
-                <th>จังหวัด</th>
                 <th>ประเภทผู้ใช้</th>
                 <th>สถานะ</th>
+                <th>ผู้ดำเนินการ</th>
                 <th>วันที่ลงทะเบียน</th>
                 <th></th>
               </tr>
@@ -147,25 +263,65 @@
             <tbody>
               <% if (registrations.length > 0) { %>
                 <% registrations.forEach(function(r) { %>
-                <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors" data-href="/registrations/<%= r.id %>">
+                <tr class="<%= viewingDeleted ? '' : 'cursor-pointer' %> hover:bg-brand-50/40 transition-colors" <% if (!viewingDeleted) { %>data-href="/registrations/<%= r.id %>"<% } %>>
                   <td class="text-xs"><%= r.id_number %></td>
                   <td class="font-medium text-slate-800"><%= r.first_name %> <%= r.last_name %></td>
-                  <td class="font-semibold"><%= r.license_plate %></td>
-                  <td><%= r.province %></td>
+                  <td class="text-sm text-slate-600"><%= r.phone || '-' %></td>
+                  <td>
+                    <div class="text-left">
+                      <div class="font-semibold"><%= r.license_plate %></div>
+                      <div class="text-xs text-slate-500 mt-0.5"><%= r.province || '-' %></div>
+                    </div>
+                  </td>
                   <td><span class="badge <%= r.user_type === 'student' ? 'badge-success' : 'badge-info' %>"><%= r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %></span></td>
-                  <td><span class="badge <%= r.status === 'approved' ? 'badge-success' : r.status === 'pending' ? 'badge-warning' : 'badge-danger' %>"><%= r.status === 'approved' ? 'อนุมัติ' : r.status === 'pending' ? 'รอดำเนินการ' : 'ปฏิเสธ' %></span></td>
-                  <td class="text-xs text-slate-500"><%= new Date(r.registered_at).toLocaleDateString('th-TH') %></td>
-                  <td data-no-nav>
-                    <div style="display:flex; gap:6px;">
+                  <td>
+                    <% if (viewingDeleted) { %>
+                      <span class="badge badge-danger">ถูกลบชั่วคราว</span>
+                      <% if (r.deleted_by_name) { %>
+                        <div class="text-xs text-slate-500 mt-1">ลบโดย <%= r.deleted_by_name %></div>
+                      <% } %>
+                    <% } else { %>
+                      <span class="badge <%= r.status === 'approved' ? 'badge-success' : r.status === 'pending' ? 'badge-warning' : 'badge-danger' %>"><%= r.status === 'approved' ? 'อนุมัติ' : r.status === 'pending' ? 'รอดำเนินการ' : 'ปฏิเสธ' %></span>
+                    <% } %>
+                  </td>
+                  <td class="text-xs text-slate-500">
+                    <%= r.approved_by_name || '-' %>
+                  </td>
+                  <td class="text-xs text-slate-500">
+                    <%= new Date(r.registered_at).toLocaleDateString('th-TH') %>
+                    <% if (viewingDeleted && r.deleted_at) { %>
+                      <div class="text-red-500 mt-1">ลบเมื่อ <%= new Date(r.deleted_at).toLocaleDateString('th-TH') %></div>
+                    <% } %>
+                  </td>
+                  <td data-no-nav class="text-right">
+                    <div style="display:flex; gap:6px; justify-content:flex-end;">
+                      <% if (viewingDeleted) { %>
                       <a href="/registrations/<%= r.id %>" class="btn btn-secondary btn-sm">
                         <i data-lucide="eye" class="w-3.5 h-3.5"></i> ดูรายละเอียด
                       </a>
+                      <form method="POST" action="/registrations/<%= r.id %>/restore"
+                            data-delete-confirm
+                            data-delete-title="ยืนยันการกู้คืนข้อมูล"
+                            data-delete-lead="คุณกำลังจะกู้คืน:"
+                            data-delete-item="ทะเบียนรถ: <%= r.license_plate %>"
+                            data-delete-warning="ระบบจะนำข้อมูลทะเบียนและข้อมูลที่เกี่ยวข้องกลับมาใช้งานอีกครั้ง"
+                            data-delete-confirm-text="กู้คืนข้อมูล">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        <button type="submit" class="btn btn-primary btn-sm">
+                          <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> กู้คืนข้อมูล
+                        </button>
+                      </form>
+                      <% } else { %>
+                      <a href="/registrations/<%= r.id %>" class="btn btn-secondary btn-sm">
+                        <i data-lucide="eye" class="w-3.5 h-3.5"></i> ดูรายละเอียด
+                      </a>
+                      <% } %>
                     </div>
                   </td>
                 </tr>
                 <% }); %>
               <% } else { %>
-                <tr><td colspan="8" class="text-center text-slate-400 py-12">ไม่พบข้อมูล</td></tr>
+                <tr><td colspan="9" class="text-center text-slate-400 py-12">ไม่พบข้อมูล</td></tr>
               <% } %>
             </tbody>
           </table>

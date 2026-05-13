@@ -71,7 +71,7 @@ router.get('/', async (req, res) => {
     try {
       pendingViolationReports = await conn.query(
         `SELECT vr.id, vr.reported_at, vr.description, vr.status,
-                r.first_name, r.last_name, r.license_plate, r.user_type,
+                r.first_name, r.last_name, r.license_plate, r.province, r.user_type,
                 ru.rule_name,
                 a.full_name AS reported_by_name
          FROM violation_reports vr

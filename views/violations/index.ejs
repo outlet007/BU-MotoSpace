@@ -159,10 +159,7 @@
                 <div class="min-w-0">
                   <p class="text-xs font-medium text-slate-400">ป้ายทะเบียน</p>
                   <p class="font-semibold text-slate-700 break-words"><%= r.license_plate %></p>
-                </div>
-                <div class="min-w-0">
-                  <p class="text-xs font-medium text-slate-400">จังหวัด</p>
-                  <p class="font-medium text-slate-700 break-words"><%= r.province %></p>
+                  <p class="text-xs text-slate-500 break-words"><%= r.province || '-' %></p>
                 </div>
                 <div class="min-w-0">
                   <p class="text-xs font-medium text-slate-400">ประเภท</p>
@@ -190,10 +187,10 @@
           <table class="data-table">
             <thead>
               <tr>
-                <th>รหัส</th>
+                <th>รหัสผู้ใช้</th>
                 <th>ชื่อ-นามสกุล</th>
+                <th>เบอร์โทร</th>
                 <th>ป้ายทะเบียน</th>
-                <th>จังหวัด</th>
                 <th>ประเภท</th>
                 <th>วันที่ลงทะเบียน</th>
                 <th></th>
@@ -205,8 +202,13 @@
                 <tr class="hover:bg-slate-50 cursor-pointer transition-colors" data-href="/violations/create?reg_id=<%= r.id %>">
                   <td class="text-xs"><%= r.id_number %></td>
                   <td class="font-medium text-slate-800"><%= r.first_name %> <%= r.last_name %></td>
-                  <td class="font-semibold"><%= r.license_plate %></td>
-                  <td><%= r.province %></td>
+                  <td class="text-sm text-slate-600"><%= r.phone || '-' %></td>
+                  <td>
+                    <div class="text-left">
+                      <div class="font-semibold"><%= r.license_plate %></div>
+                      <div class="text-xs text-slate-500 mt-0.5"><%= r.province || '-' %></div>
+                    </div>
+                  </td>
                   <td><span class="badge <%= r.user_type === 'student' ? 'badge-success' : 'badge-info' %>"><%= r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %></span></td>
                   <td class="text-xs text-slate-500"><%= new Date(r.registered_at).toLocaleDateString('th-TH') %></td>
                   <td data-no-nav>

@@ -17,6 +17,8 @@
     .tooltip { position: relative; }
     .tooltip::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); padding: 4px 8px; background: #1e293b; color: white; font-size: 12px; border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
     .tooltip:hover::after { opacity: 1; }
+    .metric-card { text-decoration: none; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+    .metric-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(15, 23, 42, .10); }
   </style>
 </head>
 <body class="min-h-screen bg-slate-50">
@@ -36,40 +38,40 @@
 
         <!-- Stats Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
-          <a href="/registrations" class="stat-card block hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer text-left">
-            <div class="w-12 h-12 flex items-center justify-center rounded-xl bg-brand-100">
-              <i data-lucide="clipboard-list" class="w-6 h-6 text-brand-600"></i>
+          <a href="/registrations" class="stat-card metric-card">
+            <div class="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
+              <i data-lucide="clipboard-list" class="w-6 h-6"></i>
             </div>
             <div>
               <p class="text-sm text-slate-500">ทะเบียนทั้งหมด</p>
-              <p class="text-2xl font-bold text-slate-800"><%= stats.total %></p>
+              <p class="text-3xl font-bold text-slate-800"><%= stats.total %></p>
             </div>
           </a>
-          <a href="/registrations?status=pending" class="stat-card block hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer text-left">
-            <div class="w-12 h-12 flex items-center justify-center rounded-xl bg-amber-100">
-              <i data-lucide="clock" class="w-6 h-6 text-amber-600"></i>
+          <a href="/registrations?status=pending" class="stat-card metric-card">
+            <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <i data-lucide="clock" class="w-6 h-6"></i>
             </div>
             <div>
               <p class="text-sm text-slate-500">ตรวจสอบการลงทะเบียนใหม่</p>
-              <p class="text-2xl font-bold text-slate-800"><%= stats.pending %></p>
+              <p class="text-3xl font-bold text-slate-800"><%= stats.pending %></p>
             </div>
           </a>
-          <a href="/violation-reports" class="stat-card block hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer text-left">
-            <div class="w-12 h-12 flex items-center justify-center rounded-xl bg-red-100">
-              <i data-lucide="clipboard-check" class="w-6 h-6 text-red-500"></i>
+          <a href="/violation-reports" class="stat-card metric-card">
+            <div class="w-12 h-12 rounded-xl bg-red-50 text-red-500 flex items-center justify-center">
+              <i data-lucide="clipboard-check" class="w-6 h-6"></i>
             </div>
             <div>
               <p class="text-sm text-slate-500">ตรวจสอบการกระทำผิดกฎ</p>
-              <p class="text-2xl font-bold text-slate-800"><%= stats.pendingReports %></p>
+              <p class="text-3xl font-bold text-slate-800"><%= stats.pendingReports %></p>
             </div>
           </a>
-          <a href="/reports/summons" class="stat-card block hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer text-left">
-            <div class="w-12 h-12 flex items-center justify-center rounded-xl bg-orange-100">
-              <i data-lucide="user-check" class="w-6 h-6 text-orange-600"></i>
+          <a href="/reports/summons" class="stat-card metric-card">
+            <div class="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
+              <i data-lucide="user-check" class="w-6 h-6"></i>
             </div>
             <div>
               <p class="text-sm text-slate-500">รายงานผู้เข้าข่ายเรียกพบ</p>
-              <p class="text-2xl font-bold text-slate-800"><%= stats.summonsCandidates %></p>
+              <p class="text-3xl font-bold text-slate-800"><%= stats.summonsCandidates %></p>
             </div>
           </a>
         </div>
@@ -147,13 +149,18 @@
               <a href="/registrations?status=pending" class="text-xs text-brand-600 hover:text-brand-700 font-medium">ดูทั้งหมด →</a>
             </div>
             <table class="data-table" data-no-sort>
-              <thead><tr><th>ชื่อ</th><th>ป้ายทะเบียน</th><th>ประเภท</th><th>วันที่สมัคร</th></tr></thead>
+              <thead><tr><th>ชื่อ-นามสกุล</th><th>ป้ายทะเบียน</th><th>ประเภท</th><th>วันที่ลงทะเบียน</th></tr></thead>
               <tbody>
                 <% if (newPendingRegs.length > 0) { %>
                   <% newPendingRegs.forEach(function(r) { %>
                   <tr class="cursor-pointer hover:bg-slate-50 transition-colors" data-href="/registrations/<%= r.id %>">
                     <td class="font-medium text-slate-800"><%= r.first_name %> <%= r.last_name %></td>
-                    <td><%= r.license_plate %></td>
+                    <td>
+                      <div class="text-left">
+                        <div class="font-semibold text-slate-700"><%= r.license_plate %></div>
+                        <div class="text-xs text-slate-500 mt-0.5"><%= r.province || '-' %></div>
+                      </div>
+                    </td>
                     <td><span class="badge <%= r.user_type === 'student' ? 'badge-success' : 'badge-info' %>"><%= r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %></span></td>
                     <td class="text-xs text-slate-400"><%= new Date(r.registered_at).toLocaleDateString('th-TH', {day:'2-digit', month:'short', year:'2-digit'}) %></td>
                   </tr>
@@ -174,13 +181,18 @@
               <a href="/violation-reports" class="text-xs text-brand-600 hover:text-brand-700 font-medium">ดูทั้งหมด →</a>
             </div>
             <table class="data-table" data-no-sort>
-              <thead><tr><th>ชื่อ</th><th>ป้ายทะเบียน</th><th>กฎที่ฝ่าฝืน</th><th>แจ้งโดย</th></tr></thead>
+              <thead><tr><th>ชื่อ-นามสกุล</th><th>ป้ายทะเบียน</th><th>กฎที่ฝ่าฝืน</th><th>แจ้งโดย</th></tr></thead>
               <tbody>
                 <% if (pendingViolationReports.length > 0) { %>
                   <% pendingViolationReports.forEach(function(v) { %>
                   <tr class="cursor-pointer hover:bg-slate-50 transition-colors" data-href="/violation-reports/<%= v.id %>">
                     <td class="font-medium text-slate-800"><%= v.first_name %> <%= v.last_name %></td>
-                    <td><%= v.license_plate %></td>
+                    <td>
+                      <div class="text-left">
+                        <div class="font-semibold text-slate-700"><%= v.license_plate %></div>
+                        <div class="text-xs text-slate-500 mt-0.5"><%= v.province || '-' %></div>
+                      </div>
+                    </td>
                     <td><span class="badge badge-danger" style="font-size:0.7rem;"><%= v.rule_name %></span></td>
                     <td class="text-xs text-slate-500"><%= v.reported_by_name || '-' %></td>
                   </tr>

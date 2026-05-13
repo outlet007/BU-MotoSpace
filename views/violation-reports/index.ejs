@@ -14,6 +14,11 @@
     .tooltip { position: relative; }
     .tooltip::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); padding: 4px 8px; background: #1e293b; color: white; font-size: 12px; border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
     .tooltip:hover::after { opacity: 1; }
+    .metric-card { text-decoration: none; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+    .metric-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(15, 23, 42, .10); }
+    .metric-card.active { border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22, 163, 74, .22), 0 12px 28px rgba(15, 23, 42, .10); }
+    .metric-card.warning.active { border-color: #f59e0b; box-shadow: 0 0 0 2px rgba(245, 158, 11, .20), 0 12px 28px rgba(15, 23, 42, .10); }
+    .metric-card.danger.active { border-color: #ef4444; box-shadow: 0 0 0 2px rgba(239, 68, 68, .20), 0 12px 28px rgba(15, 23, 42, .10); }
     .status-pending   { background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; }
     .status-confirmed { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
     .status-rejected  { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
@@ -48,6 +53,37 @@
               <span class="text-sm font-semibold text-orange-700"><%= pendingReportsCount %> รายการรอตรวจสอบ</span>
             </div>
           </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <a href="/violation-reports?status_filter=pending" class="stat-card metric-card warning <%= status_filter === 'pending' ? 'active' : '' %>">
+            <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <i data-lucide="clock" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">รอตรวจสอบ</p>
+              <p class="text-3xl font-bold text-slate-800"><%= countMap.pending.toLocaleString('th-TH') %></p>
+            </div>
+          </a>
+          <a href="/violation-reports?status_filter=confirmed" class="stat-card metric-card <%= status_filter === 'confirmed' ? 'active' : '' %>">
+            <div class="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center" style="color: var(--color-brand-600);">
+              <i data-lucide="check-circle" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">ยืนยันแล้ว</p>
+              <p class="text-3xl font-bold text-slate-800"><%= countMap.confirmed.toLocaleString('th-TH') %></p>
+            </div>
+          </a>
+          <a href="/violation-reports?status_filter=rejected" class="stat-card metric-card danger <%= status_filter === 'rejected' ? 'active' : '' %>">
+            <div class="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
+              <i data-lucide="x-circle" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">ปฏิเสธแล้ว</p>
+              <p class="text-3xl font-bold text-slate-800"><%= countMap.rejected.toLocaleString('th-TH') %></p>
+            </div>
+          </a>
         </div>
 
         <!-- Filters -->
@@ -139,6 +175,7 @@
                   <div class="min-w-0">
                     <p class="text-xs font-medium text-slate-400">ป้ายทะเบียน</p>
                     <p class="font-semibold text-slate-700 break-words"><%= rpt.license_plate %></p>
+                    <p class="text-xs text-slate-500 break-words"><%= rpt.province || '-' %></p>
                   </div>
                   <div class="min-w-0">
                     <p class="text-xs font-medium text-slate-400">ประเภทผู้ใช้</p>
@@ -170,10 +207,11 @@
               <tr>
                 <th>รายการแจ้งเลขที่</th>
                 <th>วันที่</th>
-                <th>รหัส</th>
+                <th>รหัสผู้ใช้</th>
                 <th>ชื่อ-นามสกุล</th>
-                <th>ประเภทผู้ใช้</th>
+                <th>เบอร์โทร</th>
                 <th>ป้ายทะเบียน</th>
+                <th>ประเภทผู้ใช้</th>
                 <th>กฎที่ฝ่าฝืน</th>
                 <th>แจ้งโดย</th>
                 <th>สถานะ</th>
@@ -200,14 +238,19 @@
                   <td class="font-medium text-slate-800">
                     <%= rpt.first_name %> <%= rpt.last_name %>
                   </td>
+                  <!-- เบอร์โทร -->
+                  <td class="text-sm text-slate-600"><%= rpt.phone || '-' %></td>
+                  <!-- ป้ายทะเบียน -->
+                  <td>
+                    <div class="font-semibold text-slate-700"><%= rpt.license_plate %></div>
+                    <div class="text-xs text-slate-500 mt-0.5"><%= rpt.province || '-' %></div>
+                  </td>
                   <!-- ประเภทผู้ใช้ -->
                   <td>
                     <span class="badge <%= rpt.user_type === 'student' ? 'badge-success' : 'badge-info' %>">
                       <%= rpt.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %>
                     </span>
                   </td>
-                  <!-- ป้ายทะเบียน -->
-                  <td class="font-semibold text-slate-700"><%= rpt.license_plate %></td>
                   <!-- กฎที่ฝ่าฝืน -->
                   <td>
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-red-50 text-red-700 text-xs font-semibold border border-red-100">
@@ -246,7 +289,7 @@
                 <% }); %>
               <% } else { %>
               <tr>
-                <td colspan="10" class="text-center py-14">
+                <td colspan="11" class="text-center py-14">
                   <div class="flex flex-col items-center gap-3 text-slate-400">
                     <i data-lucide="clipboard-x" class="w-12 h-12 text-slate-300"></i>
                     <p class="text-sm font-medium">ไม่พบรายการ</p>

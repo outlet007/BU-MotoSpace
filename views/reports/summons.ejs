@@ -125,23 +125,7 @@
           </a>
         </div>
 
-        <div class="summary-card mb-6">
-          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div class="flex items-center gap-4">
-              <div class="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center">
-                <i data-lucide="calendar-clock" class="w-6 h-6"></i>
-              </div>
-              <div>
-                <p class="text-sm text-slate-500">จำนวนผู้เข้าข่ายเรียกพบ</p>
-                <p class="text-3xl font-bold text-slate-800"><%= total %></p>
-              </div>
-            </div>
-            <div class="text-sm text-slate-600 md:text-right">
-              <p class="font-semibold text-slate-700">เงื่อนไขรายงาน</p>
-              <p>นับแยกตามประเภทความผิด หลังจากการเรียกพบครั้งล่าสุด หากประเภทใดครบจำนวนครั้งสูงสุดที่ตั้งไว้จะเข้าเกณฑ์</p>
-            </div>
-          </div>
-        </div>
+
 
         <div class="hidden">
           <form method="GET" action="/reports/summons" class="flex flex-wrap items-end gap-4 mb-4">
@@ -169,30 +153,70 @@
           </form>
         </div>
 
-        <div class="card p-2 mb-4 summons-tab-header">
-          <div class="flex flex-col sm:flex-row gap-2" role="tablist" aria-label="รายการเรียกพบ">
-            <button type="button"
-                    class="summons-tab <%= activeTab === 'pending' ? 'active' : '' %>"
-                    id="tab-pending"
-                    data-summons-tab="pending"
-                    role="tab"
-                    aria-controls="panel-pending"
-                    aria-selected="<%= activeTab === 'pending' ? 'true' : 'false' %>">
-              <i data-lucide="clock" class="w-4 h-4"></i>
-              รายการรอเรียกพบ
-              <span class="summons-tab-count"><%= total %></span>
-            </button>
-            <button type="button"
-                    class="summons-tab <%= activeTab === 'completed' ? 'active' : '' %>"
-                    id="tab-completed"
-                    data-summons-tab="completed"
-                    role="tab"
-                    aria-controls="summoned-history"
-                    aria-selected="<%= activeTab === 'completed' ? 'true' : 'false' %>">
-              <i data-lucide="history" class="w-4 h-4"></i>
-              รายการที่เรียกพบไปแล้ว
-              <span class="summons-tab-count"><%= typeof summonedTotal !== 'undefined' ? summonedTotal : 0 %></span>
-            </button>
+        <% /* metric-card styles reuse the global .metric-card class if present, else inline */ %>
+        <style>
+          .metric-card {
+            background: #fff;
+            border: 2px solid #e2e8f0;
+            border-radius: 1rem;
+            padding: 1.25rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+          }
+          .metric-card:hover { border-color: #94a3b8; box-shadow: 0 4px 12px rgba(15,23,42,0.08); }
+          .metric-card.active { border-color: #16a34a; box-shadow: 0 0 0 3px #22c55e26; }
+          .metric-card.warning.active { border-color: #d97706; box-shadow: 0 0 0 3px #f59e0b26; }
+          .metric-card .mc-icon-wrap {
+            width: 2.75rem; height: 2.75rem;
+            border-radius: 0.75rem;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+          }
+          .metric-card .mc-body { display: flex; flex-direction: column; gap: 0.15rem; }
+          .metric-card .mc-label { font-size: 0.875rem; font-weight: 500; color: #64748b; }
+          .metric-card .mc-value { font-size: 1.5rem; font-weight: 700; color: #1e293b; line-height: 1.2; }
+        </style>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <!-- Card: รายการรอเรียกพบ -->
+          <div class="metric-card warning <%= activeTab === 'pending' ? 'active' : '' %>"
+               id="mc-pending"
+               data-metric-tab="pending"
+               role="tab" aria-controls="panel-pending" aria-selected="<%= activeTab === 'pending' ? 'true' : 'false' %>" tabindex="0">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="mc-icon-wrap bg-orange-100" style="width:3rem;height:3rem;border-radius:0.875rem;">
+                  <i data-lucide="calendar-clock" class="w-6 h-6 text-orange-600"></i>
+                </div>
+                <div class="mc-body">
+                  <span class="mc-label">รายการรอเรียกพบ</span>
+                  <span class="mc-value"><%= total %></span>
+                </div>
+              </div>
+              <div class="text-xs text-slate-500 md:text-right border-t border-slate-100 pt-3 md:border-t-0 md:pt-0 md:border-l md:border-slate-100 md:pl-4">
+                <p class="font-semibold text-slate-600 mb-0.5">หมายเหตุ</p>
+                <p class="leading-relaxed">นับแยกตามประเภทความผิด หลังจากการเรียกพบครั้งล่าสุด หากประเภทใดครบจำนวนครั้งสูงสุดที่ตั้งไว้จะเข้าเกณฑ์</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card: รายการที่เรียกพบไปแล้ว -->
+          <div class="metric-card <%= activeTab === 'completed' ? 'active' : '' %>"
+               id="mc-completed"
+               data-metric-tab="completed"
+               role="tab" aria-controls="summoned-history" aria-selected="<%= activeTab === 'completed' ? 'true' : 'false' %>" tabindex="0">
+            <div class="flex items-center gap-4">
+              <div class="mc-icon-wrap bg-brand-100">
+                <i data-lucide="calendar-check" class="w-6 h-6 text-brand-600"></i>
+              </div>
+              <div class="mc-body">
+                <span class="mc-label">รายการที่เรียกพบไปแล้ว</span>
+                <span class="mc-value"><%= typeof summonedTotal !== 'undefined' ? summonedTotal : 0 %></span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -325,10 +349,10 @@
             <thead>
               <tr>
                 <th>รหัสนัดหมาย</th>
-                <th>รหัส</th>
+                <th>รหัสผู้ใช้</th>
                 <th>ชื่อ-นามสกุล</th>
-                <th>ป้ายทะเบียน</th>
                 <th>เบอร์โทร</th>
+                <th>ป้ายทะเบียน</th>
                 <th>จำนวนครั้ง</th>
                 <th>สรุปประเภทความผิด</th>
                 <th>ล่าสุด</th>
@@ -350,13 +374,13 @@
                   <td>
                     <div class="font-semibold text-slate-800"><%= item.full_name %></div>
                   </td>
+                  <td class="text-sm text-slate-600"><%= item.phone || '-' %></td>
                   <td class="text-center">
                     <div class="inline-flex flex-col items-center">
                       <div class="font-semibold text-slate-700"><%= item.license_plate %></div>
                       <div class="text-xs text-slate-400 mt-0.5"><%= item.province || '-' %></div>
                     </div>
                   </td>
-                  <td class="text-sm text-slate-600"><%= item.phone || '-' %></td>
                   <td>
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-200 text-xs font-bold">
                       <i data-lucide="alert-triangle" class="w-3 h-3"></i>
@@ -570,8 +594,9 @@
               <thead>
                 <tr>
                   <th>รหัสนัดหมาย</th>
-                  <th>รหัส</th>
+                  <th>รหัสผู้ใช้</th>
                   <th>ชื่อ-นามสกุล</th>
+                  <th>เบอร์โทร</th>
                   <th>ป้ายทะเบียน</th>
                   <th>วันเวลานัดหมาย</th>
                   <th>หมายเหตุ</th>
@@ -602,6 +627,7 @@
                     <td>
                       <div class="font-semibold text-slate-800"><%= item.full_name %></div>
                     </td>
+                    <td class="text-sm text-slate-600"><%= item.phone || '-' %></td>
                     <td class="text-center">
                       <div class="inline-flex flex-col items-center">
                         <div class="font-semibold text-slate-700"><%= item.license_plate %></div>
@@ -653,7 +679,7 @@
                   <% }) %>
                 <% } else { %>
                   <tr>
-                    <td colspan="9" class="text-center py-10">
+                    <td colspan="10" class="text-center py-10">
                       <div class="flex flex-col items-center gap-2 text-slate-400">
                         <i data-lucide="calendar-x" class="w-10 h-10 text-slate-300"></i>
                         <p class="text-sm font-medium">ยังไม่มีรายการที่เรียกพบไปแล้ว</p>
@@ -867,15 +893,32 @@
 
       function activateTab(tabName) {
         if (!panels[tabName]) return;
-        tabs.forEach(function(tab) {
-          var isActive = tab.dataset.summonsTab === tabName;
-          tab.classList.toggle('active', isActive);
-          tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
-        });
+        // Update tab panels visibility
         Object.keys(panels).forEach(function(key) {
           panels[key].classList.toggle('active', key === tabName);
         });
+        // Update metric cards active state
+        var mcPending = document.getElementById('mc-pending');
+        var mcCompleted = document.getElementById('mc-completed');
+        if (mcPending) mcPending.classList.toggle('active', tabName === 'pending');
+        if (mcCompleted) mcCompleted.classList.toggle('active', tabName === 'completed');
       }
+
+      // Expose globally for onclick handlers on metric cards
+      window.setSummonsTab = activateTab;
+
+      // Metric card click listeners
+      document.querySelectorAll('[data-metric-tab]').forEach(function(card) {
+        card.addEventListener('click', function() {
+          activateTab(card.dataset.metricTab);
+        });
+        card.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            activateTab(card.dataset.metricTab);
+          }
+        });
+      });
 
       function buildReturnTo(tabName, hash) {
         var params = new URLSearchParams(window.location.search);

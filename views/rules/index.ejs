@@ -24,43 +24,11 @@
     @keyframes backdropIn { from{opacity:0} to{opacity:1} }
     .modal-panel { animation: modalSlideUp 0.25s cubic-bezier(0.16,1,0.3,1); }
     @keyframes modalSlideUp { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
-    .rules-tab {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      min-height: 42px;
-      padding: 10px 14px;
-      border-radius: 12px;
-      color: #64748b;
-      font-size: 14px;
-      font-weight: 700;
-      transition: all 0.2s;
-      flex: 1;
-    }
-    .rules-tab:hover { background: #f8fafc; color: #334155; }
-    .rules-tab[aria-selected="true"] {
-      background: #16a34a;
-      color: #fff;
-      box-shadow: 0 1px 2px rgba(22,163,74,0.25);
-    }
-    .rules-tab-count {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 24px;
-      height: 22px;
-      padding: 0 7px;
-      border-radius: 999px;
-      background: #e2e8f0;
-      color: #475569;
-      font-size: 12px;
-      font-weight: 800;
-    }
-    .rules-tab[aria-selected="true"] .rules-tab-count {
-      background: rgba(255,255,255,0.22);
-      color: #fff;
-    }
+    .metric-card { text-decoration: none; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; cursor: pointer; }
+    .metric-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(15, 23, 42, .10); }
+    .metric-card.active { border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22, 163, 74, .22), 0 12px 28px rgba(15, 23, 42, .10); }
+    .metric-card.info.active { border-color: #0284c7; box-shadow: 0 0 0 2px rgba(2, 132, 199, .20), 0 12px 28px rgba(15, 23, 42, .10); }
+    .metric-card.danger.active { border-color: #ef4444; box-shadow: 0 0 0 2px rgba(239, 68, 68, .20), 0 12px 28px rgba(15, 23, 42, .10); }
     .rules-panel { display: none; }
     .rules-panel.active { display: block; }
   </style>
@@ -81,33 +49,34 @@
           <p class="text-slate-500">จัดการกฎ ประเภทความผิด จำนวนครั้งสูงสุด และประเภทบทลงโทษ</p>
         </div>
 
-        <div class="card p-2 mb-6">
-          <div class="flex flex-col sm:flex-row gap-2" role="tablist" aria-label="กฎและข้อบังคับ">
-            <button type="button"
-                    class="rules-tab"
-                    data-rules-tab="rules"
-                    aria-selected="<%= selectedTab === 'rules' ? 'true' : 'false' %>">
-              <i data-lucide="clipboard-list" class="w-4 h-4"></i>
-              กฎและข้อบังคับ
-              <span class="rules-tab-count"><%= rules.length %></span>
-            </button>
-            <button type="button"
-                    class="rules-tab"
-                    data-rules-tab="types"
-                    aria-selected="<%= selectedTab === 'types' ? 'true' : 'false' %>">
-              <i data-lucide="tags" class="w-4 h-4"></i>
-              ประเภทความผิด
-              <span class="rules-tab-count"><%= typeList.length %></span>
-            </button>
-            <button type="button"
-                    class="rules-tab"
-                    data-rules-tab="penalties"
-                    aria-selected="<%= selectedTab === 'penalties' ? 'true' : 'false' %>">
-              <i data-lucide="gavel" class="w-4 h-4"></i>
-              ประเภทบทลงโทษ
-              <span class="rules-tab-count"><%= penaltyTypeList.length %></span>
-            </button>
-          </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <button type="button" class="stat-card metric-card text-left <%= selectedTab === 'rules' ? 'active' : '' %>" data-rules-tab="rules">
+            <div class="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
+              <i data-lucide="clipboard-list" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">กฎและข้อบังคับ</p>
+              <p class="text-3xl font-bold text-slate-800"><%= rules.length %></p>
+            </div>
+          </button>
+          <button type="button" class="stat-card metric-card info text-left <%= selectedTab === 'types' ? 'active' : '' %>" data-rules-tab="types">
+            <div class="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
+              <i data-lucide="tags" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">ประเภทความผิด</p>
+              <p class="text-3xl font-bold text-slate-800"><%= typeList.length %></p>
+            </div>
+          </button>
+          <button type="button" class="stat-card metric-card danger text-left <%= selectedTab === 'penalties' ? 'active' : '' %>" data-rules-tab="penalties">
+            <div class="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
+              <i data-lucide="gavel" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">ประเภทบทลงโทษ</p>
+              <p class="text-3xl font-bold text-slate-800"><%= penaltyTypeList.length %></p>
+            </div>
+          </button>
         </div>
 
         <section id="rules-panel" class="rules-panel <%= selectedTab === 'rules' ? 'active' : '' %>" data-rules-panel="rules">
@@ -667,7 +636,11 @@
     function setRulesTab(tabName, updateUrl) {
       var selected = tabName === 'types' || tabName === 'penalties' ? tabName : 'rules';
       document.querySelectorAll('[data-rules-tab]').forEach(function(button) {
-        button.setAttribute('aria-selected', button.dataset.rulesTab === selected ? 'true' : 'false');
+        if (button.dataset.rulesTab === selected) {
+          button.classList.add('active');
+        } else {
+          button.classList.remove('active');
+        }
       });
       document.querySelectorAll('[data-rules-panel]').forEach(function(panel) {
         panel.classList.toggle('active', panel.dataset.rulesPanel === selected);

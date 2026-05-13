@@ -166,10 +166,27 @@ function buildRegistrationDateFilters(query) {
   };
 }
 
+function getManageView(value, status) {
+  if (status === 'deleted') return 'deleted';
+  return value === 'deleted' ? 'deleted' : 'registrations';
+}
+
+function buildSoftDeletedDateClause(filters) {
+  if (!filters.hasDateRange) {
+    return { clause: '', params: [] };
+  }
+
+  return {
+    clause: 'AND r.registered_at >= ? AND r.registered_at < DATE_ADD(?, INTERVAL 1 DAY)',
+    params: [`${filters.registeredFrom} 00:00:00`, `${filters.registeredTo} 00:00:00`],
+  };
+}
+
 async function fetchManagedRegistrations(conn, filters, limit, offset) {
   return conn.query(
     `SELECT r.id, r.user_type, r.id_number, r.first_name, r.last_name, r.phone, r.license_plate,
             r.province, r.status, r.registered_at, r.deleted_at, r.delete_reason,
+            da.full_name AS deleted_by_name,
             COUNT(DISTINCT v.id) AS violation_count,
             COUNT(DISTINCT vr.id) AS report_count,
             COUNT(DISTINCT sa.id) AS summons_count
@@ -177,12 +194,140 @@ async function fetchManagedRegistrations(conn, filters, limit, offset) {
      LEFT JOIN violations v ON v.registration_id = r.id
      LEFT JOIN violation_reports vr ON vr.registration_id = r.id
      LEFT JOIN summons_appointments sa ON sa.registration_id = r.id
+     LEFT JOIN admins da ON r.deleted_by = da.id
      ${filters.where}
      GROUP BY r.id
      ORDER BY r.registered_at DESC
      LIMIT ? OFFSET ?`,
     [...filters.params, limit, offset]
   );
+}
+
+async function countSoftDeletedRows(conn, filters) {
+  const dateFilter = buildSoftDeletedDateClause(filters);
+  const [result] = await conn.query(
+    `SELECT COUNT(*) AS cnt
+     FROM registrations r
+     WHERE r.deleted_at IS NOT NULL ${dateFilter.clause}`,
+    dateFilter.params
+  );
+
+  return Number(result && result.cnt) || 0;
+}
+
+function buildSoftDeletedSelectSql(filters) {
+  const dateFilter = buildSoftDeletedDateClause(filters);
+
+  return {
+    sql: `SELECT *
+     FROM (
+       SELECT 'registration' AS record_type, r.id, r.id AS registration_id,
+              r.id_number, r.first_name, r.last_name, r.license_plate, r.province,
+              r.status, '' AS rule_name, '' AS description,
+              r.registered_at AS source_date, r.deleted_at, r.delete_reason,
+              da.full_name AS deleted_by_name
+       FROM registrations r
+       LEFT JOIN admins da ON r.deleted_by = da.id
+       WHERE r.deleted_at IS NOT NULL ${dateFilter.clause}
+     ) deleted_rows`,
+    params: dateFilter.params,
+  };
+}
+
+async function fetchSoftDeletedRows(conn, filters, limit, offset) {
+  const select = buildSoftDeletedSelectSql(filters);
+
+  return conn.query(
+    `${select.sql}
+     ORDER BY deleted_at DESC
+     LIMIT ? OFFSET ?`,
+    [...select.params, limit, offset]
+  );
+}
+
+async function fetchSoftDeletedSnapshots(conn, filters) {
+  const select = buildSoftDeletedSelectSql(filters);
+  return conn.query(
+    `${select.sql}
+     ORDER BY deleted_at DESC`,
+    select.params
+  );
+}
+
+async function logHardDeleteSoftDeletedSnapshots(conn, rows, reason, adminId) {
+  for (const row of rows) {
+    await conn.query(
+      `INSERT INTO data_deletion_logs (dataset, record_id, delete_type, snapshot_json, reason, deleted_by)
+       VALUES (?, ?, 'hard', ?, ?, ?)`,
+      [row.record_type, row.id, JSON.stringify(row), reason || null, adminId || null]
+    );
+  }
+}
+
+async function hardDeleteSoftDeletedRows(conn, filters) {
+  const dateFilter = buildSoftDeletedDateClause(filters);
+  const registrationRows = await conn.query(
+    `SELECT r.id
+     FROM registrations r
+     WHERE r.deleted_at IS NOT NULL ${dateFilter.clause}`,
+    dateFilter.params
+  );
+  const registrationIds = registrationRows.map(row => row.id);
+
+  if (!registrationIds.length) {
+    return {
+      registrations: 0,
+      violations: 0,
+      reports: 0,
+      summons: 0,
+    };
+  }
+
+  const violationRows = await conn.query(
+    `SELECT v.id
+     FROM violations v
+     WHERE v.registration_id IN (${placeholders(registrationIds)})`,
+    registrationIds
+  );
+  const violationIds = violationRows.map(row => row.id);
+
+  const reportDelete = await conn.query(
+    `DELETE FROM violation_reports
+     WHERE registration_id IN (${placeholders(registrationIds)})`,
+    registrationIds
+  );
+
+  const summonsDelete = await conn.query(
+    `DELETE FROM summons_appointments
+     WHERE registration_id IN (${placeholders(registrationIds)})`,
+    registrationIds
+  );
+
+  if (violationIds.length) {
+    await conn.query(
+      `UPDATE violation_reports SET violation_id = NULL WHERE violation_id IN (${placeholders(violationIds)})`,
+      violationIds
+    );
+  }
+
+  const violationDelete = await conn.query(
+    `DELETE FROM violations
+     WHERE registration_id IN (${placeholders(registrationIds)})`,
+    registrationIds
+  );
+
+  const registrationDelete = await conn.query(
+    `DELETE FROM registrations
+     WHERE id IN (${placeholders(registrationIds)})`,
+    registrationIds
+  );
+
+  return {
+    registrations: Number(registrationDelete.affectedRows) || 0,
+    violations: Number(violationDelete.affectedRows) || 0,
+    reports: Number(reportDelete.affectedRows) || 0,
+    summons: Number(summonsDelete.affectedRows) || 0,
+  };
 }
 
 async function fetchRegistrationBackups(conn, filters) {
@@ -352,6 +497,7 @@ router.get('/manage', async (req, res) => {
   const limit = 20;
   const page = Math.max(parseInt(req.query.page || '1', 10), 1);
   const filters = buildRegistrationDateFilters(req.query);
+  const activeView = getManageView(req.query.view, filters.status);
 
   try {
     conn = await pool.getConnection();
@@ -359,16 +505,12 @@ router.get('/manage', async (req, res) => {
       `SELECT COUNT(*) AS cnt FROM registrations r ${filters.where}`,
       filters.params
     );
-    const total = Number(countResult && countResult.cnt) || 0;
-    const totalPages = Math.max(Math.ceil(total / limit), 1);
-    const currentPage = Math.min(page, totalPages);
-    const offset = (currentPage - 1) * limit;
-    const rows = filters.hasDateRange ? await fetchManagedRegistrations(conn, filters, limit, offset) : [];
+    const filteredRegistrationTotal = Number(countResult && countResult.cnt) || 0;
 
     const [relatedCount] = filters.hasDateRange ? await conn.query(
-      `SELECT COUNT(DISTINCT v.id) AS violation_count,
-              COUNT(DISTINCT vr.id) AS report_count,
-              COUNT(DISTINCT sa.id) AS summons_count
+      `SELECT COUNT(DISTINCT CASE WHEN v.deleted_at IS NULL THEN v.id END) AS violation_count,
+              COUNT(DISTINCT CASE WHEN vr.deleted_at IS NULL THEN vr.id END) AS report_count,
+              COUNT(DISTINCT CASE WHEN sa.deleted_at IS NULL THEN sa.id END) AS summons_count
        FROM registrations r
        LEFT JOIN violations v ON v.registration_id = r.id
        LEFT JOIN violation_reports vr ON vr.registration_id = r.id
@@ -377,12 +519,32 @@ router.get('/manage', async (req, res) => {
       filters.params
     ) : [{ violation_count: 0, report_count: 0, summons_count: 0 }];
 
-    const [summary] = await conn.query(
-      `SELECT
-         SUM(CASE WHEN deleted_at IS NULL THEN 1 ELSE 0 END) AS active_count,
-         SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END) AS deleted_count
-       FROM registrations`
+    const [softDeletedSummary] = await conn.query(
+      `SELECT COUNT(*) AS deleted_count
+       FROM registrations
+       WHERE deleted_at IS NOT NULL`
     );
+    const filteredSoftDeletedTotal = activeView === 'deleted'
+      ? await countSoftDeletedRows(conn, filters)
+      : 0;
+
+    let rows = [];
+    let total = 0;
+    if (activeView === 'deleted') {
+      total = filteredSoftDeletedTotal;
+    } else {
+      total = filters.hasDateRange ? filteredRegistrationTotal : 0;
+    }
+
+    const totalPages = Math.max(Math.ceil(total / limit), 1);
+    const currentPage = Math.min(page, totalPages);
+    const offset = (currentPage - 1) * limit;
+
+    if (activeView === 'deleted') {
+      rows = await fetchSoftDeletedRows(conn, filters, limit, offset);
+    } else {
+      rows = filters.hasDateRange ? await fetchManagedRegistrations(conn, filters, limit, offset) : [];
+    }
 
     res.render('data/manage', {
       title: 'จัดการข้อมูล - BU MotoSpace',
@@ -390,18 +552,20 @@ router.get('/manage', async (req, res) => {
       total,
       totalPages,
       currentPage,
+      activeView,
       registeredFrom: filters.registeredFrom,
       registeredTo: filters.registeredTo,
-      status: filters.status,
+      status: activeView === 'deleted' ? 'deleted' : filters.status,
+      registrationCardStatus: filters.status === 'all' ? 'all' : 'active',
       hasDateRange: filters.hasDateRange,
+      filteredRegistrationTotal,
       relatedCount: {
         violations: Number(relatedCount && relatedCount.violation_count) || 0,
         reports: Number(relatedCount && relatedCount.report_count) || 0,
         summons: Number(relatedCount && relatedCount.summons_count) || 0,
       },
       summary: {
-        activeCount: Number(summary && summary.active_count) || 0,
-        deletedCount: Number(summary && summary.deleted_count) || 0,
+        deletedCount: Number(softDeletedSummary && softDeletedSummary.deleted_count) || 0,
       },
     });
   } catch (err) {
@@ -454,18 +618,13 @@ router.get('/manage/export', async (req, res) => {
 // POST /data/manage/delete
 router.post('/manage/delete', verifyCsrf, async (req, res) => {
   let conn;
-  const deleteType = req.body.delete_type === 'hard' ? 'hard' : 'soft';
+  const deleteType = 'soft';
   const filters = buildRegistrationDateFilters(req.body);
   const reason = (req.body.reason || '').trim();
   const returnUrl = `/data/manage?registered_from=${encodeURIComponent(filters.registeredFrom)}&registered_to=${encodeURIComponent(filters.registeredTo)}&status=${encodeURIComponent(filters.status)}`;
 
   if (!filters.hasDateRange) {
     req.flash('error', 'กรุณาระบุช่วงวันที่ลงทะเบียนก่อนลบข้อมูล');
-    return res.redirect(returnUrl);
-  }
-
-  if (deleteType === 'hard' && req.body.confirm_hard_delete !== 'DELETE') {
-    req.flash('error', 'กรุณาพิมพ์ DELETE เพื่อยืนยันการลบถาวร');
     return res.redirect(returnUrl);
   }
 
@@ -489,48 +648,79 @@ router.post('/manage/delete', verifyCsrf, async (req, res) => {
     await logDeletionSnapshots(conn, 'violation_reports', reports, deleteType, reason, req.session.admin.id);
     await logDeletionSnapshots(conn, 'summons_appointments', summons, deleteType, reason, req.session.admin.id);
 
-    if (deleteType === 'soft') {
-      await conn.query(
-        `UPDATE violation_reports
-         SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
-         WHERE registration_id IN (${placeholders(registrationIds)}) AND deleted_at IS NULL`,
-        [req.session.admin.id, reason || null, ...registrationIds]
-      );
-      await conn.query(
-        `UPDATE summons_appointments
-         SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
-         WHERE registration_id IN (${placeholders(registrationIds)}) AND deleted_at IS NULL`,
-        [req.session.admin.id, reason || null, ...registrationIds]
-      );
-      await conn.query(
-        `UPDATE violations
-         SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
-         WHERE registration_id IN (${placeholders(registrationIds)}) AND deleted_at IS NULL`,
-        [req.session.admin.id, reason || null, ...registrationIds]
-      );
-      await conn.query(
-        `UPDATE registrations
-         SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
-         WHERE id IN (${placeholders(registrationIds)}) AND deleted_at IS NULL`,
-        [req.session.admin.id, reason || null, ...registrationIds]
-      );
-    } else {
-      const violationIds = violations.map(row => row.id);
-      if (violationIds.length) {
-        await conn.query(
-          `UPDATE violation_reports SET violation_id = NULL WHERE violation_id IN (${placeholders(violationIds)})`,
-          violationIds
-        );
-      }
-      await conn.query(`DELETE FROM registrations WHERE id IN (${placeholders(registrationIds)})`, registrationIds);
-    }
+    await conn.query(
+      `UPDATE violation_reports
+       SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+       WHERE registration_id IN (${placeholders(registrationIds)}) AND deleted_at IS NULL`,
+      [req.session.admin.id, reason || null, ...registrationIds]
+    );
+    await conn.query(
+      `UPDATE summons_appointments
+       SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+       WHERE registration_id IN (${placeholders(registrationIds)}) AND deleted_at IS NULL`,
+      [req.session.admin.id, reason || null, ...registrationIds]
+    );
+    await conn.query(
+      `UPDATE violations
+       SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+       WHERE registration_id IN (${placeholders(registrationIds)}) AND deleted_at IS NULL`,
+      [req.session.admin.id, reason || null, ...registrationIds]
+    );
+    await conn.query(
+      `UPDATE registrations
+       SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+       WHERE id IN (${placeholders(registrationIds)}) AND deleted_at IS NULL`,
+      [req.session.admin.id, reason || null, ...registrationIds]
+    );
 
     await conn.commit();
-    req.flash('success', `${deleteType === 'hard' ? 'ลบถาวร' : 'ลบแบบ soft delete'} สำเร็จ ${registrationIds.length} ทะเบียน, ${violations.length} รายการกระทำผิด, ${reports.length} รายงาน และ ${summons.length} รายการเรียกพบ พร้อมบันทึก snapshot แล้ว`);
+    req.flash('success', `ลบแบบ soft delete สำเร็จ ${registrationIds.length} ทะเบียน, ${violations.length} รายการกระทำผิด, ${reports.length} รายงาน และ ${summons.length} รายการเรียกพบ พร้อมบันทึก snapshot แล้ว`);
   } catch (err) {
     if (conn) await conn.rollback();
     console.error('POST /data/manage/delete error:', err);
     req.flash('error', 'ไม่สามารถลบข้อมูลได้: ' + err.message);
+  } finally {
+    if (conn) conn.release();
+  }
+
+  res.redirect(returnUrl);
+});
+
+// POST /data/manage/hard-delete-soft-deleted
+router.post('/manage/hard-delete-soft-deleted', verifyCsrf, async (req, res) => {
+  let conn;
+  const filters = buildRegistrationDateFilters(req.body);
+  const reason = (req.body.reason || '').trim();
+  const query = new URLSearchParams({ view: 'deleted', status: 'deleted' });
+  if (filters.registeredFrom) query.set('registered_from', filters.registeredFrom);
+  if (filters.registeredTo) query.set('registered_to', filters.registeredTo);
+  const returnUrl = `/data/manage?${query.toString()}`;
+
+  if (req.body.confirm_hard_delete !== 'DELETE') {
+    req.flash('error', 'กรุณาพิมพ์ DELETE เพื่อยืนยันการลบถาวร');
+    return res.redirect(returnUrl);
+  }
+
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const snapshots = await fetchSoftDeletedSnapshots(conn, filters);
+    if (!snapshots.length) {
+      await conn.rollback();
+      req.flash('error', 'ยังไม่มีข้อมูลที่ถูก soft delete ตามเงื่อนไขนี้');
+      return res.redirect(returnUrl);
+    }
+
+    await logHardDeleteSoftDeletedSnapshots(conn, snapshots, reason, req.session.admin.id);
+    const deleted = await hardDeleteSoftDeletedRows(conn, filters);
+
+    await conn.commit();
+    req.flash('success', `ลบข้อมูลถาวรสำเร็จ ${deleted.registrations} ทะเบียน พร้อมข้อมูลที่เกี่ยวข้อง`);
+  } catch (err) {
+    if (conn) await conn.rollback();
+    console.error('POST /data/manage/hard-delete-soft-deleted error:', err);
+    req.flash('error', 'ไม่สามารถลบข้อมูล Soft deleted แบบถาวรได้: ' + err.message);
   } finally {
     if (conn) conn.release();
   }
