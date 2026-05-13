@@ -204,7 +204,7 @@ router.get('/', isHead, async (req, res) => {
       ? requestedViolationType
       : 'all';
 
-    let where = 'WHERE 1=1';
+    let where = 'WHERE vr.deleted_at IS NULL AND r.deleted_at IS NULL';
     const params = [];
 
     if (status_filter && status_filter !== 'all') {
@@ -264,7 +264,7 @@ router.get('/', isHead, async (req, res) => {
 
     // Pending count badge
     const [pendingRow] = await conn.query(
-      `SELECT COUNT(*) as cnt FROM violation_reports WHERE status = 'pending'`
+      `SELECT COUNT(*) as cnt FROM violation_reports WHERE status = 'pending' AND deleted_at IS NULL`
     );
     const violationTypes = await conn.query(
       `SELECT id, type_name, type_code, is_active
@@ -331,7 +331,9 @@ router.get('/:id', isHead, async (req, res) => {
        LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
        JOIN admins a          ON vr.reported_by       = a.id
        LEFT JOIN admins rv    ON vr.reviewed_by       = rv.id
-       WHERE vr.id = ?`,
+       WHERE vr.id = ?
+         AND vr.deleted_at IS NULL
+         AND r.deleted_at IS NULL`,
       [req.params.id]
     );
 
@@ -449,7 +451,7 @@ router.post('/:id/confirm', isHead, async (req, res) => {
       `SELECT vr.*, ru.max_violations, ru.rule_name, ru.penalty
        FROM violation_reports vr
        JOIN rules ru ON vr.rule_id = ru.id
-       WHERE vr.id = ? AND vr.status = 'pending'
+       WHERE vr.id = ? AND vr.status = 'pending' AND vr.deleted_at IS NULL
        FOR UPDATE`,
       [req.params.id]
     );
@@ -568,7 +570,7 @@ router.post('/:id/reject', isHead, async (req, res) => {
     await ensureTable(conn);
 
     const [report] = await conn.query(
-      `SELECT id, status FROM violation_reports WHERE id = ?`,
+      `SELECT id, status FROM violation_reports WHERE id = ? AND deleted_at IS NULL`,
       [req.params.id]
     );
 
@@ -608,7 +610,7 @@ router.post('/:id/edit', isHead, async (req, res) => {
     await conn.query(
       `UPDATE violation_reports
        SET description = ?, rule_id = ?
-       WHERE id = ? AND status = 'pending'`,
+       WHERE id = ? AND status = 'pending' AND deleted_at IS NULL`,
       [description || null, rule_id, req.params.id]
     );
 

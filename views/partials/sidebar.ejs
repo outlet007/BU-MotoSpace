@@ -88,14 +88,14 @@
       กฎและข้อบังคับ
     </a>
 
-    <a href="/data/import" class="sidebar-link <%= currentPath.startsWith('/data/import') || currentPath === '/data' ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
-      <i data-lucide="file-up" class="w-5 h-5"></i>
-      นำเข้าข้อมูล
+    <a href="/data/import-export" class="sidebar-link <%= currentPath.startsWith('/data/import') || currentPath.startsWith('/data/export') || currentPath === '/data' ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+      <i data-lucide="files" class="w-5 h-5"></i>
+      นำเข้า-ส่งออก ข้อมูล
     </a>
 
-    <a href="/data/export" class="sidebar-link <%= currentPath.startsWith('/data/export') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
-      <i data-lucide="file-down" class="w-5 h-5"></i>
-      ส่งออกข้อมูล
+    <a href="/data/manage" class="sidebar-link <%= currentPath.startsWith('/data/manage') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+      <i data-lucide="database-zap" class="w-5 h-5"></i>
+      จัดการข้อมูล
     </a>
     <% } %>
 

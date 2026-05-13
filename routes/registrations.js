@@ -79,7 +79,7 @@ router.get('/', isHead, async (req, res) => {
     const limit = 20;
     const offset = (page - 1) * limit;
 
-    let where = 'WHERE 1=1';
+    let where = 'WHERE deleted_at IS NULL';
     const params = [];
 
     if (search) {
@@ -222,7 +222,7 @@ router.get('/api/search', isHead, async (req, res) => {
     const rows = await conn.query(
       `SELECT id, id_number, user_type, first_name, last_name, phone, license_plate, province, status
        FROM registrations
-       WHERE (
+       WHERE deleted_at IS NULL AND (
          id_number LIKE ? OR
          first_name LIKE ? OR
          last_name LIKE ? OR
@@ -249,7 +249,7 @@ router.get('/:id', isHead, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
-    const [reg] = await conn.query('SELECT * FROM registrations WHERE id = ?', [req.params.id]);
+    const [reg] = await conn.query('SELECT * FROM registrations WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
     if (!reg) {
       req.flash('error', 'ไม่พบข้อมูล');
       return res.redirect('/registrations');
@@ -270,6 +270,7 @@ router.get('/:id', isHead, async (req, res) => {
        LEFT JOIN violation_reports vr ON vr.violation_id = v.id
        LEFT JOIN admins rpa ON vr.reported_by = rpa.id
        WHERE v.registration_id = ?
+         AND v.deleted_at IS NULL
        ORDER BY v.recorded_at DESC`,
       [req.params.id]
     );
@@ -287,6 +288,7 @@ router.get('/:id', isHead, async (req, res) => {
          SELECT registration_id, violation_type_id, MAX(created_at) AS latest_reset_at
          FROM summons_appointments
          WHERE violation_type_id IS NOT NULL
+           AND deleted_at IS NULL
          GROUP BY registration_id, violation_type_id
        ) sa_type ON sa_type.registration_id = v.registration_id
                  AND sa_type.violation_type_id = ru.violation_type_id
@@ -294,9 +296,11 @@ router.get('/:id', isHead, async (req, res) => {
          SELECT registration_id, MAX(created_at) AS latest_reset_at
          FROM summons_appointments
          WHERE violation_type_id IS NULL
+           AND deleted_at IS NULL
          GROUP BY registration_id
        ) sa_global ON sa_global.registration_id = v.registration_id
        WHERE v.registration_id = ?
+         AND v.deleted_at IS NULL
          AND v.recorded_at > COALESCE(
            GREATEST(
              COALESCE(sa_type.latest_reset_at, '1000-01-01'),
@@ -316,6 +320,7 @@ router.get('/:id', isHead, async (req, res) => {
        FROM summons_appointments sa
        JOIN admins a ON sa.summoned_by = a.id
        WHERE sa.registration_id = ?
+         AND sa.deleted_at IS NULL
        ORDER BY sa.created_at DESC`,
       [req.params.id]
     );
@@ -379,7 +384,7 @@ router.get('/:id/edit', isHead, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
-    const [reg] = await conn.query('SELECT * FROM registrations WHERE id = ?', [req.params.id]);
+    const [reg] = await conn.query('SELECT * FROM registrations WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
     if (!reg) {
       req.flash('error', 'ไม่พบข้อมูล');
       return res.redirect('/registrations');

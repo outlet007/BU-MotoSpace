@@ -127,15 +127,18 @@ async function countSummonsCandidates() {
            COALESCE(MAX(vt.max_violations), MAX(ru.max_violations), ${DEFAULT_SUMMONS_THRESHOLD}) AS required_violations
          FROM registrations r
          LEFT JOIN (
-           SELECT registration_id, MAX(created_at) AS latest_reset_at
-           FROM summons_appointments
-           GROUP BY registration_id
+       SELECT registration_id, MAX(created_at) AS latest_reset_at
+       FROM summons_appointments
+       WHERE deleted_at IS NULL
+       GROUP BY registration_id
          ) sa ON sa.registration_id = r.id
          JOIN violations v
            ON v.registration_id = r.id
           AND v.recorded_at > COALESCE(sa.latest_reset_at, '1000-01-01 00:00:00')
+          AND v.deleted_at IS NULL
          JOIN rules ru ON v.rule_id = ru.id
          LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
+         WHERE r.deleted_at IS NULL
          GROUP BY r.id, COALESCE(ru.violation_type_id, -ru.id)
          HAVING type_violations >= required_violations
        ) qualified_by_type
@@ -153,8 +156,8 @@ async function getNavbarCounters() {
   }
 
   const [pendingRows, pendingReportRows, summonsCandidatesCount] = await Promise.all([
-    pool.query("SELECT COUNT(*) as count FROM registrations WHERE status = 'pending'"),
-    pool.query("SELECT COUNT(*) as count FROM violation_reports WHERE status = 'pending'"),
+    pool.query("SELECT COUNT(*) as count FROM registrations WHERE status = 'pending' AND deleted_at IS NULL"),
+    pool.query("SELECT COUNT(*) as count FROM violation_reports WHERE status = 'pending' AND deleted_at IS NULL"),
     countSummonsCandidates(),
   ]);
 
@@ -376,17 +379,29 @@ async function ensureRuntimeSchema(conn) {
 
   await ensureIndex(conn, 'registrations', 'idx_status_regdate', 'INDEX idx_status_regdate (status, registered_at)');
   await ensureIndex(conn, 'registrations', 'idx_registrations_name', 'INDEX idx_registrations_name (first_name, last_name)');
+  await ensureColumn(conn, 'registrations', 'deleted_at', 'TIMESTAMP NULL DEFAULT NULL');
+  await ensureColumn(conn, 'registrations', 'deleted_by', 'INT DEFAULT NULL');
+  await ensureColumn(conn, 'registrations', 'delete_reason', 'TEXT DEFAULT NULL');
+  await ensureIndex(conn, 'registrations', 'idx_registrations_deleted_at', 'INDEX idx_registrations_deleted_at (deleted_at)');
 
   await ensureIndex(conn, 'violations', 'idx_violations_registration_rule_recorded', 'INDEX idx_violations_registration_rule_recorded (registration_id, rule_id, recorded_at)');
   await ensureIndex(conn, 'violations', 'idx_recorded_at', 'INDEX idx_recorded_at (recorded_at)');
   await ensureIndex(conn, 'violations', 'idx_violations_rule_recorded', 'INDEX idx_violations_rule_recorded (rule_id, recorded_at)');
+  await ensureColumn(conn, 'violations', 'deleted_at', 'TIMESTAMP NULL DEFAULT NULL');
+  await ensureColumn(conn, 'violations', 'deleted_by', 'INT DEFAULT NULL');
+  await ensureColumn(conn, 'violations', 'delete_reason', 'TEXT DEFAULT NULL');
+  await ensureIndex(conn, 'violations', 'idx_violations_deleted_at', 'INDEX idx_violations_deleted_at (deleted_at)');
 
   await ensureColumn(conn, 'summons_appointments', 'appointment_code', 'VARCHAR(30) DEFAULT NULL AFTER id');
   await ensureColumn(conn, 'summons_appointments', 'written_document', 'VARCHAR(500) DEFAULT NULL');
   await ensureColumn(conn, 'summons_appointments', 'written_document_original_name', 'VARCHAR(255) DEFAULT NULL');
   await ensureColumn(conn, 'summons_appointments', 'violation_type_id', 'INT DEFAULT NULL');
+  await ensureColumn(conn, 'summons_appointments', 'deleted_at', 'TIMESTAMP NULL DEFAULT NULL');
+  await ensureColumn(conn, 'summons_appointments', 'deleted_by', 'INT DEFAULT NULL');
+  await ensureColumn(conn, 'summons_appointments', 'delete_reason', 'TEXT DEFAULT NULL');
   await ensureIndex(conn, 'summons_appointments', 'uq_summons_appointment_code', 'UNIQUE INDEX uq_summons_appointment_code (appointment_code)');
   await ensureIndex(conn, 'summons_appointments', 'idx_summons_violation_type', 'INDEX idx_summons_violation_type (violation_type_id)');
+  await ensureIndex(conn, 'summons_appointments', 'idx_summons_deleted_at', 'INDEX idx_summons_deleted_at (deleted_at)');
 
   await conn.query(`
     CREATE TABLE IF NOT EXISTS violation_reports (
@@ -418,6 +433,26 @@ async function ensureRuntimeSchema(conn) {
   await ensureIndex(conn, 'violation_reports', 'idx_vr_status_reported', 'INDEX idx_vr_status_reported (status, reported_at)');
   await ensureIndex(conn, 'violation_reports', 'idx_vr_reported_at', 'INDEX idx_vr_reported_at (reported_at)');
   await ensureIndex(conn, 'violation_reports', 'idx_vr_rule_status_reported', 'INDEX idx_vr_rule_status_reported (rule_id, status, reported_at)');
+  await ensureColumn(conn, 'violation_reports', 'deleted_at', 'TIMESTAMP NULL DEFAULT NULL');
+  await ensureColumn(conn, 'violation_reports', 'deleted_by', 'INT DEFAULT NULL');
+  await ensureColumn(conn, 'violation_reports', 'delete_reason', 'TEXT DEFAULT NULL');
+  await ensureIndex(conn, 'violation_reports', 'idx_vr_deleted_at', 'INDEX idx_vr_deleted_at (deleted_at)');
+
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS data_deletion_logs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      dataset VARCHAR(50) NOT NULL,
+      record_id INT NOT NULL,
+      delete_type ENUM('soft','hard') NOT NULL,
+      snapshot_json LONGTEXT NOT NULL,
+      reason TEXT,
+      deleted_by INT DEFAULT NULL,
+      deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (deleted_by) REFERENCES admins(id) ON DELETE SET NULL,
+      INDEX idx_deletion_dataset_record (dataset, record_id),
+      INDEX idx_deletion_deleted_at (deleted_at)
+    ) ENGINE=InnoDB
+  `);
 
   await sessionStore.ready();
 }

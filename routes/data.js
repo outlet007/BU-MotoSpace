@@ -10,24 +10,532 @@ const csvParser = require('csv-parser');
 
 router.use(isAuthenticated, isHead);
 
+const DATASET_CONFIG = {
+  registrations: {
+    label: 'ข้อมูลทะเบียนรถ',
+    table: 'registrations',
+    dateColumn: 'registered_at',
+    searchColumns: ['id_number', 'first_name', 'last_name', 'license_plate', 'phone', 'province'],
+    selectSql: `
+      SELECT id, user_type, id_number, first_name, last_name, phone, license_plate, province,
+             status, registered_at, deleted_at, delete_reason
+      FROM registrations`,
+    exportFields: [
+      { label: 'ID', value: 'id' },
+      { label: 'ประเภท', value: 'user_type' },
+      { label: 'รหัส', value: 'id_number' },
+      { label: 'ชื่อ', value: 'first_name' },
+      { label: 'นามสกุล', value: 'last_name' },
+      { label: 'โทรศัพท์', value: 'phone' },
+      { label: 'ป้ายทะเบียน', value: 'license_plate' },
+      { label: 'จังหวัด', value: 'province' },
+      { label: 'สถานะ', value: 'status' },
+      { label: 'วันที่ลงทะเบียน', value: 'registered_at' },
+      { label: 'วันที่ลบ', value: 'deleted_at' },
+      { label: 'เหตุผลการลบ', value: 'delete_reason' },
+    ],
+  },
+  violations: {
+    label: 'ข้อมูลการกระทำผิด',
+    table: 'violations',
+    dateColumn: 'recorded_at',
+    searchColumns: ['r.id_number', 'r.first_name', 'r.last_name', 'r.license_plate', 'ru.rule_name', 'v.description'],
+    selectSql: `
+      SELECT v.id, v.registration_id, r.id_number, r.first_name, r.last_name, r.license_plate,
+             ru.rule_name, v.description, v.recorded_at, v.deleted_at, v.delete_reason
+      FROM violations v
+      JOIN registrations r ON v.registration_id = r.id
+      JOIN rules ru ON v.rule_id = ru.id`,
+    exportFields: [
+      { label: 'ID', value: 'id' },
+      { label: 'รหัส', value: 'id_number' },
+      { label: 'ชื่อ', value: 'first_name' },
+      { label: 'นามสกุล', value: 'last_name' },
+      { label: 'ป้ายทะเบียน', value: 'license_plate' },
+      { label: 'กฎที่ฝ่าฝืน', value: 'rule_name' },
+      { label: 'รายละเอียด', value: 'description' },
+      { label: 'วันที่บันทึก', value: 'recorded_at' },
+      { label: 'วันที่ลบ', value: 'deleted_at' },
+      { label: 'เหตุผลการลบ', value: 'delete_reason' },
+    ],
+  },
+};
+
 const configuredImportLimit = parseInt(process.env.MAX_IMPORT_ROWS || '5000', 10);
 const MAX_IMPORT_ROWS = Number.isFinite(configuredImportLimit) && configuredImportLimit > 0
   ? configuredImportLimit
   : 5000;
 
+function getDatasetConfig(dataset) {
+  return DATASET_CONFIG[dataset] || DATASET_CONFIG.registrations;
+}
+
+function parseIds(value) {
+  const raw = Array.isArray(value) ? value : String(value || '').split(',');
+  return [...new Set(raw
+    .map(id => parseInt(id, 10))
+    .filter(id => Number.isFinite(id) && id > 0))];
+}
+
+function placeholders(items) {
+  return items.map(() => '?').join(',');
+}
+
+function buildManageWhere(config, query, alias) {
+  const filters = [];
+  const params = [];
+  const status = query.status || 'active';
+  const search = (query.search || '').trim().replace(/\s+/g, ' ');
+  const deletedColumn = alias ? `${alias}.deleted_at` : 'deleted_at';
+
+  if (status === 'deleted') {
+    filters.push(`${deletedColumn} IS NOT NULL`);
+  } else if (status !== 'all') {
+    filters.push(`${deletedColumn} IS NULL`);
+  }
+
+  if (search) {
+    const s = `%${search}%`;
+    const searchFilter = config.searchColumns.map(column => `${column} LIKE ?`).join(' OR ');
+    filters.push(`(${searchFilter})`);
+    config.searchColumns.forEach(() => params.push(s));
+  }
+
+  return {
+    where: filters.length ? `WHERE ${filters.join(' AND ')}` : '',
+    params,
+    status,
+    search,
+  };
+}
+
+async function fetchRowsForDataset(conn, dataset, ids) {
+  const config = getDatasetConfig(dataset);
+  const idColumn = dataset === 'violations' ? 'v.id' : 'id';
+  return conn.query(
+    `${config.selectSql} WHERE ${idColumn} IN (${placeholders(ids)}) ORDER BY ${idColumn} DESC`,
+    ids
+  );
+}
+
+async function logDeletionSnapshots(conn, dataset, rows, deleteType, reason, adminId) {
+  for (const row of rows) {
+    await conn.query(
+      `INSERT INTO data_deletion_logs (dataset, record_id, delete_type, snapshot_json, reason, deleted_by)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [dataset, row.id, deleteType, JSON.stringify(row), reason || null, adminId || null]
+    );
+  }
+}
+
+function normalizeDateInput(value) {
+  const text = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : '';
+}
+
+function buildRegistrationDateFilters(query) {
+  const registeredFrom = normalizeDateInput(query.registered_from);
+  const registeredTo = normalizeDateInput(query.registered_to);
+  const status = ['active', 'deleted', 'all'].includes(query.status) ? query.status : 'active';
+  const filters = [];
+  const params = [];
+
+  if (status === 'deleted') {
+    filters.push('r.deleted_at IS NOT NULL');
+  } else if (status === 'active') {
+    filters.push('r.deleted_at IS NULL');
+  }
+
+  if (registeredFrom) {
+    filters.push('r.registered_at >= ?');
+    params.push(`${registeredFrom} 00:00:00`);
+  }
+
+  if (registeredTo) {
+    filters.push('r.registered_at < DATE_ADD(?, INTERVAL 1 DAY)');
+    params.push(`${registeredTo} 00:00:00`);
+  }
+
+  return {
+    where: filters.length ? `WHERE ${filters.join(' AND ')}` : '',
+    params,
+    registeredFrom,
+    registeredTo,
+    status,
+    hasDateRange: Boolean(registeredFrom && registeredTo),
+  };
+}
+
+async function fetchManagedRegistrations(conn, filters, limit, offset) {
+  return conn.query(
+    `SELECT r.id, r.user_type, r.id_number, r.first_name, r.last_name, r.phone, r.license_plate,
+            r.province, r.status, r.registered_at, r.deleted_at, r.delete_reason,
+            COUNT(DISTINCT v.id) AS violation_count,
+            COUNT(DISTINCT vr.id) AS report_count,
+            COUNT(DISTINCT sa.id) AS summons_count
+     FROM registrations r
+     LEFT JOIN violations v ON v.registration_id = r.id
+     LEFT JOIN violation_reports vr ON vr.registration_id = r.id
+     LEFT JOIN summons_appointments sa ON sa.registration_id = r.id
+     ${filters.where}
+     GROUP BY r.id
+     ORDER BY r.registered_at DESC
+     LIMIT ? OFFSET ?`,
+    [...filters.params, limit, offset]
+  );
+}
+
+async function fetchRegistrationBackups(conn, filters) {
+  return conn.query(
+    `SELECT r.id, r.user_type, r.id_number, r.first_name, r.last_name, r.phone, r.license_plate,
+            r.province, r.status, r.registered_at, r.deleted_at, r.delete_reason
+     FROM registrations r
+     ${filters.where}
+     ORDER BY r.registered_at DESC`,
+    filters.params
+  );
+}
+
+async function fetchViolationBackups(conn, registrationIds) {
+  if (!registrationIds.length) return [];
+  return conn.query(
+    `SELECT v.id, v.registration_id, r.id_number, r.first_name, r.last_name, r.license_plate,
+            ru.rule_name, v.description, v.recorded_at, v.deleted_at, v.delete_reason
+     FROM violations v
+     JOIN registrations r ON v.registration_id = r.id
+     JOIN rules ru ON v.rule_id = ru.id
+     WHERE v.registration_id IN (${placeholders(registrationIds)})
+     ORDER BY v.recorded_at DESC`,
+    registrationIds
+  );
+}
+
+async function fetchReportBackups(conn, registrationIds) {
+  if (!registrationIds.length) return [];
+  return conn.query(
+    `SELECT vr.id, vr.registration_id, r.id_number, r.first_name, r.last_name, r.license_plate,
+            ru.rule_name, vr.description, vr.status, vr.reported_at, vr.reviewed_at,
+            vr.deleted_at, vr.delete_reason
+     FROM violation_reports vr
+     JOIN registrations r ON vr.registration_id = r.id
+     JOIN rules ru ON vr.rule_id = ru.id
+     WHERE vr.registration_id IN (${placeholders(registrationIds)})
+     ORDER BY vr.reported_at DESC`,
+    registrationIds
+  );
+}
+
+async function fetchSummonsBackups(conn, registrationIds) {
+  if (!registrationIds.length) return [];
+  return conn.query(
+    `SELECT sa.id, sa.registration_id, r.id_number, r.first_name, r.last_name, r.license_plate,
+            sa.appointment_code, sa.scheduled_at, sa.note, sa.created_at,
+            sa.deleted_at, sa.delete_reason
+     FROM summons_appointments sa
+     JOIN registrations r ON sa.registration_id = r.id
+     WHERE sa.registration_id IN (${placeholders(registrationIds)})
+     ORDER BY sa.created_at DESC`,
+    registrationIds
+  );
+}
+
+function buildCombinedBackupRows(registrations, violations, reports, summons) {
+  return [
+    ...registrations.map(row => ({
+      record_type: 'registration',
+      id: row.id,
+      registration_id: row.id,
+      id_number: row.id_number,
+      first_name: row.first_name,
+      last_name: row.last_name,
+      phone: row.phone,
+      license_plate: row.license_plate,
+      province: row.province,
+      status: row.status,
+      rule_name: '',
+      description: '',
+      registered_at: row.registered_at,
+      recorded_at: '',
+      deleted_at: row.deleted_at,
+      delete_reason: row.delete_reason,
+    })),
+    ...violations.map(row => ({
+      record_type: 'violation',
+      id: row.id,
+      registration_id: row.registration_id,
+      id_number: row.id_number,
+      first_name: row.first_name,
+      last_name: row.last_name,
+      phone: '',
+      license_plate: row.license_plate,
+      province: '',
+      status: '',
+      rule_name: row.rule_name,
+      description: row.description,
+      registered_at: '',
+      recorded_at: row.recorded_at,
+      deleted_at: row.deleted_at,
+      delete_reason: row.delete_reason,
+    })),
+    ...reports.map(row => ({
+      record_type: 'violation_report',
+      id: row.id,
+      registration_id: row.registration_id,
+      id_number: row.id_number,
+      first_name: row.first_name,
+      last_name: row.last_name,
+      phone: '',
+      license_plate: row.license_plate,
+      province: '',
+      status: row.status,
+      rule_name: row.rule_name,
+      description: row.description,
+      registered_at: '',
+      recorded_at: row.reported_at,
+      deleted_at: row.deleted_at,
+      delete_reason: row.delete_reason,
+    })),
+    ...summons.map(row => ({
+      record_type: 'summons_appointment',
+      id: row.id,
+      registration_id: row.registration_id,
+      id_number: row.id_number,
+      first_name: row.first_name,
+      last_name: row.last_name,
+      phone: '',
+      license_plate: row.license_plate,
+      province: '',
+      status: row.appointment_code || '',
+      rule_name: '',
+      description: row.note,
+      registered_at: '',
+      recorded_at: row.scheduled_at || row.created_at,
+      deleted_at: row.deleted_at,
+      delete_reason: row.delete_reason,
+    })),
+  ];
+}
+
 // Redirect /data to /data/import
 router.get('/', (req, res) => {
-  res.redirect('/data/import');
+  res.redirect('/data/import-export');
+});
+
+// GET /data/import-export
+router.get('/import-export', async (req, res) => {
+  const activeTab = req.query.tab === 'export' ? 'export' : 'import';
+  res.render('data/import-export', {
+    title: 'นำเข้า-ส่งออก ข้อมูล - BU MotoSpace',
+    activeTab,
+  });
 });
 
 // GET /data/import
 router.get('/import', async (req, res) => {
-  res.render('data/import', { title: 'นำเข้าข้อมูล - BU MotoSpace' });
+  res.render('data/import-export', {
+    title: 'นำเข้า-ส่งออก ข้อมูล - BU MotoSpace',
+    activeTab: 'import',
+  });
 });
 
 // GET /data/export
 router.get('/export', async (req, res) => {
-  res.render('data/export', { title: 'ส่งออกข้อมูล - BU MotoSpace' });
+  res.render('data/import-export', {
+    title: 'นำเข้า-ส่งออก ข้อมูล - BU MotoSpace',
+    activeTab: 'export',
+  });
+});
+
+// GET /data/manage
+router.get('/manage', async (req, res) => {
+  let conn;
+  const limit = 20;
+  const page = Math.max(parseInt(req.query.page || '1', 10), 1);
+  const filters = buildRegistrationDateFilters(req.query);
+
+  try {
+    conn = await pool.getConnection();
+    const [countResult] = await conn.query(
+      `SELECT COUNT(*) AS cnt FROM registrations r ${filters.where}`,
+      filters.params
+    );
+    const total = Number(countResult && countResult.cnt) || 0;
+    const totalPages = Math.max(Math.ceil(total / limit), 1);
+    const currentPage = Math.min(page, totalPages);
+    const offset = (currentPage - 1) * limit;
+    const rows = filters.hasDateRange ? await fetchManagedRegistrations(conn, filters, limit, offset) : [];
+
+    const [relatedCount] = filters.hasDateRange ? await conn.query(
+      `SELECT COUNT(DISTINCT v.id) AS violation_count,
+              COUNT(DISTINCT vr.id) AS report_count,
+              COUNT(DISTINCT sa.id) AS summons_count
+       FROM registrations r
+       LEFT JOIN violations v ON v.registration_id = r.id
+       LEFT JOIN violation_reports vr ON vr.registration_id = r.id
+       LEFT JOIN summons_appointments sa ON sa.registration_id = r.id
+       ${filters.where}`,
+      filters.params
+    ) : [{ violation_count: 0, report_count: 0, summons_count: 0 }];
+
+    const [summary] = await conn.query(
+      `SELECT
+         SUM(CASE WHEN deleted_at IS NULL THEN 1 ELSE 0 END) AS active_count,
+         SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END) AS deleted_count
+       FROM registrations`
+    );
+
+    res.render('data/manage', {
+      title: 'จัดการข้อมูล - BU MotoSpace',
+      rows,
+      total,
+      totalPages,
+      currentPage,
+      registeredFrom: filters.registeredFrom,
+      registeredTo: filters.registeredTo,
+      status: filters.status,
+      hasDateRange: filters.hasDateRange,
+      relatedCount: {
+        violations: Number(relatedCount && relatedCount.violation_count) || 0,
+        reports: Number(relatedCount && relatedCount.report_count) || 0,
+        summons: Number(relatedCount && relatedCount.summons_count) || 0,
+      },
+      summary: {
+        activeCount: Number(summary && summary.active_count) || 0,
+        deletedCount: Number(summary && summary.deleted_count) || 0,
+      },
+    });
+  } catch (err) {
+    console.error('GET /data/manage error:', err);
+    req.flash('error', 'ไม่สามารถโหลดหน้าจัดการข้อมูลได้: ' + err.message);
+    res.redirect('/data/export');
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// GET /data/manage/export
+router.get('/manage/export', async (req, res) => {
+  let conn;
+  const filters = buildRegistrationDateFilters(req.query);
+
+  try {
+    if (!filters.hasDateRange) {
+      req.flash('error', 'กรุณาระบุช่วงวันที่ลงทะเบียนก่อนสำรองข้อมูล');
+      return res.redirect('/data/manage');
+    }
+
+    conn = await pool.getConnection();
+    const registrations = await fetchRegistrationBackups(conn, filters);
+    const registrationIds = registrations.map(row => row.id);
+    const violations = await fetchViolationBackups(conn, registrationIds);
+    const reports = await fetchReportBackups(conn, registrationIds);
+    const summons = await fetchSummonsBackups(conn, registrationIds);
+    const rows = buildCombinedBackupRows(registrations, violations, reports, summons);
+    const fields = [
+      'record_type', 'id', 'registration_id', 'id_number', 'first_name', 'last_name', 'phone',
+      'license_plate', 'province', 'status', 'rule_name', 'description', 'registered_at',
+      'recorded_at', 'deleted_at', 'delete_reason',
+    ];
+    const parser = new Parser({ fields, withBOM: true });
+    const csv = parser.parse(rows);
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=data_cleanup_backup_${stamp}.csv`);
+    res.send(csv);
+  } catch (err) {
+    console.error('GET /data/manage/export error:', err);
+    req.flash('error', 'ไม่สามารถสำรองข้อมูลได้: ' + err.message);
+    res.redirect('/data/manage');
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// POST /data/manage/delete
+router.post('/manage/delete', verifyCsrf, async (req, res) => {
+  let conn;
+  const deleteType = req.body.delete_type === 'hard' ? 'hard' : 'soft';
+  const filters = buildRegistrationDateFilters(req.body);
+  const reason = (req.body.reason || '').trim();
+  const returnUrl = `/data/manage?registered_from=${encodeURIComponent(filters.registeredFrom)}&registered_to=${encodeURIComponent(filters.registeredTo)}&status=${encodeURIComponent(filters.status)}`;
+
+  if (!filters.hasDateRange) {
+    req.flash('error', 'กรุณาระบุช่วงวันที่ลงทะเบียนก่อนลบข้อมูล');
+    return res.redirect(returnUrl);
+  }
+
+  if (deleteType === 'hard' && req.body.confirm_hard_delete !== 'DELETE') {
+    req.flash('error', 'กรุณาพิมพ์ DELETE เพื่อยืนยันการลบถาวร');
+    return res.redirect(returnUrl);
+  }
+
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const registrations = await fetchRegistrationBackups(conn, filters);
+    const registrationIds = registrations.map(row => row.id);
+    if (!registrationIds.length) {
+      await conn.rollback();
+      req.flash('error', 'ไม่พบข้อมูลในช่วงวันที่ที่เลือก');
+      return res.redirect(returnUrl);
+    }
+
+    const violations = await fetchViolationBackups(conn, registrationIds);
+    const reports = await fetchReportBackups(conn, registrationIds);
+    const summons = await fetchSummonsBackups(conn, registrationIds);
+    await logDeletionSnapshots(conn, 'registrations', registrations, deleteType, reason, req.session.admin.id);
+    await logDeletionSnapshots(conn, 'violations', violations, deleteType, reason, req.session.admin.id);
+    await logDeletionSnapshots(conn, 'violation_reports', reports, deleteType, reason, req.session.admin.id);
+    await logDeletionSnapshots(conn, 'summons_appointments', summons, deleteType, reason, req.session.admin.id);
+
+    if (deleteType === 'soft') {
+      await conn.query(
+        `UPDATE violation_reports
+         SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+         WHERE registration_id IN (${placeholders(registrationIds)}) AND deleted_at IS NULL`,
+        [req.session.admin.id, reason || null, ...registrationIds]
+      );
+      await conn.query(
+        `UPDATE summons_appointments
+         SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+         WHERE registration_id IN (${placeholders(registrationIds)}) AND deleted_at IS NULL`,
+        [req.session.admin.id, reason || null, ...registrationIds]
+      );
+      await conn.query(
+        `UPDATE violations
+         SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+         WHERE registration_id IN (${placeholders(registrationIds)}) AND deleted_at IS NULL`,
+        [req.session.admin.id, reason || null, ...registrationIds]
+      );
+      await conn.query(
+        `UPDATE registrations
+         SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+         WHERE id IN (${placeholders(registrationIds)}) AND deleted_at IS NULL`,
+        [req.session.admin.id, reason || null, ...registrationIds]
+      );
+    } else {
+      const violationIds = violations.map(row => row.id);
+      if (violationIds.length) {
+        await conn.query(
+          `UPDATE violation_reports SET violation_id = NULL WHERE violation_id IN (${placeholders(violationIds)})`,
+          violationIds
+        );
+      }
+      await conn.query(`DELETE FROM registrations WHERE id IN (${placeholders(registrationIds)})`, registrationIds);
+    }
+
+    await conn.commit();
+    req.flash('success', `${deleteType === 'hard' ? 'ลบถาวร' : 'ลบแบบ soft delete'} สำเร็จ ${registrationIds.length} ทะเบียน, ${violations.length} รายการกระทำผิด, ${reports.length} รายงาน และ ${summons.length} รายการเรียกพบ พร้อมบันทึก snapshot แล้ว`);
+  } catch (err) {
+    if (conn) await conn.rollback();
+    console.error('POST /data/manage/delete error:', err);
+    req.flash('error', 'ไม่สามารถลบข้อมูลได้: ' + err.message);
+  } finally {
+    if (conn) conn.release();
+  }
+
+  res.redirect(returnUrl);
 });
 
 // GET /data/import/template
@@ -67,7 +575,7 @@ router.get('/export/registrations', async (req, res) => {
   try {
     conn = await pool.getConnection();
     const rows = await conn.query(
-      'SELECT id, user_type, id_number, first_name, last_name, phone, license_plate, province, status, registered_at FROM registrations ORDER BY registered_at DESC'
+      'SELECT id, user_type, id_number, first_name, last_name, phone, license_plate, province, status, registered_at FROM registrations WHERE deleted_at IS NULL ORDER BY registered_at DESC'
     );
 
     const fields = [
@@ -107,6 +615,8 @@ router.get('/export/violations', async (req, res) => {
        FROM violations v
        JOIN registrations r ON v.registration_id = r.id
        JOIN rules ru ON v.rule_id = ru.id
+       WHERE v.deleted_at IS NULL
+         AND r.deleted_at IS NULL
        ORDER BY v.recorded_at DESC`
     );
 

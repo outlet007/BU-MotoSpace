@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/output.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .sidebar-gradient { background: linear-gradient(180deg, #0f172a 0%, #1a2332 50%, #162032 100%); }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .bulk-bar { position: sticky; bottom: 1rem; z-index: 20; box-shadow: 0 18px 50px rgba(15, 23, 42, .16); }
+    .danger-panel { border: 1px solid #fecaca; background: #fff7f7; }
+    @media (max-width: 640px) {
+      .bulk-bar { bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+  <div class="flex min-h-screen">
+    <%- include('../partials/sidebar') %>
+    <div class="flex-1 flex flex-col lg:ml-72">
+      <%- include('../partials/topbar') %>
+      <main class="flex-1 p-4 sm:p-6 fade-in">
+        <%- include('../partials/flash') %>
+
+        <div class="w-full space-y-6">
+          <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                <i data-lucide="database-zap" class="w-7 h-7 text-brand-500"></i>
+                จัดการข้อมูล
+              </h2>
+              <p class="text-slate-500 mt-1">เลือกช่วงวันที่ลงทะเบียนเพื่อสำรองและลบข้อมูลทะเบียนพร้อมข้อมูลที่เกี่ยวข้องทั้งหมด</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="stat-card">
+              <div class="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
+                <i data-lucide="clipboard-list" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <p class="text-sm text-slate-500">ทะเบียนที่ตรงเงื่อนไข</p>
+                <p class="text-3xl font-bold text-slate-800"><%= hasDateRange ? total.toLocaleString('th-TH') : '-' %></p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
+                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <p class="text-sm text-slate-500">รายการกระทำผิดที่เกี่ยวข้อง</p>
+                <p class="text-3xl font-bold text-slate-800"><%= hasDateRange ? relatedCount.violations.toLocaleString('th-TH') : '-' %></p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="w-12 h-12 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center">
+                <i data-lucide="archive-x" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <p class="text-sm text-slate-500">Soft deleted ทั้งระบบ</p>
+                <p class="text-3xl font-bold text-slate-800"><%= summary.deletedCount.toLocaleString('th-TH') %></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card p-4 sm:p-5">
+            <div class="mb-4">
+              <h3 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+                <i data-lucide="calendar-search" class="w-5 h-5 text-brand-500"></i>
+                ค้นหาช่วงเวลาที่ต้องการ
+              </h3>
+            </div>
+            <form method="GET" action="/data/manage" class="grid grid-cols-1 lg:grid-cols-[180px_180px_220px_auto_auto] gap-3 items-end">
+              <div>
+                <label class="label" for="registered_from">วันที่ลงทะเบียนตั้งแต่</label>
+                <input id="registered_from" name="registered_from" type="date" value="<%= registeredFrom %>" class="input" required>
+              </div>
+              <div>
+                <label class="label" for="registered_to">ถึงวันที่</label>
+                <input id="registered_to" name="registered_to" type="date" value="<%= registeredTo %>" class="input" required>
+              </div>
+              <div>
+                <label class="label" for="status">สถานะข้อมูล</label>
+                <select id="status" name="status" class="input">
+                  <option value="active" <%= status === 'active' ? 'selected' : '' %>>ใช้งานอยู่</option>
+                  <option value="deleted" <%= status === 'deleted' ? 'selected' : '' %>>ลบแบบ soft delete แล้ว</option>
+                  <option value="all" <%= status === 'all' ? 'selected' : '' %>>ทั้งหมด</option>
+                </select>
+              </div>
+              <button type="submit" class="btn btn-primary justify-center">
+                <i data-lucide="filter" class="w-4 h-4"></i>
+                Filter
+              </button>
+              <a href="/data/manage/export?registered_from=<%= registeredFrom %>&registered_to=<%= registeredTo %>&status=<%= status %>"
+                 class="btn btn-secondary justify-center <%= hasDateRange ? '' : 'pointer-events-none opacity-50' %>">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                Backup ผลลัพธ์ที่ filter
+              </a>
+            </form>
+          </div>
+
+          <% if (!hasDateRange) { %>
+            <div class="card p-8 text-center">
+              <div class="w-14 h-14 mx-auto rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center">
+                <i data-lucide="calendar-range" class="w-7 h-7"></i>
+              </div>
+              <h3 class="mt-4 text-lg font-semibold text-slate-800">กรุณาเลือกช่วงวันที่ลงทะเบียน</h3>
+              <p class="text-sm text-slate-500 mt-1">ระบบจะใช้ช่วงวันที่นี้เป็นเงื่อนไขหลักในการ backup และลบข้อมูลทั้งหมดที่เกี่ยวข้อง</p>
+            </div>
+          <% } else { %>
+            <div class="card p-4 border-amber-200 bg-amber-50">
+              <div class="flex items-start gap-3 text-amber-800">
+                <i data-lucide="info" class="w-5 h-5 mt-0.5 flex-shrink-0"></i>
+                <div class="text-sm">
+                  <p class="font-semibold">การลบจะทำกับทะเบียนทั้งหมดในช่วง <%= registeredFrom %> ถึง <%= registeredTo %></p>
+                  <p class="mt-1">รวมข้อมูลที่เกี่ยวข้อง เช่น รายการกระทำผิด รายงานรอตรวจสอบ และประวัติเรียกพบที่ผูกกับทะเบียนเหล่านี้ โดยระบบจะบันทึก snapshot ลง audit log ก่อนลบทุกครั้ง</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>ผู้ลงทะเบียน</th>
+                    <th>ทะเบียนรถ</th>
+                    <th>ข้อมูลที่เกี่ยวข้อง</th>
+                    <th>สถานะ</th>
+                    <th>วันที่ลงทะเบียน</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% if (rows.length === 0) { %>
+                    <tr>
+                      <td colspan="5" class="text-center py-10 text-slate-400">ไม่พบข้อมูลตามช่วงวันที่ที่เลือก</td>
+                    </tr>
+                  <% } %>
+
+                  <% rows.forEach(row => { %>
+                    <tr>
+                      <td>
+                        <div class="font-semibold text-slate-800"><%= row.first_name %> <%= row.last_name %></div>
+                        <div class="text-xs text-slate-500"><%= row.id_number %> · <%= row.user_type %></div>
+                      </td>
+                      <td>
+                        <div class="text-slate-700"><%= row.license_plate %></div>
+                        <div class="text-xs text-slate-500"><%= row.province || '-' %></div>
+                      </td>
+                      <td>
+                        <div class="flex flex-wrap gap-2 text-xs">
+                          <span class="badge badge-danger">ผิดกฎ <%= Number(row.violation_count || 0).toLocaleString('th-TH') %></span>
+                          <span class="badge badge-warning">รายงาน <%= Number(row.report_count || 0).toLocaleString('th-TH') %></span>
+                          <span class="badge badge-info">เรียกพบ <%= Number(row.summons_count || 0).toLocaleString('th-TH') %></span>
+                        </div>
+                      </td>
+                      <td>
+                        <% if (row.deleted_at) { %>
+                          <span class="badge badge-danger">Soft deleted</span>
+                          <% if (row.delete_reason) { %>
+                            <div class="text-xs text-slate-500 mt-1 max-w-xs truncate"><%= row.delete_reason %></div>
+                          <% } %>
+                        <% } else { %>
+                          <span class="badge <%= row.status === 'approved' ? 'badge-success' : row.status === 'rejected' ? 'badge-danger' : 'badge-warning' %>"><%= row.status %></span>
+                        <% } %>
+                      </td>
+                      <td class="whitespace-nowrap">
+                        <%= row.registered_at %>
+                        <% if (row.deleted_at) { %>
+                          <div class="text-xs text-red-500">ลบเมื่อ <%= row.deleted_at %></div>
+                        <% } %>
+                      </td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-slate-500">
+              <div>ทั้งหมด <%= total.toLocaleString('th-TH') %> ทะเบียน · หน้า <%= currentPage %>/<%= totalPages %></div>
+              <div class="flex items-center gap-2">
+                <% if (currentPage > 1) { %>
+                  <a class="btn btn-secondary btn-sm" href="/data/manage?registered_from=<%= registeredFrom %>&registered_to=<%= registeredTo %>&status=<%= status %>&page=<%= currentPage - 1 %>">ก่อนหน้า</a>
+                <% } %>
+                <% if (currentPage < totalPages) { %>
+                  <a class="btn btn-secondary btn-sm" href="/data/manage?registered_from=<%= registeredFrom %>&registered_to=<%= registeredTo %>&status=<%= status %>&page=<%= currentPage + 1 %>">ถัดไป</a>
+                <% } %>
+              </div>
+            </div>
+          <% } %>
+
+          <form id="bulk-delete-form" method="POST" action="/data/manage/delete" class="bulk-bar card p-4">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="registered_from" value="<%= registeredFrom %>">
+            <input type="hidden" name="registered_to" value="<%= registeredTo %>">
+            <input type="hidden" name="status" value="<%= status %>">
+
+            <div class="grid grid-cols-1 xl:grid-cols-[220px_1fr_220px_180px] gap-3 items-end">
+              <div>
+                <label class="label" for="delete_type">รูปแบบการลบ</label>
+                <select id="delete_type" name="delete_type" class="input">
+                  <option value="soft">Soft delete</option>
+                  <option value="hard">Hard delete</option>
+                </select>
+              </div>
+              <div>
+                <label class="label" for="reason">เหตุผล / หมายเหตุ</label>
+                <input id="reason" name="reason" class="input" placeholder="เช่น ข้อมูลเกินระยะเวลาจัดเก็บ, ข้อมูลทดสอบ, เคลียร์ตามรอบงาน">
+              </div>
+              <a href="/data/manage/export?registered_from=<%= registeredFrom %>&registered_to=<%= registeredTo %>&status=<%= status %>"
+                 class="btn btn-secondary justify-center <%= hasDateRange && total > 0 ? '' : 'pointer-events-none opacity-50' %>">
+                <i data-lucide="archive" class="w-4 h-4"></i>
+                Backup ก่อนลบ
+              </a>
+              <button id="submit-delete" type="submit" class="btn btn-danger justify-center" <%= hasDateRange && total > 0 ? '' : 'disabled' %>
+                      data-delete-confirm
+                      data-delete-title="ยืนยันการลบข้อมูลตามช่วงวันที่"
+                      data-delete-item="<%= hasDateRange ? `${total.toLocaleString('th-TH')} ทะเบียน` : 'ยังไม่ได้เลือกช่วงวันที่' %>"
+                      data-delete-warning="การลบจะทำกับทะเบียนทั้งหมดในช่วงวันที่ที่ filter พร้อมข้อมูลที่เกี่ยวข้อง ควร Backup ก่อนลบ โดยเฉพาะ hard delete"
+                      data-delete-confirm-text="ยืนยันลบทั้งหมด">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                ลบทั้งหมดที่ filter
+              </button>
+            </div>
+            <div id="hard-delete-confirm" class="danger-panel rounded-xl p-3 mt-3 hidden">
+              <label class="label text-red-700" for="confirm_hard_delete">พิมพ์ DELETE เพื่อยืนยัน hard delete</label>
+              <input id="confirm_hard_delete" name="confirm_hard_delete" class="input bg-white border-red-200" placeholder="DELETE">
+            </div>
+            <p class="text-xs text-slate-500 mt-3">
+              เงื่อนไขปัจจุบัน: <%= hasDateRange ? `${registeredFrom} ถึง ${registeredTo}` : 'ยังไม่ได้เลือกช่วงวันที่' %>
+              · ระบบจะบันทึก snapshot ลง audit log ก่อนลบทุกครั้ง
+            </p>
+          </form>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    const deleteType = document.getElementById('delete_type');
+    const hardDeleteConfirm = document.getElementById('hard-delete-confirm');
+
+    deleteType.addEventListener('change', () => {
+      hardDeleteConfirm.classList.toggle('hidden', deleteType.value !== 'hard');
+    });
+  </script>
+</body>
+</html>

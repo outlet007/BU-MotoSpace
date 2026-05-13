@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
     const limit = 20;
     const requestedPage = parsePositiveInt(req.query.page, 1);
 
-    let where = 'WHERE 1=1';
+    let where = 'WHERE v.deleted_at IS NULL AND r.deleted_at IS NULL';
     const params = [];
     if (search) {
       const searchTrimmed = search.trim().replace(/\s+/g, ' ');
@@ -71,6 +71,8 @@ router.get('/', async (req, res) => {
       `SELECT r.id_number, r.first_name, r.last_name, r.license_plate, COUNT(*) as cnt
        FROM violations v
        JOIN registrations r ON v.registration_id = r.id
+       WHERE v.deleted_at IS NULL
+         AND r.deleted_at IS NULL
        GROUP BY v.registration_id
        ORDER BY cnt DESC
        LIMIT 5`
@@ -81,6 +83,7 @@ router.get('/', async (req, res) => {
       `SELECT ru.rule_name, COUNT(*) as cnt
        FROM violations v
        JOIN rules ru ON v.rule_id = ru.id
+       WHERE v.deleted_at IS NULL
        GROUP BY v.rule_id
        ORDER BY cnt DESC
        LIMIT 5`
@@ -91,7 +94,7 @@ router.get('/', async (req, res) => {
     const requestedRegPage = parsePositiveInt(req.query.reg_page, 1);
     const regLimit = 20;
 
-    let regWhere = "WHERE r.status = 'approved'";
+    let regWhere = "WHERE r.status = 'approved' AND r.deleted_at IS NULL";
     const regParams = [];
     if (regSearch) {
       const st = regSearch.trim().replace(/\s+/g, ' ');
@@ -189,7 +192,7 @@ router.get('/create', async (req, res) => {
     if (reg_id) {
       // Fetch the specific registrant
       const [reg] = await conn.query(
-        'SELECT id, id_number, user_type, first_name, last_name, license_plate, province, phone FROM registrations WHERE id = ?',
+        'SELECT id, id_number, user_type, first_name, last_name, license_plate, province, phone FROM registrations WHERE id = ? AND deleted_at IS NULL',
         [reg_id]
       );
       selectedReg = reg || null;
@@ -227,7 +230,9 @@ router.get('/:id', async (req, res) => {
        JOIN rules ru ON v.rule_id = ru.id
        LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
        JOIN admins a ON v.recorded_by = a.id
-       WHERE v.id = ?`,
+       WHERE v.id = ?
+         AND v.deleted_at IS NULL
+         AND r.deleted_at IS NULL`,
       [req.params.id]
     );
 
@@ -238,7 +243,7 @@ router.get('/:id', async (req, res) => {
 
     // Count how many times this person violated this rule
     const [vioCount] = await conn.query(
-      'SELECT COUNT(*) as cnt FROM violations WHERE registration_id = ? AND rule_id = ?',
+      'SELECT COUNT(*) as cnt FROM violations WHERE registration_id = ? AND rule_id = ? AND deleted_at IS NULL',
       [violation.registration_id, violation.rule_id]
     );
 
@@ -359,7 +364,8 @@ router.post('/:id/edit', isHead, upload.single('evidence_photo'), verifyCsrf, as
     const [violation] = await conn.query(
       `SELECT id, registration_id
        FROM violations
-       WHERE id = ?`,
+       WHERE id = ?
+         AND deleted_at IS NULL`,
       [violationId]
     );
 
@@ -438,7 +444,8 @@ router.post('/:id/delete', isHead, verifyCsrf, async (req, res) => {
     const [violation] = await conn.query(
       `SELECT id, registration_id
        FROM violations
-       WHERE id = ?`,
+       WHERE id = ?
+         AND deleted_at IS NULL`,
       [violationId]
     );
 
