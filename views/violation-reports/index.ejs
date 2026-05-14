@@ -167,7 +167,7 @@
                     <p class="text-sm font-mono text-slate-600 break-words"><%= rpt.id_number %></p>
                   </div>
                   <div class="min-w-0">
-                    <p class="text-xs font-medium text-slate-400">วันที่</p>
+                    <p class="text-xs font-medium text-slate-400">วันที่กระทำผิด</p>
                     <p class="text-sm text-slate-600">
                       <%= new Date(rpt.reported_at).toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' }) %>
                     </p>
@@ -206,8 +206,8 @@
             <thead>
               <tr>
                 <th>รายการแจ้งเลขที่</th>
-                <th>วันที่</th>
-                <th>รหัสผู้ใช้</th>
+                <th>วันที่กระทำผิด</th>
+                <th>รหัสประจำตัว</th>
                 <th>ชื่อ-นามสกุล</th>
                 <th>เบอร์โทร</th>
                 <th>ป้ายทะเบียน</th>

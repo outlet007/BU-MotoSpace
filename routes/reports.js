@@ -3,6 +3,7 @@ const pool = require('../config/database');
 const { requireRole } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { verifyCsrf } = require('../middleware/csrf');
+const { parsePositiveInt, clampPage, buildPaginationItems } = require('../utils/pagination');
 
 router.use(requireRole('head', 'superadmin'));
 
@@ -293,10 +294,12 @@ async function backfillMissingAppointmentCodes(conn) {
 
 async function fetchSummonsAppointments(conn, options = {}) {
   await ensureSummonsAppointmentsTable(conn);
+  await ensureViolationTypeSchema(conn);
 
   const {
     search = '',
     userType = '',
+    violationType = '',
     limit = 50,
   } = options;
 
@@ -322,6 +325,12 @@ async function fetchSummonsAppointments(conn, options = {}) {
   if (userType === 'student' || userType === 'staff') {
     where += ' AND r.user_type = ?';
     params.push(userType);
+  }
+
+  const violationTypeId = Number(violationType);
+  if (Number.isInteger(violationTypeId) && violationTypeId > 0) {
+    where += ' AND sa.violation_type_id = ?';
+    params.push(violationTypeId);
   }
 
   const [countRow] = await conn.query(
@@ -350,10 +359,13 @@ async function fetchSummonsAppointments(conn, options = {}) {
        r.phone,
        r.license_plate,
        r.province,
+       sa.violation_type_id,
+       vt.type_name AS violation_type_name,
        a.full_name AS summoned_by_name
      FROM summons_appointments sa
      JOIN registrations r ON sa.registration_id = r.id
      JOIN admins a ON sa.summoned_by = a.id
+     LEFT JOIN violation_types vt ON sa.violation_type_id = vt.id
      ${where}
      ORDER BY sa.created_at DESC, sa.id DESC
      LIMIT ?`,
@@ -396,7 +408,11 @@ const REPORT_TYPES = {
 };
 
 // Helper: build query + fields for a report type
-async function fetchReport(conn, type, startDate, endDate) {
+async function fetchReport(conn, type, startDate, endDate, options = {}) {
+  const page = parsePositiveInt(options.page, 1);
+  const limit = Number.isFinite(parseInt(options.limit, 10)) && parseInt(options.limit, 10) > 0
+    ? parseInt(options.limit, 10)
+    : null;
   let dateFilter = '';
   let params = [];
 
@@ -412,46 +428,92 @@ async function fetchReport(conn, type, startDate, endDate) {
     if (type === 'reg_student') { typeFilter = " AND user_type = 'student' "; }
     if (type === 'reg_staff')   { typeFilter = " AND user_type = 'staff' "; }
 
+    const [countRow] = await conn.query(
+      `SELECT COUNT(*) AS cnt
+       FROM registrations WHERE 1=1 ${dateFilter} ${typeFilter}`,
+      params
+    );
+    const totalRows = parseInt(countRow.cnt, 10) || 0;
+    const totalPages = limit ? Math.max(Math.ceil(totalRows / limit), 1) : 1;
+    const currentPage = limit ? clampPage(page, totalPages) : 1;
+    const pagingSql = limit ? 'LIMIT ? OFFSET ?' : '';
+    const pagingParams = limit ? [limit, (currentPage - 1) * limit] : [];
+
     const rows = await conn.query(
       `SELECT id_number, user_type, first_name, last_name, phone, license_plate, province, status, registered_at
-       FROM registrations WHERE 1=1 ${dateFilter} ${typeFilter} ORDER BY registered_at DESC`, params
+       FROM registrations WHERE 1=1 ${dateFilter} ${typeFilter} ORDER BY registered_at DESC ${pagingSql}`,
+      [...params, ...pagingParams]
     );
 
     const fields = [
       { label: 'รหัสประจำตัว', key: 'id_number' },
-      { label: 'ประเภท', key: 'user_type_label' },
-      { label: 'ชื่อ', key: 'first_name' },
-      { label: 'นามสกุล', key: 'last_name' },
+      { label: 'ชื่อ-นามสกุล', key: 'full_name' },
       { label: 'เบอร์โทร', key: 'phone' },
       { label: 'ป้ายทะเบียน', key: 'license_plate' },
-      { label: 'จังหวัด', key: 'province' },
+      { label: 'ประเภทผู้ใช้', key: 'user_type_label' },
       { label: 'สถานะ', key: 'status_label' },
       { label: 'วันที่ลงทะเบียน', key: 'registered_at' }
     ];
 
     rows.forEach(r => {
+      r.full_name = `${r.first_name} ${r.last_name}`;
       r.user_type_label = r.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร';
       r.status_label = r.status === 'approved' ? 'อนุมัติ' : r.status === 'pending' ? 'รอดำเนินการ' : 'ปฏิเสธ';
     });
-    return { fields, rows };
+    return { fields, rows, totalRows, totalPages, currentPage };
 
   } else if (type === 'violations') {
-    const rows = await conn.query(
-      `SELECT r.id_number, r.user_type, r.first_name, r.last_name, r.license_plate, ru.rule_name, v.description, v.recorded_at
+    const [countRow] = await conn.query(
+      `SELECT COUNT(*) AS cnt
        FROM violations v
        JOIN registrations r ON v.registration_id = r.id
        JOIN rules ru ON v.rule_id = ru.id
-       WHERE 1=1 ${dateFilter} ORDER BY v.recorded_at DESC`, params
+       LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
+       JOIN admins a ON v.recorded_by = a.id
+       WHERE 1=1 ${dateFilter}`,
+      params
+    );
+    const totalRows = parseInt(countRow.cnt, 10) || 0;
+    const totalPages = limit ? Math.max(Math.ceil(totalRows / limit), 1) : 1;
+    const currentPage = limit ? clampPage(page, totalPages) : 1;
+    const pagingSql = limit ? 'LIMIT ? OFFSET ?' : '';
+    const pagingParams = limit ? [limit, (currentPage - 1) * limit] : [];
+
+    const rows = await conn.query(
+      `SELECT
+         v.id,
+         CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(v.id, 6, '0')) AS incident_code,
+         v.recorded_at,
+         r.id_number,
+         r.user_type,
+         r.first_name,
+         r.last_name,
+         r.phone,
+         r.license_plate,
+         r.province,
+         ru.rule_name,
+         v.description,
+         a.full_name AS reported_by_name
+       FROM violations v
+       JOIN registrations r ON v.registration_id = r.id
+       JOIN rules ru ON v.rule_id = ru.id
+       LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
+       JOIN admins a ON v.recorded_by = a.id
+       WHERE 1=1 ${dateFilter} ORDER BY v.recorded_at DESC ${pagingSql}`,
+      [...params, ...pagingParams]
     );
 
     const fields = [
+      { label: 'รายการแจ้งเลขที่', key: 'incident_code' },
+      { label: 'วันที่กระทำผิด', key: 'recorded_at' },
       { label: 'รหัสประจำตัว', key: 'id_number' },
-      { label: 'ประเภท', key: 'user_type_label' },
       { label: 'ชื่อ-นามสกุล', key: 'full_name' },
+      { label: 'เบอร์โทร', key: 'phone' },
       { label: 'ป้ายทะเบียน', key: 'license_plate' },
+      { label: 'ประเภทผู้ใช้', key: 'user_type_label' },
       { label: 'กฎที่ฝ่าฝืน', key: 'rule_name' },
       { label: 'รายละเอียด', key: 'description' },
-      { label: 'วันที่กระทำผิด', key: 'recorded_at' }
+      { label: 'แจ้งโดย', key: 'reported_by_name' }
     ];
 
     rows.forEach(r => {
@@ -459,7 +521,7 @@ async function fetchReport(conn, type, startDate, endDate) {
       r.full_name = r.first_name + ' ' + r.last_name;
     });
 
-    return { fields, rows };
+    return { fields, rows, totalRows, totalPages, currentPage };
 
   } else if (type === 'summary') {
     const regCounts = await conn.query(
@@ -484,6 +546,7 @@ async function fetchSummonsCandidates(conn, options = {}) {
   const {
     search = '',
     userType = '',
+    violationType = '',
     page = 1,
     limit = 20,
     includeAll = false,
@@ -511,6 +574,12 @@ async function fetchSummonsCandidates(conn, options = {}) {
   if (userType === 'student' || userType === 'staff') {
     where += ' AND r.user_type = ?';
     params.push(userType);
+  }
+
+  const violationTypeId = Number(violationType);
+  if (Number.isInteger(violationTypeId) && violationTypeId > 0) {
+    where += ' AND ru.violation_type_id = ?';
+    params.push(violationTypeId);
   }
 
   const qualifyingRowsSql = `
@@ -625,7 +694,7 @@ const SUMMONS_FIELDS = [
   { label: 'ป้ายทะเบียน', key: 'license_plate' },
   { label: 'จังหวัด', key: 'province' },
   { label: 'จำนวนครั้งรวม', key: 'total_violations' },
-  { label: 'สรุปประเภทความผิด', key: 'rule_summary' },
+  { label: 'ประเภทความผิด', key: 'rule_summary' },
   { label: 'วันที่ทำผิดครั้งแรก', key: 'first_recorded_at' },
   { label: 'วันที่ทำผิดล่าสุด', key: 'latest_recorded_at' },
   { label: 'หมายเหตุการนัดหมาย', key: 'appointment_note' },
@@ -635,6 +704,7 @@ const SUMMONS_FIELDS = [
 router.get('/summons/export', async (req, res) => {
   const search = req.query.pending_search ?? req.query.search ?? '';
   const user_type = req.query.pending_user_type ?? req.query.user_type ?? '';
+  const violation_type = req.query.pending_violation_type ?? req.query.violation_type ?? '';
 
   let conn;
   try {
@@ -642,6 +712,7 @@ router.get('/summons/export', async (req, res) => {
     const { rows } = await fetchSummonsCandidates(conn, {
       search,
       userType: user_type,
+      violationType: violation_type,
       includeAll: true,
     });
 
@@ -807,8 +878,10 @@ router.post('/summons/appointments/:appointmentId/edit', upload.single('written_
 router.get('/summons', async (req, res) => {
   const pendingSearch = req.query.pending_search ?? req.query.search ?? '';
   const pendingUserType = req.query.pending_user_type ?? req.query.user_type ?? '';
+  const pendingViolationType = req.query.pending_violation_type ?? req.query.violation_type ?? '';
   const completedSearch = req.query.completed_search ?? '';
   const completedUserType = req.query.completed_user_type ?? '';
+  const completedViolationType = req.query.completed_violation_type ?? '';
   const activeTab = req.query.active_tab === 'completed' ? 'completed' : 'pending';
   const page = req.query.pending_page ?? req.query.page ?? 1;
   const limit = 20;
@@ -819,13 +892,18 @@ router.get('/summons', async (req, res) => {
     const report = await fetchSummonsCandidates(conn, {
       search: pendingSearch,
       userType: pendingUserType,
+      violationType: pendingViolationType,
       page,
       limit,
     });
     const summonedReport = await fetchSummonsAppointments(conn, {
       search: completedSearch,
       userType: completedUserType,
+      violationType: completedViolationType,
     });
+    const violationTypes = await conn.query(
+      'SELECT id, type_name FROM violation_types WHERE is_active = 1 ORDER BY type_name ASC'
+    );
 
     res.render('reports/summons', {
       title: 'รายงานผู้เข้าข่ายเรียกพบ - BU MotoSpace',
@@ -839,8 +917,11 @@ router.get('/summons', async (req, res) => {
       user_type: pendingUserType,
       pendingSearch,
       pendingUserType,
+      pendingViolationType,
       completedSearch,
       completedUserType,
+      completedViolationType,
+      violationTypes,
       activeTab,
     });
   } catch (err) {
@@ -858,8 +939,11 @@ router.get('/summons', async (req, res) => {
       user_type: pendingUserType,
       pendingSearch,
       pendingUserType,
+      pendingViolationType,
       completedSearch,
       completedUserType,
+      completedViolationType,
+      violationTypes: [],
       activeTab,
     });
   } finally {
@@ -904,33 +988,50 @@ router.get('/export', async (req, res) => {
 
 // GET /reports
 router.get('/', async (req, res) => {
-  const { report_type, start_date, end_date } = req.query;
-  const searched = !!report_type;
+  const { report_type, start_date, end_date, summary_start_date, summary_end_date } = req.query;
+  const selectedReportType = report_type && report_type !== 'summary' ? report_type : '';
+  const searched = !!selectedReportType;
+  const reportPage = parsePositiveInt(req.query.report_page, 1);
+  const reportLimit = 20;
+  const searchableReportTypes = Object.fromEntries(
+    Object.entries(REPORT_TYPES).filter(([key]) => key !== 'summary')
+  );
   let reportData = null;
+  let summaryData = null;
 
-  if (searched) {
-    let conn;
-    try {
-      conn = await pool.getConnection();
-      reportData = await fetchReport(conn, report_type, start_date, end_date);
-    } catch (err) {
-      console.error(err);
-      req.flash('error', 'ไม่สามารถโหลดข้อมูลรายงานได้');
-    } finally {
-      if (conn) conn.release();
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    summaryData = await fetchReport(conn, 'summary', summary_start_date, summary_end_date);
+    if (searched) {
+      reportData = await fetchReport(conn, selectedReportType, start_date, end_date, {
+        page: reportPage,
+        limit: reportLimit,
+      });
     }
+  } catch (err) {
+    console.error(err);
+    req.flash('error', 'ไม่สามารถโหลดข้อมูลรายงานได้');
+  } finally {
+    if (conn) conn.release();
   }
 
   res.render('reports/index', {
     title: 'รายงาน - BU MotoSpace',
-    reportTypes: REPORT_TYPES,
-    selectedType: report_type || '',
+    reportTypes: searchableReportTypes,
+    selectedType: selectedReportType,
     start_date: start_date || '',
     end_date: end_date || '',
+    summary_start_date: summary_start_date || '',
+    summary_end_date: summary_end_date || '',
     searched,
+    summaryData,
     reportData,
-    selectedTypeLabel: report_type ? (REPORT_TYPES[report_type]?.label || '') : '',
-    selectedTypeIcon: report_type ? (REPORT_TYPES[report_type]?.icon || '') : ''
+    reportPage: reportData ? reportData.currentPage : reportPage,
+    reportLimit,
+    reportPaginationItems: reportData ? buildPaginationItems(reportData.currentPage, reportData.totalPages) : [],
+    selectedTypeLabel: selectedReportType ? (REPORT_TYPES[selectedReportType]?.label || '') : '',
+    selectedTypeIcon: selectedReportType ? (REPORT_TYPES[selectedReportType]?.icon || '') : ''
   });
 });
 

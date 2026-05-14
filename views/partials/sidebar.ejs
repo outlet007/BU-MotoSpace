@@ -88,6 +88,7 @@
       กฎและข้อบังคับ
     </a>
 
+    <% if (admin.role === 'superadmin') { %>
     <a href="/data/import-export" class="sidebar-link <%= currentPath.startsWith('/data/import') || currentPath.startsWith('/data/export') || currentPath === '/data' ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
       <i data-lucide="files" class="w-5 h-5"></i>
       นำเข้า-ส่งออก ข้อมูล
@@ -97,6 +98,7 @@
       <i data-lucide="database-zap" class="w-5 h-5"></i>
       จัดการข้อมูล
     </a>
+    <% } %>
     <% } %>
 
     <% if (admin && admin.role === 'superadmin') { %>

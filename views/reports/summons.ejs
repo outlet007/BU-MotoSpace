@@ -118,7 +118,7 @@
             </h2>
             <p class="text-slate-500 mt-1">ผู้ที่มีประวัติกระทำผิดครบจำนวนครั้งสูงสุดตามประเภทความผิดที่กำหนดไว้</p>
           </div>
-          <a href="/reports/summons/export?pending_search=<%= encodeURIComponent(pendingSearch || '') %>&pending_user_type=<%= encodeURIComponent(pendingUserType || '') %>"
+          <a href="/reports/summons/export?pending_search=<%= encodeURIComponent(pendingSearch || '') %>&pending_violation_type=<%= encodeURIComponent(pendingViolationType || '') %>"
              class="btn btn-primary">
             <i data-lucide="download" class="w-4 h-4"></i>
             Export CSV
@@ -139,11 +139,12 @@
               </div>
             </div>
             <div>
-              <label class="label">ประเภท</label>
-              <select name="user_type" class="input">
-                <option value="" <%= !user_type ? 'selected' : '' %>>ทั้งหมด</option>
-                <option value="student" <%= user_type === 'student' ? 'selected' : '' %>>นักศึกษา</option>
-                <option value="staff" <%= user_type === 'staff' ? 'selected' : '' %>>บุคลากร</option>
+              <label class="label">ประเภทความผิด</label>
+              <select name="violation_type" class="input">
+                <option value="" <%= !pendingViolationType ? 'selected' : '' %>>ทุกประเภท</option>
+                <% (violationTypes || []).forEach(function(type) { %>
+                  <option value="<%= type.id %>" <%= String(pendingViolationType) === String(type.id) ? 'selected' : '' %>><%= type.type_name %></option>
+                <% }); %>
               </select>
             </div>
             <button type="submit" class="btn btn-primary">
@@ -240,7 +241,7 @@
           <form method="GET" action="/reports/summons" class="flex flex-wrap items-end gap-4 mb-4">
             <input type="hidden" name="active_tab" value="pending">
             <input type="hidden" name="completed_search" value="<%= completedSearch || '' %>">
-            <input type="hidden" name="completed_user_type" value="<%= completedUserType || '' %>">
+            <input type="hidden" name="completed_violation_type" value="<%= completedViolationType || '' %>">
             <div class="flex-1 min-w-[200px]">
               <label class="label">ค้นหาในรายการรอเรียกพบ</label>
               <div class="relative">
@@ -251,11 +252,12 @@
               </div>
             </div>
             <div>
-              <label class="label">ประเภท</label>
-              <select name="pending_user_type" class="input">
-                <option value="" <%= !pendingUserType ? 'selected' : '' %>>ทั้งหมด</option>
-                <option value="student" <%= pendingUserType === 'student' ? 'selected' : '' %>>นักศึกษา</option>
-                <option value="staff" <%= pendingUserType === 'staff' ? 'selected' : '' %>>บุคลากร</option>
+              <label class="label">ประเภทความผิด</label>
+              <select name="pending_violation_type" class="input">
+                <option value="" <%= !pendingViolationType ? 'selected' : '' %>>ทุกประเภท</option>
+                <% (violationTypes || []).forEach(function(type) { %>
+                  <option value="<%= type.id %>" <%= String(pendingViolationType) === String(type.id) ? 'selected' : '' %>><%= type.type_name %></option>
+                <% }); %>
               </select>
             </div>
             <button type="submit" class="btn btn-primary">
@@ -310,7 +312,7 @@
                     </div>
                   </div>
                   <div class="mt-4">
-                    <p class="text-xs font-medium text-slate-400 mb-1">สรุปประเภทความผิด</p>
+                    <p class="text-xs font-medium text-slate-400 mb-1">ประเภทความผิด</p>
                     <div class="flex flex-wrap">
                       <% item.rule_breakdown.forEach(function(rule) { %>
                         <span class="rule-chip <%= rule.is_qualified ? 'is-qualified' : '' %>"><%= rule.type_name %> <%= rule.cnt %>/<%= rule.max_violations %></span>
@@ -349,12 +351,12 @@
             <thead>
               <tr>
                 <th>รหัสนัดหมาย</th>
-                <th>รหัสผู้ใช้</th>
+                <th>รหัสประจำตัว</th>
                 <th>ชื่อ-นามสกุล</th>
                 <th>เบอร์โทร</th>
                 <th>ป้ายทะเบียน</th>
                 <th>จำนวนครั้ง</th>
-                <th>สรุปประเภทความผิด</th>
+                <th>ประเภทความผิด</th>
                 <th>ล่าสุด</th>
                 <th></th>
               </tr>
@@ -424,7 +426,7 @@
                   <div class="flex flex-col items-center gap-3 text-slate-400">
                     <i data-lucide="clipboard-check" class="w-12 h-12 text-slate-300"></i>
                     <p class="text-sm font-medium">ไม่พบผู้ที่กระทำผิดครบจำนวนครั้งสูงสุดตามประเภทความผิด</p>
-                    <p class="text-xs">ลองเปลี่ยนคำค้นหาหรือตัวกรองประเภทผู้ใช้</p>
+                    <p class="text-xs">ลองเปลี่ยนคำค้นหาหรือตัวกรองประเภทความผิด</p>
                   </div>
                 </td>
               </tr>
@@ -436,7 +438,7 @@
         <% if (totalPages > 1) { %>
         <div class="flex items-center justify-center gap-2 mt-6">
           <% for (var i = 1; i <= totalPages; i++) { %>
-            <a href="/reports/summons?active_tab=pending&pending_page=<%= i %>&pending_search=<%= encodeURIComponent(pendingSearch || '') %>&pending_user_type=<%= encodeURIComponent(pendingUserType || '') %>&completed_search=<%= encodeURIComponent(completedSearch || '') %>&completed_user_type=<%= encodeURIComponent(completedUserType || '') %>"
+            <a href="/reports/summons?active_tab=pending&pending_page=<%= i %>&pending_search=<%= encodeURIComponent(pendingSearch || '') %>&pending_violation_type=<%= encodeURIComponent(pendingViolationType || '') %>&completed_search=<%= encodeURIComponent(completedSearch || '') %>&completed_violation_type=<%= encodeURIComponent(completedViolationType || '') %>"
                class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium transition-all
                       <%= i === currentPage ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50' %>">
               <%= i %>
@@ -468,7 +470,7 @@
           <form method="GET" action="/reports/summons" class="flex flex-wrap items-end gap-4 mb-4">
             <input type="hidden" name="active_tab" value="completed">
             <input type="hidden" name="pending_search" value="<%= pendingSearch || '' %>">
-            <input type="hidden" name="pending_user_type" value="<%= pendingUserType || '' %>">
+            <input type="hidden" name="pending_violation_type" value="<%= pendingViolationType || '' %>">
             <div class="flex-1 min-w-[200px]">
               <label class="label">ค้นหาในรายการที่เรียกพบไปแล้ว</label>
               <div class="relative">
@@ -479,11 +481,12 @@
               </div>
             </div>
             <div>
-              <label class="label">ประเภท</label>
-              <select name="completed_user_type" class="input">
-                <option value="" <%= !completedUserType ? 'selected' : '' %>>ทั้งหมด</option>
-                <option value="student" <%= completedUserType === 'student' ? 'selected' : '' %>>นักศึกษา</option>
-                <option value="staff" <%= completedUserType === 'staff' ? 'selected' : '' %>>บุคลากร</option>
+              <label class="label">ประเภทความผิด</label>
+              <select name="completed_violation_type" class="input">
+                <option value="" <%= !completedViolationType ? 'selected' : '' %>>ทุกประเภท</option>
+                <% (violationTypes || []).forEach(function(type) { %>
+                  <option value="<%= type.id %>" <%= String(completedViolationType) === String(type.id) ? 'selected' : '' %>><%= type.type_name %></option>
+                <% }); %>
               </select>
             </div>
             <button type="submit" class="btn btn-primary">
@@ -594,7 +597,7 @@
               <thead>
                 <tr>
                   <th>รหัสนัดหมาย</th>
-                  <th>รหัสผู้ใช้</th>
+                  <th>รหัสประจำตัว</th>
                   <th>ชื่อ-นามสกุล</th>
                   <th>เบอร์โทร</th>
                   <th>ป้ายทะเบียน</th>
