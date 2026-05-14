@@ -118,6 +118,7 @@
           <table class="data-table">
             <thead>
               <tr>
+                <th>#</th>
                 <th>ชื่อผู้ใช้</th>
                 <th>ชื่อ-นามสกุล</th>
                 <th>หน่วยงาน</th>
@@ -130,12 +131,13 @@
               </tr>
             </thead>
             <tbody>
-              <% users.forEach(function(u) { %>
+              <% users.forEach(function(u, idx) { %>
               <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors"
                   data-uid="<%= u.id %>" data-username="<%= u.username %>" data-fullname="<%= u.full_name %>"
                   data-email="<%= (u.email || '') %>" data-phone="<%= (u.phone || '') %>"
                   data-department-id="<%= u.department_id || '' %>"
                   data-role="<%= u.role %>" data-active="<%= u.is_active ? '1' : '0' %>">
+                <td class="text-xs text-slate-400"><%= idx + 1 %></td>
                 <td class="text-sm"><%= u.username %></td>
                 <td class="font-medium text-slate-800"><%= u.full_name %></td>
                 <td class="text-sm text-slate-600"><%= u.department_name || '-' %></td>

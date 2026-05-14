@@ -170,6 +170,8 @@
           .metric-card:hover { border-color: #94a3b8; box-shadow: 0 4px 12px rgba(15,23,42,0.08); }
           .metric-card.active { border-color: #16a34a; box-shadow: 0 0 0 3px #22c55e26; }
           .metric-card.warning.active { border-color: #d97706; box-shadow: 0 0 0 3px #f59e0b26; }
+          .metric-card.danger.active { border-color: #ef4444; box-shadow: 0 0 0 3px #ef444426; }
+          .metric-card.info.active { border-color: #0284c7; box-shadow: 0 0 0 3px #0ea5e926; }
           .metric-card .mc-icon-wrap {
             width: 2.75rem; height: 2.75rem;
             border-radius: 0.75rem;
@@ -189,7 +191,7 @@
                role="tab" aria-controls="panel-pending" aria-selected="<%= activeTab === 'pending' ? 'true' : 'false' %>" tabindex="0">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div class="flex items-center gap-3">
-                <div class="mc-icon-wrap bg-orange-100" style="width:3rem;height:3rem;border-radius:0.875rem;">
+                <div class="mc-icon-wrap bg-orange-100">
                   <i data-lucide="calendar-clock" class="w-6 h-6 text-orange-600"></i>
                 </div>
                 <div class="mc-body">
@@ -350,6 +352,7 @@
             <table class="data-table">
             <thead>
               <tr>
+                <th>#</th>
                 <th>รหัสนัดหมาย</th>
                 <th>รหัสประจำตัว</th>
                 <th>ชื่อ-นามสกุล</th>
@@ -363,7 +366,7 @@
             </thead>
             <tbody>
               <% if (candidates && candidates.length > 0) { %>
-                <% candidates.forEach(function(item) { %>
+                <% candidates.forEach(function(item, idx) { %>
                 <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors"
                     data-summons-open-row
                     data-registration-id="<%= item.id %>"
@@ -371,6 +374,7 @@
                     data-full-name="<%= item.full_name %>"
                     data-violation-type-id="<%= item.violation_type_id || '' %>"
                     data-violation-group-label="<%= item.violation_group_label || '' %>">
+                  <td class="text-xs text-slate-400"><%= ((currentPage || 1) - 1) * 20 + idx + 1 %></td>
                   <td class="text-xs font-mono font-semibold text-brand-700 whitespace-nowrap"><%= item.appointment_code %></td>
                   <td class="text-xs font-mono text-slate-600"><%= item.id_number %></td>
                   <td>
@@ -422,7 +426,7 @@
                 <% }) %>
               <% } else { %>
               <tr>
-                <td colspan="9" class="text-center py-14">
+                <td colspan="10" class="text-center py-14">
                   <div class="flex flex-col items-center gap-3 text-slate-400">
                     <i data-lucide="clipboard-check" class="w-12 h-12 text-slate-300"></i>
                     <p class="text-sm font-medium">ไม่พบผู้ที่กระทำผิดครบจำนวนครั้งสูงสุดตามประเภทความผิด</p>
@@ -596,6 +600,7 @@
             <table class="data-table">
               <thead>
                 <tr>
+                  <th>#</th>
                   <th>รหัสนัดหมาย</th>
                   <th>รหัสประจำตัว</th>
                   <th>ชื่อ-นามสกุล</th>
@@ -610,7 +615,7 @@
               </thead>
               <tbody>
                 <% if (typeof summonedAppointments !== 'undefined' && summonedAppointments.length > 0) { %>
-                  <% summonedAppointments.forEach(function(item) { %>
+                  <% summonedAppointments.forEach(function(item, idx) { %>
                   <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors"
                       data-summons-detail-row
                       data-appointment-code="<%= item.appointment_code %>"
@@ -625,6 +630,7 @@
                       data-created-at="<%= item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>"
                       data-document-url="<%= item.written_document ? signedUrl(item.written_document) : '' %>"
                       data-document-name="<%= item.written_document_original_name || 'เอกสารที่เป็นลายลักษณ์อักษร' %>">
+                    <td class="text-xs text-slate-400"><%= idx + 1 %></td>
                     <td class="text-xs font-mono font-semibold text-brand-700 whitespace-nowrap"><%= item.appointment_code || '-' %></td>
                     <td class="text-xs font-mono text-slate-600"><%= item.id_number %></td>
                     <td>
@@ -682,7 +688,7 @@
                   <% }) %>
                 <% } else { %>
                   <tr>
-                    <td colspan="10" class="text-center py-10">
+                    <td colspan="11" class="text-center py-10">
                       <div class="flex flex-col items-center gap-2 text-slate-400">
                         <i data-lucide="calendar-x" class="w-10 h-10 text-slate-300"></i>
                         <p class="text-sm font-medium">ยังไม่มีรายการที่เรียกพบไปแล้ว</p>

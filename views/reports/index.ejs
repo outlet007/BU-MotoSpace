@@ -230,13 +230,13 @@
                 </h4>
                 <div class="table-container">
                   <table class="data-table">
-                    <thead><tr><th>ประเภทผู้ใช้</th><th style="text-align:center">รอ</th><th style="text-align:center">อนุมัติ</th><th style="text-align:center">ปฏิเสธ</th><th style="text-align:right">รวม</th></tr></thead>
+                    <thead><tr><th>#</th><th>ประเภทผู้ใช้</th><th style="text-align:center">รอ</th><th style="text-align:center">อนุมัติ</th><th style="text-align:center">ปฏิเสธ</th><th style="text-align:right">รวม</th></tr></thead>
                     <tbody>
-                      <tr><td style="font-weight:600">นักศึกษา</td><td style="text-align:center"><%= s.student.pending %></td><td style="text-align:center;color:#16a34a"><%= s.student.approved %></td><td style="text-align:center;color:#dc2626"><%= s.student.rejected %></td><td style="text-align:right;font-weight:700"><%= s.student.total %></td></tr>
-                      <tr><td style="font-weight:600">บุคลากร</td><td style="text-align:center"><%= s.staff.pending %></td><td style="text-align:center;color:#16a34a"><%= s.staff.approved %></td><td style="text-align:center;color:#dc2626"><%= s.staff.rejected %></td><td style="text-align:right;font-weight:700"><%= s.staff.total %></td></tr>
+                      <tr><td class="text-xs text-slate-400">1</td><td style="font-weight:600">นักศึกษา</td><td style="text-align:center"><%= s.student.pending %></td><td style="text-align:center;color:#16a34a"><%= s.student.approved %></td><td style="text-align:center;color:#dc2626"><%= s.student.rejected %></td><td style="text-align:right;font-weight:700"><%= s.student.total %></td></tr>
+                      <tr><td class="text-xs text-slate-400">2</td><td style="font-weight:600">บุคลากร</td><td style="text-align:center"><%= s.staff.pending %></td><td style="text-align:center;color:#16a34a"><%= s.staff.approved %></td><td style="text-align:center;color:#dc2626"><%= s.staff.rejected %></td><td style="text-align:right;font-weight:700"><%= s.staff.total %></td></tr>
                     </tbody>
                     <tfoot style="background:#f8fafc; border-top:2px solid #e2e8f0;">
-                      <tr><td style="font-weight:700">ยอดรวม</td><td style="text-align:center;font-weight:700;color:#d97706"><%= (s.student.pending||0)+(s.staff.pending||0) %></td><td style="text-align:center;font-weight:700;color:#16a34a"><%= (s.student.approved||0)+(s.staff.approved||0) %></td><td style="text-align:center;font-weight:700;color:#dc2626"><%= (s.student.rejected||0)+(s.staff.rejected||0) %></td><td style="text-align:right;font-weight:800;color:var(--color-brand-600);font-size:1.1rem"><%= s.totalAmount %></td></tr>
+                      <tr><td colspan="2" style="font-weight:700">ยอดรวม</td><td style="text-align:center;font-weight:700;color:#d97706"><%= (s.student.pending||0)+(s.staff.pending||0) %></td><td style="text-align:center;font-weight:700;color:#16a34a"><%= (s.student.approved||0)+(s.staff.approved||0) %></td><td style="text-align:center;font-weight:700;color:#dc2626"><%= (s.student.rejected||0)+(s.staff.rejected||0) %></td><td style="text-align:right;font-weight:800;color:var(--color-brand-600);font-size:1.1rem"><%= s.totalAmount %></td></tr>
                     </tfoot>
                   </table>
                 </div>
@@ -382,13 +382,13 @@
                   </h4>
                   <div class="table-container">
                     <table class="data-table">
-                      <thead><tr><th>ประเภท</th><th style="text-align:center">รอ</th><th style="text-align:center">อนุมัติ</th><th style="text-align:center">ปฏิเสธ</th><th style="text-align:right">รวม</th></tr></thead>
+                      <thead><tr><th>#</th><th>ประเภท</th><th style="text-align:center">รอ</th><th style="text-align:center">อนุมัติ</th><th style="text-align:center">ปฏิเสธ</th><th style="text-align:right">รวม</th></tr></thead>
                       <tbody>
-                        <tr><td style="font-weight:600">นักศึกษา</td><td style="text-align:center"><%= s.student.pending %></td><td style="text-align:center;color:#16a34a"><%= s.student.approved %></td><td style="text-align:center;color:#dc2626"><%= s.student.rejected %></td><td style="text-align:right;font-weight:700"><%= s.student.total %></td></tr>
-                        <tr><td style="font-weight:600">บุคลากร</td><td style="text-align:center"><%= s.staff.pending %></td><td style="text-align:center;color:#16a34a"><%= s.staff.approved %></td><td style="text-align:center;color:#dc2626"><%= s.staff.rejected %></td><td style="text-align:right;font-weight:700"><%= s.staff.total %></td></tr>
+                        <tr><td class="text-xs text-slate-400">1</td><td style="font-weight:600">นักศึกษา</td><td style="text-align:center"><%= s.student.pending %></td><td style="text-align:center;color:#16a34a"><%= s.student.approved %></td><td style="text-align:center;color:#dc2626"><%= s.student.rejected %></td><td style="text-align:right;font-weight:700"><%= s.student.total %></td></tr>
+                        <tr><td class="text-xs text-slate-400">2</td><td style="font-weight:600">บุคลากร</td><td style="text-align:center"><%= s.staff.pending %></td><td style="text-align:center;color:#16a34a"><%= s.staff.approved %></td><td style="text-align:center;color:#dc2626"><%= s.staff.rejected %></td><td style="text-align:right;font-weight:700"><%= s.staff.total %></td></tr>
                       </tbody>
                       <tfoot style="background:#f8fafc; border-top:2px solid #e2e8f0;">
-                        <tr><td style="font-weight:700">ยอดรวม</td><td style="text-align:center;font-weight:700;color:#d97706"><%= (s.student.pending||0)+(s.staff.pending||0) %></td><td style="text-align:center;font-weight:700;color:#16a34a"><%= (s.student.approved||0)+(s.staff.approved||0) %></td><td style="text-align:center;font-weight:700;color:#dc2626"><%= (s.student.rejected||0)+(s.staff.rejected||0) %></td><td style="text-align:right;font-weight:800;color:var(--color-brand-600);font-size:1.1rem"><%= s.totalAmount %></td></tr>
+                        <tr><td colspan="2" style="font-weight:700">ยอดรวม</td><td style="text-align:center;font-weight:700;color:#d97706"><%= (s.student.pending||0)+(s.staff.pending||0) %></td><td style="text-align:center;font-weight:700;color:#16a34a"><%= (s.student.approved||0)+(s.staff.approved||0) %></td><td style="text-align:center;font-weight:700;color:#dc2626"><%= (s.student.rejected||0)+(s.staff.rejected||0) %></td><td style="text-align:right;font-weight:800;color:var(--color-brand-600);font-size:1.1rem"><%= s.totalAmount %></td></tr>
                       </tfoot>
                     </table>
                   </div>

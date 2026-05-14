@@ -166,12 +166,13 @@
               <% } %>
 
               <table class="data-table">
-                <thead><tr><th style="font-size:12px;">รายการแจ้งเลขที่</th><th>วันที่</th><th>ประเภทความผิด</th><th>กฎที่กระทำผิด</th><th>แจ้งโดย</th><th>ยืนยันโดย</th><th></th></tr></thead>
+                <thead><tr><th>#</th><th style="font-size:12px;">รายการแจ้งเลขที่</th><th>วันที่</th><th>ประเภทความผิด</th><th>กฎที่กระทำผิด</th><th>แจ้งโดย</th><th>ยืนยันโดย</th><th></th></tr></thead>
                 <tbody>
                   <% if (violations.length > 0) { %>
-                    <% violations.forEach(function(v) { %>
+                    <% violations.forEach(function(v, idx) { %>
                     <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors"
                         data-href="/violations/<%= v.id %>">
+                      <td class="text-xs text-slate-400"><%= idx + 1 %></td>
                       <td>
                         <div class="font-semibold text-slate-800" style="font-size:12px;"><%= v.incident_code || ('IR-GEN-' + String(v.id).padStart(6, '0')) %></div>
                       </td>
@@ -189,7 +190,7 @@
                     </tr>
                     <% }); %>
                   <% } else { %>
-                    <tr><td colspan="7" class="text-center text-slate-400 py-6">ไม่มีประวัติการกระทำผิด</td></tr>
+                    <tr><td colspan="8" class="text-center text-slate-400 py-6">ไม่มีประวัติการกระทำผิด</td></tr>
                   <% } %>
                 </tbody>
               </table>
@@ -207,6 +208,7 @@
               <table class="data-table">
                 <thead>
                   <tr>
+                    <th>#</th>
                     <th>วันเวลานัดหมาย</th>
                     <th>รายละเอียดการเรียกพบ</th>
                     <th>เอกสารแนบ</th>
@@ -217,7 +219,7 @@
                 </thead>
                 <tbody>
                   <% if (typeof summonsAppointments !== 'undefined' && summonsAppointments.length > 0) { %>
-                    <% summonsAppointments.forEach(function(item) { %>
+                    <% summonsAppointments.forEach(function(item, idx) { %>
                     <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors"
                         data-summons-detail-row
                         data-appointment-id="<%= item.id %>"
@@ -242,6 +244,7 @@
                           ดูรายละเอียด
                         </button>
                       </td>
+                      <td class="text-xs text-slate-400"><%= idx + 1 %></td>
                       <td class="font-medium text-slate-700 whitespace-nowrap" style="font-size:12px;">
                         <%= item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>
                       </td>
@@ -294,7 +297,7 @@
                     </tr>
                     <% }); %>
                   <% } else { %>
-                    <tr><td colspan="6" class="text-center text-slate-400 py-6">ไม่มีประวัติการเรียกพบ</td></tr>
+                    <tr><td colspan="7" class="text-center text-slate-400 py-6">ไม่มีประวัติการเรียกพบ</td></tr>
                   <% } %>
                 </tbody>
               </table>

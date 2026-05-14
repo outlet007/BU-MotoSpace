@@ -24,11 +24,21 @@
     @keyframes backdropIn { from{opacity:0} to{opacity:1} }
     .modal-panel { animation: modalSlideUp 0.25s cubic-bezier(0.16,1,0.3,1); }
     @keyframes modalSlideUp { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
-    .metric-card { text-decoration: none; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; cursor: pointer; }
-    .metric-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(15, 23, 42, .10); }
-    .metric-card.active { border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22, 163, 74, .22), 0 12px 28px rgba(15, 23, 42, .10); }
-    .metric-card.info.active { border-color: #0284c7; box-shadow: 0 0 0 2px rgba(2, 132, 199, .20), 0 12px 28px rgba(15, 23, 42, .10); }
-    .metric-card.danger.active { border-color: #ef4444; box-shadow: 0 0 0 2px rgba(239, 68, 68, .20), 0 12px 28px rgba(15, 23, 42, .10); }
+    .metric-card { text-decoration: none; transition: all 0.2s; cursor: pointer; }
+    .metric-card:hover { border-color: #94a3b8; box-shadow: 0 4px 12px rgba(15,23,42,0.08); }
+    .metric-card.active { border-color: #16a34a; box-shadow: 0 0 0 3px #22c55e26; }
+    .metric-card.warning.active { border-color: #d97706; box-shadow: 0 0 0 3px #f59e0b26; }
+    .metric-card.danger.active { border-color: #ef4444; box-shadow: 0 0 0 3px #ef444426; }
+    .metric-card.info.active { border-color: #0284c7; box-shadow: 0 0 0 3px #0ea5e926; }
+    .metric-card .mc-icon-wrap {
+      width: 2.75rem;
+      height: 2.75rem;
+      border-radius: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
     .rules-panel { display: none; }
     .rules-panel.active { display: block; }
   </style>
@@ -51,7 +61,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <button type="button" class="stat-card metric-card text-left <%= selectedTab === 'rules' ? 'active' : '' %>" data-rules-tab="rules">
-            <div class="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
+            <div class="mc-icon-wrap bg-brand-100 text-brand-600">
               <i data-lucide="clipboard-list" class="w-6 h-6"></i>
             </div>
             <div>
@@ -60,7 +70,7 @@
             </div>
           </button>
           <button type="button" class="stat-card metric-card info text-left <%= selectedTab === 'types' ? 'active' : '' %>" data-rules-tab="types">
-            <div class="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
+            <div class="mc-icon-wrap bg-sky-50 text-sky-700">
               <i data-lucide="tags" class="w-6 h-6"></i>
             </div>
             <div>
@@ -69,7 +79,7 @@
             </div>
           </button>
           <button type="button" class="stat-card metric-card danger text-left <%= selectedTab === 'penalties' ? 'active' : '' %>" data-rules-tab="penalties">
-            <div class="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
+            <div class="mc-icon-wrap bg-red-100 text-red-600">
               <i data-lucide="gavel" class="w-6 h-6"></i>
             </div>
             <div>

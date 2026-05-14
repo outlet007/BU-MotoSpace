@@ -40,6 +40,7 @@
           <table class="data-table">
             <thead>
               <tr>
+                <th>#</th>
                 <th>ชื่อหน่วยงาน</th>
                 <th>รายละเอียด</th>
                 <th>จำนวนผู้ใช้</th>
@@ -49,8 +50,9 @@
             </thead>
             <tbody>
               <% if (departments.length > 0) { %>
-                <% departments.forEach(function(dep) { %>
+                <% departments.forEach(function(dep, idx) { %>
                 <tr>
+                  <td class="text-xs text-slate-400"><%= idx + 1 %></td>
                   <td class="font-semibold text-slate-800"><%= dep.department_name %></td>
                   <td class="text-sm text-slate-600"><%= dep.description || '-' %></td>
                   <td>
@@ -87,7 +89,7 @@
                 <% }); %>
               <% } else { %>
                 <tr>
-                  <td colspan="5" class="text-center text-slate-400 py-12">ยังไม่มีหน่วยงานในระบบ</td>
+                  <td colspan="6" class="text-center text-slate-400 py-12">ยังไม่มีหน่วยงานในระบบ</td>
                 </tr>
               <% } %>
             </tbody>

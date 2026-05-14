@@ -527,8 +527,9 @@ async function fetchReport(conn, type, startDate, endDate, options = {}) {
     const regCounts = await conn.query(
       `SELECT user_type, status, COUNT(*) as cnt FROM registrations WHERE 1=1 ${dateFilter} GROUP BY user_type, status`, params
     );
+    const violationDateFilter = dateFilter.replace(/registered_at/g, 'v.recorded_at');
     const vioCounts = await conn.query(
-      `SELECT ru.rule_name, COUNT(v.id) as cnt FROM violations v JOIN rules ru ON v.rule_id = ru.id WHERE 1=1 ${dateFilter.replace('registered_at', 'v.recorded_at')} GROUP BY ru.id, ru.rule_name ORDER BY cnt DESC`, params
+      `SELECT ru.rule_name, COUNT(v.id) as cnt FROM violations v JOIN rules ru ON v.rule_id = ru.id WHERE 1=1 ${violationDateFilter} GROUP BY ru.id, ru.rule_name ORDER BY cnt DESC`, params
     );
     const topProv = await conn.query(
       `SELECT province, COUNT(*) as cnt FROM registrations WHERE status='approved' ${dateFilter} GROUP BY province ORDER BY cnt DESC LIMIT 5`, params
@@ -997,7 +998,7 @@ router.get('/', async (req, res) => {
     Object.entries(REPORT_TYPES).filter(([key]) => key !== 'summary')
   );
   let reportData = null;
-  let summaryData = null;
+  let summaryData = { isSummary: true, regCounts: [], vioCounts: [], topProv: [] };
 
   let conn;
   try {

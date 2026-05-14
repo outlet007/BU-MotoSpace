@@ -12,11 +12,21 @@
     @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
     .bulk-bar { position: sticky; bottom: 1rem; z-index: 20; box-shadow: 0 18px 50px rgba(15, 23, 42, .16); }
     .danger-panel { border: 1px solid #fecaca; background: #fff7f7; }
-    .metric-card { text-decoration: none; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
-    .metric-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(15, 23, 42, .10); }
-    .metric-card.active { border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22, 163, 74, .22), 0 12px 28px rgba(15, 23, 42, .10); }
-    .metric-card.danger.active { border-color: #ef4444; box-shadow: 0 0 0 2px rgba(239, 68, 68, .20), 0 12px 28px rgba(15, 23, 42, .10); }
-    .metric-card.info.active { border-color: #0284c7; box-shadow: 0 0 0 2px rgba(2, 132, 199, .20), 0 12px 28px rgba(15, 23, 42, .10); }
+    .metric-card { text-decoration: none; transition: all 0.2s; cursor: pointer; }
+    .metric-card:hover { border-color: #94a3b8; box-shadow: 0 4px 12px rgba(15,23,42,0.08); }
+    .metric-card.active { border-color: #16a34a; box-shadow: 0 0 0 3px #22c55e26; }
+    .metric-card.warning.active { border-color: #d97706; box-shadow: 0 0 0 3px #f59e0b26; }
+    .metric-card.danger.active { border-color: #ef4444; box-shadow: 0 0 0 3px #ef444426; }
+    .metric-card.info.active { border-color: #0284c7; box-shadow: 0 0 0 3px #0ea5e926; }
+    .metric-card .mc-icon-wrap {
+      width: 2.75rem;
+      height: 2.75rem;
+      border-radius: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
     @media (max-width: 640px) {
       .bulk-bar { bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
     }
@@ -43,7 +53,7 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <a href="/data/manage?view=registrations&registered_from=<%= registeredFrom %>&registered_to=<%= registeredTo %>&status=<%= registrationCardStatus %>" class="stat-card metric-card <%= activeView === 'registrations' ? 'active' : '' %>">
-              <div class="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
+              <div class="mc-icon-wrap bg-brand-100 text-brand-600">
                 <i data-lucide="clipboard-list" class="w-6 h-6"></i>
               </div>
               <div>
@@ -52,7 +62,7 @@
               </div>
             </a>
             <a href="/data/manage?view=deleted&status=deleted" class="stat-card metric-card info <%= activeView === 'deleted' ? 'active' : '' %>">
-              <div class="w-12 h-12 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center">
+              <div class="mc-icon-wrap bg-sky-50 text-sky-700">
                 <i data-lucide="archive-x" class="w-6 h-6"></i>
               </div>
               <div>
@@ -124,6 +134,7 @@
               <table class="data-table">
                 <thead>
                   <tr>
+                    <th>#</th>
                     <% if (activeView === 'deleted') { %>
                       <th>ชื่อผู้ใช้งาน</th>
                       <th>ป้ายทะเบียน</th>
@@ -141,14 +152,15 @@
                 <tbody>
                   <% if (rows.length === 0) { %>
                     <tr>
-                      <td colspan="5" class="text-center py-10 text-slate-400">
+                      <td colspan="<%= activeView === 'deleted' ? 5 : 6 %>" class="text-center py-10 text-slate-400">
                         <%= activeView === 'deleted' ? 'ยังไม่มีข้อมูลที่ถูกลบชั่วคราว' : 'ไม่พบข้อมูลตามช่วงวันที่ที่เลือก' %>
                       </td>
                     </tr>
                   <% } %>
 
-                  <% rows.forEach(row => { %>
+                  <% rows.forEach((row, idx) => { %>
                     <tr>
+                      <td class="text-xs text-slate-400"><%= ((currentPage || 1) - 1) * 20 + idx + 1 %></td>
                       <% if (activeView === 'deleted') { %>
                         <td>
                           <div class="font-semibold text-slate-800"><%= row.first_name %> <%= row.last_name %></div>
