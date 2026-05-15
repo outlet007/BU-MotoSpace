@@ -558,7 +558,12 @@ router.post('/:id/delete', isHead, verifyCsrf, async (req, res) => {
       return res.redirect('/registrations');
     }
 
-    const reason = 'ลบจากหน้าจัดการทะเบียนรถ';
+    const reason = (req.body.delete_reason || '').trim();
+    if (!reason) {
+      await conn.rollback();
+      req.flash('error', 'กรุณากรอกหมายเหตุในการลบข้อมูลทะเบียนรถ');
+      return res.redirect('/registrations/' + req.params.id);
+    }
     await conn.query(
       `UPDATE violation_reports
        SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?

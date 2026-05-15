@@ -23,6 +23,7 @@
     .lightbox img { max-width:90%; max-height:90%; border-radius:12px; box-shadow:0 25px 50px rgba(0,0,0,0.3); }
     .severity-bar { height:8px; border-radius:999px; overflow:hidden; background:#f1f5f9; }
     .severity-fill { height:100%; border-radius:999px; transition:width 0.4s ease; }
+    .edit-evidence-preview { width:100%; max-width:320px; height:180px; border-radius:12px; margin-top:12px; object-fit:cover; border:1px solid #bbf7d0; background:#f8fafc; }
   </style>
 </head>
 <body class="min-h-screen bg-slate-50">
@@ -262,6 +263,7 @@
                     เปลี่ยนรูปหลักฐาน
                   </button>
                   <p id="violation-edit-evidence-name" class="text-xs text-slate-500 mt-2">ยังไม่ได้เลือกรูปใหม่</p>
+                  <img id="violation-edit-evidence-preview" class="edit-evidence-preview hidden" alt="ตัวอย่างรูปหลักฐาน">
                   <p class="text-xs text-slate-400 mt-1">ถ้าไม่เลือกรูปใหม่ ระบบจะใช้หลักฐานเดิม</p>
                   <% if (v.evidence_photo) { %>
                     <div class="mt-2 text-xs text-slate-500">
@@ -299,7 +301,7 @@
     </div>
   </div>
   <script>
-    lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
 
     (function() {
       var modal = document.getElementById('violation-edit-modal');
@@ -308,6 +310,8 @@
       var evidenceInput = document.getElementById('violation-edit-evidence-photo');
       var evidenceButton = document.getElementById('violation-edit-evidence-button');
       var evidenceName = document.getElementById('violation-edit-evidence-name');
+      var evidencePreview = document.getElementById('violation-edit-evidence-preview');
+      var evidencePreviewUrl = '';
 
       function openEdit() {
         if (modal) modal.style.display = 'flex';
@@ -334,6 +338,11 @@
         evidenceInput.addEventListener('change', function() {
           var file = evidenceInput.files && evidenceInput.files[0];
           evidenceName.textContent = file ? file.name : 'ยังไม่ได้เลือกรูปใหม่';
+          if (!file || !evidencePreview) return;
+          if (evidencePreviewUrl) URL.revokeObjectURL(evidencePreviewUrl);
+          evidencePreviewUrl = URL.createObjectURL(file);
+          evidencePreview.src = evidencePreviewUrl;
+          evidencePreview.classList.remove('hidden');
         });
       }
 

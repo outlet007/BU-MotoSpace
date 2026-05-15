@@ -440,6 +440,39 @@ router.post('/types/:id/update', isHead, async (req, res) => {
   res.redirect('/rules?tab=types');
 });
 
+router.post('/types/:id/toggle', isHead, async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await ensureViolationTypeSchema(conn);
+
+    const [type] = await conn.query(
+      'SELECT id, type_name, is_active FROM violation_types WHERE id = ?',
+      [req.params.id]
+    );
+
+    if (!type) {
+      req.flash('error', 'ไม่พบประเภทความผิดที่ต้องการเปลี่ยนสถานะ');
+      return res.redirect('/rules?tab=types');
+    }
+
+    const nextStatus = type.is_active ? 0 : 1;
+    await conn.query('UPDATE violation_types SET is_active = ? WHERE id = ?', [nextStatus, req.params.id]);
+
+    req.flash(
+      'success',
+      `${nextStatus ? 'เปิดใช้งาน' : 'ซ่อน'}ประเภทความผิด "${type.type_name}" เรียบร้อยแล้ว`
+    );
+  } catch (err) {
+    console.error('POST /rules/types/:id/toggle error:', err);
+    req.flash('error', 'ไม่สามารถเปลี่ยนสถานะประเภทความผิดได้: ' + err.message);
+  } finally {
+    if (conn) conn.release();
+  }
+
+  res.redirect('/rules?tab=types');
+});
+
 router.post('/types/:id/delete', isHead, async (req, res) => {
   let conn;
 
@@ -535,6 +568,39 @@ router.post('/penalties/:id/update', isHead, async (req, res) => {
   } catch (err) {
     console.error('POST /rules/penalties/:id/update error:', err);
     req.flash('error', 'ไม่สามารถอัปเดตประเภทบทลงโทษได้: ' + err.message);
+  } finally {
+    if (conn) conn.release();
+  }
+
+  res.redirect('/rules?tab=penalties');
+});
+
+router.post('/penalties/:id/toggle', isHead, async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await ensurePenaltyTypeSchema(conn);
+
+    const [type] = await conn.query(
+      'SELECT id, penalty_name, is_active FROM penalty_types WHERE id = ?',
+      [req.params.id]
+    );
+
+    if (!type) {
+      req.flash('error', 'ไม่พบประเภทบทลงโทษที่ต้องการเปลี่ยนสถานะ');
+      return res.redirect('/rules?tab=penalties');
+    }
+
+    const nextStatus = type.is_active ? 0 : 1;
+    await conn.query('UPDATE penalty_types SET is_active = ? WHERE id = ?', [nextStatus, req.params.id]);
+
+    req.flash(
+      'success',
+      `${nextStatus ? 'เปิดใช้งาน' : 'ซ่อน'}ประเภทบทลงโทษ "${type.penalty_name}" เรียบร้อยแล้ว`
+    );
+  } catch (err) {
+    console.error('POST /rules/penalties/:id/toggle error:', err);
+    req.flash('error', 'ไม่สามารถเปลี่ยนสถานะประเภทบทลงโทษได้: ' + err.message);
   } finally {
     if (conn) conn.release();
   }

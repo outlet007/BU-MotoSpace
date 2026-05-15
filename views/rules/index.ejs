@@ -274,6 +274,16 @@
                     <i data-lucide="pencil" class="w-4 h-4"></i>
                   </button>
                   <form method="POST"
+                        action="/rules/types/<%= type.id %>/toggle"
+                        class="inline">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button type="submit"
+                            class="p-1.5 rounded-lg transition-all <%= type.is_active ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50' : 'text-slate-400 hover:text-brand-600 hover:bg-brand-50' %>"
+                            title="<%= type.is_active ? 'ซ่อนประเภทความผิดนี้' : 'เปิดใช้งานประเภทความผิดนี้' %>">
+                      <i data-lucide="<%= type.is_active ? 'eye-off' : 'play-circle' %>" class="w-4 h-4"></i>
+                    </button>
+                  </form>
+                  <form method="POST"
                         action="/rules/types/<%= type.id %>/delete"
                         class="inline"
                         data-delete-confirm
@@ -342,6 +352,16 @@
                           title="แก้ไขประเภทบทลงโทษ">
                     <i data-lucide="pencil" class="w-4 h-4"></i>
                   </button>
+                  <form method="POST"
+                        action="/rules/penalties/<%= type.id %>/toggle"
+                        class="inline">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button type="submit"
+                            class="p-1.5 rounded-lg transition-all <%= type.is_active ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50' : 'text-slate-400 hover:text-brand-600 hover:bg-brand-50' %>"
+                            title="<%= type.is_active ? 'ซ่อนประเภทบทลงโทษนี้' : 'เปิดใช้งานประเภทบทลงโทษนี้' %>">
+                      <i data-lucide="<%= type.is_active ? 'eye-off' : 'play-circle' %>" class="w-4 h-4"></i>
+                    </button>
+                  </form>
                   <form method="POST"
                         action="/rules/penalties/<%= type.id %>/delete"
                         class="inline"

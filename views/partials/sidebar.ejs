@@ -346,6 +346,17 @@
       <p id="delete-confirm-warning" style="font-size:.78rem; color:#dc2626; margin:12px 0 0;">
         การลบนี้อาจส่งผลต่อข้อมูลที่เกี่ยวข้อง และไม่ควรทำหากยังไม่แน่ใจ
       </p>
+      <div id="delete-confirm-reason-wrap" style="display:none; margin-top:14px;">
+        <label for="delete-confirm-reason" style="display:block; font-size:.8rem; font-weight:600; color:#475569; margin-bottom:6px;">
+          หมายเหตุ <span style="color:#dc2626;">*</span>
+        </label>
+        <textarea id="delete-confirm-reason"
+                  style="width:100%; min-height:92px; resize:vertical; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; font-size:.875rem; color:#334155; outline:none;"
+                  placeholder="ระบุเหตุผลหรือหมายเหตุในการลบข้อมูล"></textarea>
+        <p id="delete-confirm-reason-error" style="display:none; font-size:.75rem; color:#dc2626; margin:6px 0 0;">
+          กรุณากรอกหมายเหตุก่อนยืนยัน
+        </p>
+      </div>
     </div>
     <div style="display:flex; gap:10px; padding:0 24px 22px;">
       <button type="button" id="delete-confirm-cancel"
@@ -692,6 +703,9 @@
     var itemEl = document.getElementById('delete-confirm-item');
     var detailEl = document.getElementById('delete-confirm-detail');
     var warningEl = document.getElementById('delete-confirm-warning');
+    var reasonWrap = document.getElementById('delete-confirm-reason-wrap');
+    var reasonInput = document.getElementById('delete-confirm-reason');
+    var reasonError = document.getElementById('delete-confirm-reason-error');
     var btnCancel = document.getElementById('delete-confirm-cancel');
     var btnSubmit = document.getElementById('delete-confirm-submit');
     var backdrop = document.getElementById('delete-confirm-backdrop');
@@ -699,6 +713,8 @@
     function closeDeleteConfirm() {
       pendingDeleteForm = null;
       pendingDeleteTrigger = null;
+      if (reasonInput) reasonInput.value = '';
+      if (reasonError) reasonError.style.display = 'none';
       if (modal) modal.style.display = 'none';
     }
 
@@ -719,7 +735,16 @@
       }
       if (warningEl) warningEl.textContent = deleteData('deleteWarning', 'การลบนี้อาจส่งผลต่อข้อมูลที่เกี่ยวข้อง และไม่ควรทำหากยังไม่แน่ใจ');
       if (btnSubmit) btnSubmit.textContent = deleteData('deleteConfirmText', 'ยืนยันลบ');
+      var needsReason = deleteData('deleteReasonRequired', 'false') === 'true';
+      if (reasonWrap) reasonWrap.style.display = needsReason ? 'block' : 'none';
+      if (reasonInput) {
+        reasonInput.value = '';
+        reasonInput.required = needsReason;
+        reasonInput.placeholder = deleteData('deleteReasonPlaceholder', 'ระบุเหตุผลหรือหมายเหตุในการลบข้อมูล');
+      }
+      if (reasonError) reasonError.style.display = 'none';
       if (modal) modal.style.display = 'flex';
+      if (needsReason && reasonInput) reasonInput.focus();
     }
 
     document.addEventListener('submit', function(e) {
@@ -743,6 +768,24 @@
         if (!pendingDeleteForm) return;
         var finalMessage = pendingDeleteTrigger && pendingDeleteTrigger.dataset ? pendingDeleteTrigger.dataset.deleteFinalConfirm : '';
         if (finalMessage && !window.confirm(finalMessage)) return;
+        var needsReason = pendingDeleteForm.dataset.deleteReasonRequired === 'true'
+          || (pendingDeleteTrigger && pendingDeleteTrigger.dataset && pendingDeleteTrigger.dataset.deleteReasonRequired === 'true');
+        if (needsReason) {
+          var reason = reasonInput ? reasonInput.value.trim() : '';
+          if (!reason) {
+            if (reasonError) reasonError.style.display = 'block';
+            if (reasonInput) reasonInput.focus();
+            return;
+          }
+          var existingReason = pendingDeleteForm.querySelector('input[name="delete_reason"]');
+          if (!existingReason) {
+            existingReason = document.createElement('input');
+            existingReason.type = 'hidden';
+            existingReason.name = 'delete_reason';
+            pendingDeleteForm.appendChild(existingReason);
+          }
+          existingReason.value = reason;
+        }
         pendingDeleteForm.dataset.deleteConfirmed = 'true';
         HTMLFormElement.prototype.submit.call(pendingDeleteForm);
       });

@@ -460,7 +460,7 @@ router.post('/:id/confirm', isHead, async (req, res) => {
       `SELECT vr.*, ru.max_violations, ru.rule_name, ru.penalty
        FROM violation_reports vr
        JOIN rules ru ON vr.rule_id = ru.id
-       WHERE vr.id = ? AND vr.status = 'pending' AND vr.deleted_at IS NULL
+       WHERE vr.id = ? AND vr.status IN ('pending', 'rejected') AND vr.deleted_at IS NULL
        FOR UPDATE`,
       [req.params.id]
     );
@@ -537,7 +537,7 @@ router.post('/:id/confirm', isHead, async (req, res) => {
     const updateResult = await conn.query(
       `UPDATE violation_reports
        SET status = 'confirmed', reviewed_by = ?, reviewed_at = NOW(), violation_id = ?
-       WHERE id = ? AND status = 'pending'`,
+       WHERE id = ? AND status IN ('pending', 'rejected')`,
       [req.session.admin.id, newViolationId, req.params.id]
     );
 
@@ -574,30 +574,49 @@ router.post('/:id/confirm', isHead, async (req, res) => {
 router.post('/:id/reject', isHead, async (req, res) => {
   const { review_note } = req.body;
   let conn;
+  let transactionStarted = false;
   try {
     conn = await pool.getConnection();
     await ensureTable(conn);
+    await conn.beginTransaction();
+    transactionStarted = true;
 
     const [report] = await conn.query(
-      `SELECT id, status FROM violation_reports WHERE id = ? AND deleted_at IS NULL`,
+      `SELECT id, status, violation_id FROM violation_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE`,
       [req.params.id]
     );
 
-    if (!report || report.status !== 'pending') {
+    if (!report || !['pending', 'confirmed'].includes(report.status)) {
+      await conn.rollback();
+      transactionStarted = false;
       req.flash('error', 'ไม่พบรายการหรือรายการนี้ถูกดำเนินการแล้ว');
       return res.redirect('/violation-reports');
     }
 
+    if (report.status === 'confirmed' && report.violation_id) {
+      await conn.query(
+        `UPDATE violations
+         SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+         WHERE id = ? AND deleted_at IS NULL`,
+        [req.session.admin.id, review_note || 'ปฏิเสธรายการแจ้งหลังจากยืนยันแล้ว', report.violation_id]
+      );
+    }
+
     await conn.query(
       `UPDATE violation_reports
-       SET status = 'rejected', reviewed_by = ?, reviewed_at = NOW(), review_note = ?
+       SET status = 'rejected', reviewed_by = ?, reviewed_at = NOW(), review_note = ?, violation_id = NULL
        WHERE id = ?`,
       [req.session.admin.id, review_note || null, req.params.id]
     );
 
+    await conn.commit();
+    transactionStarted = false;
     req.flash('success', 'ปฏิเสธรายการกระทำผิดเรียบร้อยแล้ว');
     res.redirect('/violation-reports');
   } catch (err) {
+    if (transactionStarted && conn) {
+      try { await conn.rollback(); } catch (rollbackErr) { console.error('Rollback failed:', rollbackErr); }
+    }
     console.error('POST /violation-reports/:id/reject error:', err);
     req.flash('error', 'เกิดข้อผิดพลาด: ' + err.message);
     res.redirect(`/violation-reports/${req.params.id}`);
@@ -612,20 +631,52 @@ router.post('/:id/reject', isHead, async (req, res) => {
 router.post('/:id/edit', isHead, async (req, res) => {
   const { description, rule_id } = req.body;
   let conn;
+  let transactionStarted = false;
   try {
     conn = await pool.getConnection();
     await ensureTable(conn);
+    await conn.beginTransaction();
+    transactionStarted = true;
+
+    const [report] = await conn.query(
+      `SELECT id, status, violation_id
+       FROM violation_reports
+       WHERE id = ? AND status IN ('pending', 'confirmed', 'rejected') AND deleted_at IS NULL
+       FOR UPDATE`,
+      [req.params.id]
+    );
+
+    if (!report) {
+      await conn.rollback();
+      transactionStarted = false;
+      req.flash('error', 'ไม่พบรายการที่ต้องการแก้ไขหรือรายการนี้แก้ไขไม่ได้แล้ว');
+      return res.redirect('/violation-reports');
+    }
 
     await conn.query(
       `UPDATE violation_reports
        SET description = ?, rule_id = ?
-       WHERE id = ? AND status = 'pending' AND deleted_at IS NULL`,
+       WHERE id = ? AND status IN ('pending', 'confirmed', 'rejected') AND deleted_at IS NULL`,
       [description || null, rule_id, req.params.id]
     );
 
+    if (report.status === 'confirmed' && report.violation_id) {
+      await conn.query(
+        `UPDATE violations
+         SET description = ?, rule_id = ?
+         WHERE id = ? AND deleted_at IS NULL`,
+        [description || null, rule_id, report.violation_id]
+      );
+    }
+
+    await conn.commit();
+    transactionStarted = false;
     req.flash('success', 'แก้ไขรายการเรียบร้อยแล้ว');
     res.redirect(`/violation-reports/${req.params.id}`);
   } catch (err) {
+    if (transactionStarted && conn) {
+      try { await conn.rollback(); } catch (rollbackErr) { console.error('Rollback failed:', rollbackErr); }
+    }
     console.error('POST /violation-reports/:id/edit error:', err);
     req.flash('error', 'เกิดข้อผิดพลาด: ' + err.message);
     res.redirect(`/violation-reports/${req.params.id}`);

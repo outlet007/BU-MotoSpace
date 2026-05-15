@@ -35,7 +35,12 @@
       </a>
 
       <!-- Status banner -->
-      <% if (r.status === 'confirmed') { %>
+      <% if (r.status === 'pending') { %>
+      <div class="flex items-center gap-3 mb-5 px-4 py-3 rounded-xl bg-orange-50 border border-orange-200 text-orange-800 text-sm font-medium">
+        <i data-lucide="clock" class="w-5 h-5 text-orange-500 flex-shrink-0"></i>
+        รายการนี้ <strong>รอตรวจสอบ</strong> — ยังไม่ได้ดำเนินการยืนยันหรือปฏิเสธ
+      </div>
+      <% } else if (r.status === 'confirmed') { %>
       <div class="flex items-center gap-3 mb-5 px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-green-800 text-sm font-medium">
         <i data-lucide="check-circle" class="w-5 h-5 text-green-600 flex-shrink-0"></i>
         รายการนี้ <strong>ยืนยัน</strong> แล้ว — บันทึกลงประวัติการกระทำผิดเรียบร้อย
@@ -198,14 +203,15 @@
             </a>
           </div>
 
-          <!-- Actions card — only for pending -->
-          <% if (r.status === 'pending') { %>
+          <!-- Actions card -->
+          <% if (['pending', 'confirmed', 'rejected'].includes(r.status)) { %>
           <div class="card p-5">
             <h3 style="font-size:0.9rem;font-weight:700;color:#1e293b;margin-bottom:14px;display:flex;align-items:center;gap:6px;">
               <i data-lucide="settings" class="w-4 h-4 text-slate-500"></i> ดำเนินการ
             </h3>
 
             <!-- CONFIRM -->
+            <% if (r.status === 'pending' || r.status === 'rejected') { %>
             <form method="POST" action="/violation-reports/<%= r.id %>/confirm" onsubmit="return confirm('ยืนยันการกระทำผิดและบันทึกลงประวัติ?')">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" id="btn-confirm-<%= r.id %>" class="btn w-full justify-center mb-2"
@@ -213,6 +219,12 @@
                 <i data-lucide="check-circle" class="w-4 h-4"></i> ยืนยัน
               </button>
             </form>
+            <% } else { %>
+            <button type="button" class="btn w-full justify-center mb-2"
+                    style="background:#dcfce7;color:#15803d;font-size:0.85rem;gap:6px;cursor:default;" disabled>
+              <i data-lucide="check-circle" class="w-4 h-4"></i> ยืนยันแล้ว
+            </button>
+            <% } %>
 
             <!-- EDIT -->
             <button type="button" id="btn-edit-<%= r.id %>"
@@ -222,8 +234,10 @@
 
             <!-- REJECT -->
             <button type="button" id="btn-reject-<%= r.id %>"
-                    class="btn w-full justify-center" style="background:#dc2626;color:#fff;font-size:0.85rem;gap:6px;">
-              <i data-lucide="x-circle" class="w-4 h-4"></i> ปฏิเสธ
+                    class="btn w-full justify-center"
+                    style="background:<%= r.status === 'rejected' ? '#fee2e2' : '#dc2626' %>;color:<%= r.status === 'rejected' ? '#b91c1c' : '#fff' %>;font-size:0.85rem;gap:6px;<%= r.status === 'rejected' ? 'cursor:default;' : '' %>"
+                    <%= r.status === 'rejected' ? 'disabled' : '' %>>
+              <i data-lucide="x-circle" class="w-4 h-4"></i> <%= r.status === 'rejected' ? 'ปฏิเสธแล้ว' : 'ปฏิเสธ' %>
             </button>
           </div>
           <% } %>

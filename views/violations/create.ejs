@@ -14,6 +14,8 @@
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
     .upload-zone { border: 2px dashed #cbd5e1; transition: all 0.2s; border-radius: 12px; }
     .upload-zone:hover { border-color: #22c55e; background: #f0fdf4; }
+    .upload-zone.has-preview { border-color:#22c55e; background:#f0fdf4; }
+    .evidence-preview { width:100%; max-width:320px; height:180px; border-radius:12px; margin:12px auto 0; object-fit:cover; border:1px solid #bbf7d0; background:#fff; }
     .reg-info-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f1f5f9; }
     .reg-info-row:last-child { border-bottom:none; }
     .reg-info-label { font-size:0.8rem; color:#64748b; }
@@ -120,11 +122,11 @@
 
               <div>
                 <label class="label">หลักฐาน (ภาพถ่าย)</label>
-                <label class="upload-zone p-6 text-center cursor-pointer block">
+                <label id="evidence-upload-zone" class="upload-zone p-6 text-center cursor-pointer block">
                   <i data-lucide="camera" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
                   <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
-                  <input type="file" name="evidence_photo" accept="image/*" capture="environment" class="hidden" onchange="previewEvidence(this)">
-                  <img id="evidence-preview" class="max-h-40 rounded-xl mx-auto mt-3 hidden object-cover">
+                  <input id="evidence-photo-input" type="file" name="evidence_photo" accept="image/*" capture="environment" class="hidden">
+                  <img id="evidence-preview" class="evidence-preview hidden" alt="ตัวอย่างภาพหลักฐาน">
                 </label>
               </div>
 
@@ -139,14 +141,27 @@
     </div>
   </div>
   <script>
-    lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
+    const evidenceInput = document.getElementById('evidence-photo-input');
+    const evidencePreview = document.getElementById('evidence-preview');
+    const evidenceUploadZone = document.getElementById('evidence-upload-zone');
+    let evidencePreviewUrl = '';
+
     function previewEvidence(input) {
-      const preview = document.getElementById('evidence-preview');
-      if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = e => { preview.src = e.target.result; preview.classList.remove('hidden'); };
-        reader.readAsDataURL(input.files[0]);
-      }
+      const file = input && input.files && input.files[0];
+      if (!file || !evidencePreview) return;
+
+      if (evidencePreviewUrl) URL.revokeObjectURL(evidencePreviewUrl);
+      evidencePreviewUrl = URL.createObjectURL(file);
+      evidencePreview.src = evidencePreviewUrl;
+      evidencePreview.classList.remove('hidden');
+      if (evidenceUploadZone) evidenceUploadZone.classList.add('has-preview');
+    }
+
+    if (evidenceInput) {
+      evidenceInput.addEventListener('change', function() {
+        previewEvidence(evidenceInput);
+      });
     }
 
     // ---- Live search for registrant (only when no pre-selected reg) ----
