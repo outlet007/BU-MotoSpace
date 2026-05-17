@@ -195,17 +195,8 @@
         </div>
         <!-- Title -->
         <h2 id="success-modal-title" style="font-size:1.3rem;font-weight:700;color:#0f172a;margin-bottom:.5rem;">ลงทะเบียนสำเร็จ!</h2>
-        <!-- Message -->
-        <p style="font-size:.925rem;color:#475569;line-height:1.6;margin-bottom:1.75rem;">
-          <%= success[0] %>
-        </p>
         <!-- Divider -->
         <div style="width:48px;height:3px;background:linear-gradient(90deg,#16a34a,#22c55e);border-radius:99px;margin:0 auto 1.75rem;"></div>
-        <!-- Info box -->
-        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:.875rem 1rem;font-size:.825rem;color:#15803d;margin-bottom:1.75rem;display:flex;align-items:center;gap:.625rem;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <span>เจ้าหน้าที่จะตรวจสอบและแจ้งผลการอนุมัติให้ทราบในภายหลัง</span>
-        </div>
         <!-- Button -->
         <button type="button" id="successModalClose"
           style="width:100%;padding:.875rem;background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;font-size:.975rem;font-weight:600;border:none;border-radius:12px;cursor:pointer;box-shadow:0 4px 14px rgba(22,163,74,.4);transition:opacity .15s,transform .15s;">
@@ -343,7 +334,7 @@
           <div class="upload-zone rounded-xl p-5 text-center cursor-pointer block" id="student-card-zone" role="button" tabindex="0" data-file-target="student_card_input">
             <i data-lucide="id-card" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
             <p class="text-sm text-slate-500" data-i18n="upload.studentCard">คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตรนักศึกษา</p>
-            <p class="text-xs text-slate-400 mt-1" data-i18n="upload.supported">รองรับไฟล์ JPG, PNG</p>
+            <p class="text-xs text-slate-400 mt-1" data-i18n="upload.supported">รองรับไฟล์ JPG, PNG, WEBP, HEIC</p>
             <input type="file" name="id_card_photo" id="student_card_input" accept="image/*" class="upload-input" aria-label="เลือกรูปถ่ายบัตรนักศึกษา" data-i18n-aria-label="aria.studentCard" onchange="previewImage(this, 'student-card-preview', 'student-card-zone')" required>
             <img id="student-card-preview" class="preview-img mx-auto mt-3 hidden">
           </div>
@@ -354,7 +345,7 @@
           <div class="upload-zone rounded-xl p-5 text-center cursor-pointer block" id="staff-card-zone" role="button" tabindex="0" data-file-target="staff_card_input">
             <i data-lucide="id-card" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
             <p class="text-sm text-slate-500" data-i18n="upload.staffCard">คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตรอาจารย์/บุคลากร</p>
-            <p class="text-xs text-slate-400 mt-1" data-i18n="upload.supported">รองรับไฟล์ JPG, PNG</p>
+            <p class="text-xs text-slate-400 mt-1" data-i18n="upload.supported">รองรับไฟล์ JPG, PNG, WEBP, HEIC</p>
             <input type="file" name="id_card_photo" id="staff_card_input" accept="image/*" class="upload-input" aria-label="เลือกรูปถ่ายบัตรอาจารย์หรือบุคลากร" data-i18n-aria-label="aria.staffCard" onchange="previewImage(this, 'staff-card-preview', 'staff-card-zone')">
             <img id="staff-card-preview" class="preview-img mx-auto mt-3 hidden">
           </div>
@@ -475,6 +466,7 @@
             <div class="upload-zone rounded-xl p-6 text-center cursor-pointer block" id="moto-upload-zone" role="button" tabindex="0" data-file-target="motorcycle_photo_input">
               <i data-lucide="camera" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
               <p class="text-sm text-slate-500" data-i18n="upload.photo">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
+              <p class="text-xs text-slate-400 mt-1" data-i18n="upload.supported">รองรับไฟล์ JPG, PNG, WEBP, HEIC</p>
               <input type="file" name="motorcycle_photo" id="motorcycle_photo_input" accept="image/*" class="upload-input" aria-label="เลือกรูปรถจักรยานยนต์" data-i18n-aria-label="aria.motorcyclePhoto" onchange="previewImage(this, 'moto-preview', 'moto-upload-zone')" required>
               <img id="moto-preview" class="preview-img mx-auto mt-3 hidden">
             </div>
@@ -484,6 +476,7 @@
             <div class="upload-zone rounded-xl p-6 text-center cursor-pointer block" id="plate-upload-zone" role="button" tabindex="0" data-file-target="plate_photo_input">
               <i data-lucide="rectangle-horizontal" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
               <p class="text-sm text-slate-500" data-i18n="upload.photo">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
+              <p class="text-xs text-slate-400 mt-1" data-i18n="upload.supported">รองรับไฟล์ JPG, PNG, WEBP, HEIC</p>
               <input type="file" name="plate_photo" id="plate_photo_input" accept="image/*" class="upload-input" aria-label="เลือกรูปป้ายทะเบียน" data-i18n-aria-label="aria.platePhoto" onchange="previewImage(this, 'plate-preview', 'plate-upload-zone')" required>
               <img id="plate-preview" class="preview-img mx-auto mt-3 hidden">
             </div>
@@ -540,6 +533,7 @@
                   <div class="upload-zone rounded-xl p-6 text-center cursor-pointer block" id="moto-upload-zone-2" role="button" tabindex="0" data-file-target="motorcycle_photo_input_2">
                     <i data-lucide="camera" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
                     <p class="text-sm text-slate-500" data-i18n="upload.photo">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
+                    <p class="text-xs text-slate-400 mt-1" data-i18n="upload.supported">รองรับไฟล์ JPG, PNG, WEBP, HEIC</p>
                     <input type="file" name="motorcycle_photo_2" id="motorcycle_photo_input_2" accept="image/*" class="upload-input" aria-label="เลือกรูปรถจักรยานยนต์คันที่ 2" data-i18n-aria-label="aria.motorcyclePhoto2" data-second-vehicle disabled>
                     <img id="moto-preview-2" class="preview-img mx-auto mt-3 hidden">
                   </div>
@@ -549,6 +543,7 @@
                   <div class="upload-zone rounded-xl p-6 text-center cursor-pointer block" id="plate-upload-zone-2" role="button" tabindex="0" data-file-target="plate_photo_input_2">
                     <i data-lucide="rectangle-horizontal" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
                     <p class="text-sm text-slate-500" data-i18n="upload.photo">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
+                    <p class="text-xs text-slate-400 mt-1" data-i18n="upload.supported">รองรับไฟล์ JPG, PNG, WEBP, HEIC</p>
                     <input type="file" name="plate_photo_2" id="plate_photo_input_2" accept="image/*" class="upload-input" aria-label="เลือกรูปป้ายทะเบียนคันที่ 2" data-i18n-aria-label="aria.platePhoto2" data-second-vehicle disabled>
                     <img id="plate-preview-2" class="preview-img mx-auto mt-3 hidden">
                   </div>
@@ -584,6 +579,112 @@
           <span data-i18n="recaptcha.and">และ</span> <a href="https://policies.google.com/terms" target="_blank" class="underline hover:text-slate-600" data-i18n="recaptcha.terms">ข้อกำหนดการใช้งาน</a> <span data-i18n="recaptcha.suffix">ของ Google มีผลบังคับใช้</span>
         </p>
       </form>
+    </div>
+
+    <div id="registrationConfirmModal"
+         class="hidden fixed inset-0 z-[10000] items-center justify-center px-4 py-6"
+         aria-modal="true" role="dialog" aria-labelledby="registration-confirm-title">
+      <div class="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" data-confirm-edit></div>
+      <div class="relative w-full max-w-2xl max-h-[92vh] overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-xl bg-brand-100 text-brand-600 flex items-center justify-center flex-shrink-0">
+              <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h2 id="registration-confirm-title" class="text-lg font-bold text-slate-800">ยืนยันข้อมูลลงทะเบียน</h2>
+              <p class="text-sm text-slate-500 mt-1">กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนกดยืนยัน</p>
+            </div>
+          </div>
+          <button type="button" data-confirm-edit class="w-9 h-9 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center" aria-label="ปิด">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <div class="overflow-y-auto px-5 py-5 space-y-5" style="max-height:calc(92vh - 156px);">
+          <section>
+            <h3 class="text-sm font-bold text-slate-700 mb-3">ข้อมูลผู้ลงทะเบียน</h3>
+            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div class="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+                <dt class="text-xs text-slate-400 mb-1">ประเภท</dt>
+                <dd id="confirm-user-type" class="font-semibold text-slate-800"></dd>
+              </div>
+              <div class="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+                <dt class="text-xs text-slate-400 mb-1">รหัส</dt>
+                <dd id="confirm-id-number" class="font-semibold text-slate-800 break-words"></dd>
+              </div>
+              <div class="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+                <dt class="text-xs text-slate-400 mb-1">ชื่อ</dt>
+                <dd id="confirm-first-name" class="font-semibold text-slate-800 break-words"></dd>
+              </div>
+              <div class="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+                <dt class="text-xs text-slate-400 mb-1">นามสกุล</dt>
+                <dd id="confirm-last-name" class="font-semibold text-slate-800 break-words"></dd>
+              </div>
+              <div class="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 sm:col-span-2">
+                <dt class="text-xs text-slate-400 mb-1">เบอร์โทรศัพท์</dt>
+                <dd id="confirm-phone" class="font-semibold text-slate-800 break-words"></dd>
+              </div>
+            </dl>
+            <div class="mt-4">
+              <p class="text-xs font-bold text-slate-500 mb-2">รูปบัตรประจำตัว</p>
+              <div id="confirm-person-files" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+            </div>
+          </section>
+
+          <section>
+            <h3 class="text-sm font-bold text-slate-700 mb-3">ข้อมูลรถ</h3>
+            <div class="space-y-3">
+              <div class="rounded-xl border border-slate-200 p-4">
+                <p class="text-sm font-bold text-brand-600 mb-3">รถคันที่ 1</p>
+                <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <dt class="text-xs text-slate-400 mb-1">ป้ายทะเบียน</dt>
+                    <dd id="confirm-license-plate" class="font-semibold text-slate-800 break-words"></dd>
+                  </div>
+                  <div>
+                    <dt class="text-xs text-slate-400 mb-1">จังหวัด</dt>
+                    <dd id="confirm-province" class="font-semibold text-slate-800 break-words"></dd>
+                  </div>
+                </dl>
+                <div class="mt-4">
+                  <p class="text-xs font-bold text-slate-500 mb-2">รูปประกอบรถคันที่ 1</p>
+                  <div id="confirm-vehicle-1-files" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+                </div>
+              </div>
+              <div id="confirm-second-vehicle" class="hidden rounded-xl border border-slate-200 p-4">
+                <p class="text-sm font-bold text-brand-600 mb-3">รถคันที่ 2</p>
+                <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <dt class="text-xs text-slate-400 mb-1">ป้ายทะเบียน</dt>
+                    <dd id="confirm-license-plate-2" class="font-semibold text-slate-800 break-words"></dd>
+                  </div>
+                  <div>
+                    <dt class="text-xs text-slate-400 mb-1">จังหวัด</dt>
+                    <dd id="confirm-province-2" class="font-semibold text-slate-800 break-words"></dd>
+                  </div>
+                </dl>
+                <div class="mt-4">
+                  <p class="text-xs font-bold text-slate-500 mb-2">รูปประกอบรถคันที่ 2</p>
+                  <div id="confirm-vehicle-2-files" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3 border-t border-slate-200 px-5 py-4 bg-slate-50">
+          <button type="button" id="confirm-edit-btn" class="btn btn-secondary flex-1 justify-center">
+            <i data-lucide="pencil" class="w-4 h-4"></i>
+            แก้ไขข้อมูล
+          </button>
+          <button type="button" id="confirm-submit-btn" class="btn btn-primary flex-1 justify-center">
+            <i data-lucide="check-circle" class="w-4 h-4"></i>
+            ยืนยันข้อมูล
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Footer -->
@@ -622,11 +723,11 @@
         'form.platePhoto': 'รูปป้ายทะเบียน <span class="required-mark">*</span>',
         'placeholder.firstName': 'กรอกชื่อ',
         'placeholder.lastName': 'กรอกนามสกุล',
-        'placeholder.studentId': 'กรอกรหัสนักศึกษา',
-        'placeholder.staffId': 'กรอกรหัสอาจารย์/บุคลากร',
+        'placeholder.studentId': 'ตัวเลข 10 ตัว',
+        'placeholder.staffId': 'ตัวอักษร/ตัวเลข 6 ตัว',
         'upload.studentCard': 'คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตรนักศึกษา',
         'upload.staffCard': 'คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตรอาจารย์/บุคลากร',
-        'upload.supported': 'รองรับไฟล์ JPG, PNG',
+        'upload.supported': 'รองรับไฟล์ JPG, PNG, WEBP, HEIC',
         'upload.photo': 'คลิกเพื่อถ่ายรูปหรือเลือกภาพ',
         'vehicle1.title': 'ข้อมูลรถคันที่ 1',
         'vehicle1.description': 'กรอกข้อมูลรถจักรยานยนต์คันหลักที่ต้องการลงทะเบียน',
@@ -675,11 +776,11 @@
         'form.platePhoto': 'License plate photo <span class="required-mark">*</span>',
         'placeholder.firstName': 'Enter first name',
         'placeholder.lastName': 'Enter last name',
-        'placeholder.studentId': 'Enter student ID',
-        'placeholder.staffId': 'Enter lecturer / staff ID',
+        'placeholder.studentId': '10 digits',
+        'placeholder.staffId': '6 letters/numbers',
         'upload.studentCard': 'Click to take or choose a student ID card photo',
         'upload.staffCard': 'Click to take or choose a lecturer / staff ID card photo',
-        'upload.supported': 'Supports JPG and PNG files',
+        'upload.supported': 'Supports JPG, PNG, WEBP, and HEIC files',
         'upload.photo': 'Click to take or choose a photo',
         'vehicle1.title': 'Vehicle 1 information',
         'vehicle1.description': 'Enter the main motorcycle you want to register.',
@@ -791,7 +892,18 @@
         }
       });
       document.getElementById('id_number_label').innerHTML = (type === 'student' ? t('form.studentId') : t('form.staffId')) + ' <span class="required-mark">*</span>';
-      document.getElementById('id_number').placeholder = type === 'student' ? t('placeholder.studentId') : t('placeholder.staffId');
+      const idNumberInput = document.getElementById('id_number');
+      idNumberInput.placeholder = type === 'student' ? t('placeholder.studentId') : t('placeholder.staffId');
+      idNumberInput.value = type === 'student'
+        ? idNumberInput.value.replace(/\D/g, '').slice(0, 10)
+        : idNumberInput.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 6);
+      idNumberInput.maxLength = type === 'student' ? 10 : 6;
+      idNumberInput.pattern = type === 'student' ? '[0-9]{10}' : '[A-Za-z0-9]{6}';
+      idNumberInput.inputMode = type === 'student' ? 'numeric' : 'text';
+      idNumberInput.title = type === 'student'
+        ? 'กรุณากรอกรหัสนักศึกษาเป็นตัวเลข 10 ตัว และห้ามมีช่องว่าง'
+        : 'กรุณากรอกรหัสอาจารย์/บุคลากรเป็นตัวอักษรหรือตัวเลขรวม 6 ตัว และห้ามมีช่องว่าง';
+      idNumberInput.setCustomValidity('');
       // Toggle ID card sections
       document.getElementById('student-card-section').classList.toggle('active', type === 'student');
       document.getElementById('staff-card-section').classList.toggle('active', type === 'staff');
@@ -823,8 +935,12 @@
 
       if (idInput) {
         idInput.addEventListener('input', function() {
-          const upperValue = idInput.value.toUpperCase();
-          if (idInput.value !== upperValue) idInput.value = upperValue;
+          const userType = document.getElementById('user_type').value;
+          const cleanValue = userType === 'student'
+            ? idInput.value.replace(/\D/g, '').slice(0, 10)
+            : idInput.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 6);
+          if (idInput.value !== cleanValue) idInput.value = cleanValue;
+          idInput.setCustomValidity('');
         });
       }
 
@@ -978,9 +1094,172 @@
 
     // ─── reCAPTCHA v3 + Form Submit ─────────────────────────────────────────
     const RECAPTCHA_SITE_KEY = '<%= recaptchaSiteKey %>';
+    const registerForm = document.getElementById('register-form');
+    const confirmModal = document.getElementById('registrationConfirmModal');
+    const confirmSubmitBtn = document.getElementById('confirm-submit-btn');
+    const confirmEditBtn = document.getElementById('confirm-edit-btn');
+    let submittingAfterConfirmation = false;
+
+    function setConfirmText(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value || '-';
+    }
+
+    function selectedOptionText(id) {
+      const el = document.getElementById(id);
+      if (!el || !el.options || el.selectedIndex < 0) return '';
+      return el.options[el.selectedIndex].textContent.trim();
+    }
+
+    function fileName(id) {
+      const input = document.getElementById(id);
+      return input && input.files && input.files[0] ? input.files[0].name : '';
+    }
+
+    function addConfirmFile(containerId, label, inputId, previewId) {
+      const list = document.getElementById(containerId);
+      const name = fileName(inputId);
+      if (!list || !name) return;
+
+      const preview = document.getElementById(previewId);
+      const item = document.createElement('div');
+      const imgSrc = preview && preview.src ? preview.src : '';
+      item.className = 'rounded-xl border border-slate-200 bg-slate-50 p-3';
+      item.innerHTML = [
+        imgSrc ? '<img class="w-full h-28 object-cover rounded-lg mb-3" alt="">' : '',
+        '<p class="text-xs text-slate-400 mb-1"></p>',
+        '<p class="text-sm font-semibold text-slate-800 break-words"></p>'
+      ].join('');
+
+      if (imgSrc) item.querySelector('img').src = imgSrc;
+      item.querySelectorAll('p')[0].textContent = label;
+      item.querySelectorAll('p')[1].textContent = name;
+      list.appendChild(item);
+    }
+
+    function populateConfirmation() {
+      const userType = document.getElementById('user_type').value;
+      const hasSecondVehicle = document.getElementById('has_second_vehicle').checked;
+      ['confirm-person-files', 'confirm-vehicle-1-files', 'confirm-vehicle-2-files'].forEach(function(id) {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '';
+      });
+
+      setConfirmText('confirm-user-type', userType === 'student' ? 'นักศึกษา' : 'อาจารย์/บุคลากร');
+      setConfirmText('confirm-id-number', document.getElementById('id_number').value.trim());
+      setConfirmText('confirm-first-name', document.getElementById('first_name').value.trim());
+      setConfirmText('confirm-last-name', document.getElementById('last_name').value.trim());
+      setConfirmText('confirm-phone', document.getElementById('phone').value.trim());
+      setConfirmText('confirm-license-plate', document.getElementById('license_plate').value.trim());
+      setConfirmText('confirm-province', selectedOptionText('province'));
+      setConfirmText('confirm-license-plate-2', document.getElementById('license_plate_2').value.trim());
+      setConfirmText('confirm-province-2', selectedOptionText('province_2'));
+
+      document.getElementById('confirm-second-vehicle').classList.toggle('hidden', !hasSecondVehicle);
+
+      addConfirmFile('confirm-person-files', userType === 'student' ? 'รูปบัตรนักศึกษา' : 'รูปบัตรอาจารย์/บุคลากร', userType === 'student' ? 'student_card_input' : 'staff_card_input', userType === 'student' ? 'student-card-preview' : 'staff-card-preview');
+      addConfirmFile('confirm-vehicle-1-files', 'รูปรถคันที่ 1', 'motorcycle_photo_input', 'moto-preview');
+      addConfirmFile('confirm-vehicle-1-files', 'รูปป้ายทะเบียนคันที่ 1', 'plate_photo_input', 'plate-preview');
+      if (hasSecondVehicle) {
+        addConfirmFile('confirm-vehicle-2-files', 'รูปรถคันที่ 2', 'motorcycle_photo_input_2', 'moto-preview-2');
+        addConfirmFile('confirm-vehicle-2-files', 'รูปป้ายทะเบียนคันที่ 2', 'plate_photo_input_2', 'plate-preview-2');
+      }
+    }
+
+    function showConfirmation() {
+      populateConfirmation();
+      confirmModal.classList.remove('hidden');
+      confirmModal.classList.add('flex');
+      document.body.style.overflow = 'hidden';
+      if (window.lucide) lucide.createIcons();
+      if (confirmSubmitBtn) confirmSubmitBtn.focus();
+    }
+
+    function hideConfirmation() {
+      confirmModal.classList.add('hidden');
+      confirmModal.classList.remove('flex');
+      document.body.style.overflow = '';
+      if (confirmSubmitBtn) confirmSubmitBtn.disabled = false;
+      toggleSubmitBtn();
+      document.getElementById('submit-label').textContent = t('submit.default');
+    }
+
+    function validateIdNumberInput() {
+      const idInput = document.getElementById('id_number');
+      const userType = document.getElementById('user_type').value;
+      const value = idInput.value.trim();
+      const isValid = userType === 'student'
+        ? /^[0-9]{10}$/.test(value)
+        : /^[A-Za-z0-9]{6}$/.test(value);
+
+      idInput.setCustomValidity(isValid ? '' : (userType === 'student'
+        ? 'กรุณากรอกรหัสนักศึกษาเป็นตัวเลข 10 ตัว และห้ามมีช่องว่าง'
+        : 'กรุณากรอกรหัสอาจารย์/บุคลากรเป็นตัวอักษรหรือตัวเลขรวม 6 ตัว และห้ามมีช่องว่าง'));
+      return isValid;
+    }
+
+    async function submitRegistrationForm() {
+      const btn = document.getElementById('submit-btn');
+      const label = document.getElementById('submit-label');
+
+      btn.disabled = true;
+      if (confirmSubmitBtn) confirmSubmitBtn.disabled = true;
+      label.textContent = t('submit.checking');
+
+      try {
+        const token = await new Promise((resolve, reject) => {
+          if (typeof grecaptcha === 'undefined') {
+            return resolve('');
+          }
+          grecaptcha.ready(() => {
+            grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'register' })
+              .then(resolve)
+              .catch(reject);
+          });
+        });
+
+        document.getElementById('recaptcha_token').value = token;
+        label.textContent = t('submit.sending');
+        submittingAfterConfirmation = true;
+        registerForm.submit();
+      } catch (err) {
+        console.error('reCAPTCHA error:', err);
+        document.getElementById('recaptcha_token').value = '';
+        try {
+          submittingAfterConfirmation = true;
+          registerForm.submit();
+        } catch (submitErr) {
+          submittingAfterConfirmation = false;
+          if (confirmSubmitBtn) confirmSubmitBtn.disabled = false;
+          btn.disabled = false;
+          label.textContent = t('submit.default');
+          console.error('Submit error:', submitErr);
+        }
+      }
+    }
+
+    document.querySelectorAll('[data-confirm-edit]').forEach(function(button) {
+      button.addEventListener('click', hideConfirmation);
+    });
+    if (confirmEditBtn) confirmEditBtn.addEventListener('click', hideConfirmation);
+    if (confirmSubmitBtn) confirmSubmitBtn.addEventListener('click', submitRegistrationForm);
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && confirmModal && !confirmModal.classList.contains('hidden')) {
+        hideConfirmation();
+      }
+    });
 
     document.getElementById('register-form').addEventListener('submit', async function (e) {
       e.preventDefault();
+      if (submittingAfterConfirmation) return;
+      validateIdNumberInput();
+      if (!registerForm.checkValidity()) {
+        registerForm.reportValidity();
+        return;
+      }
+      showConfirmation();
+      return;
+
       const btn = document.getElementById('submit-btn');
       const label = document.getElementById('submit-label');
 

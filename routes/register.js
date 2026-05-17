@@ -148,6 +148,16 @@ router.post('/', registerLimiter, upload.fields([
       req.flash('error', 'กรุณากรอกข้อมูลให้ครบถ้วน');
       return res.redirect('/register');
     }
+    const rawIdNumber = (id_number || '').trim();
+    const isValidStudentId = cleanUserType === 'student' && /^[0-9]{10}$/.test(rawIdNumber);
+    const isValidStaffId = cleanUserType === 'staff' && /^[A-Za-z0-9]{6}$/.test(rawIdNumber);
+    if (!isValidStudentId && !isValidStaffId) {
+      upload.cleanupUploadedFiles(req);
+      req.flash('error', cleanUserType === 'student'
+        ? 'กรุณากรอกรหัสนักศึกษาเป็นตัวเลข 10 ตัว และห้ามมีช่องว่าง'
+        : 'กรุณากรอกรหัสอาจารย์/บุคลากรเป็นตัวอักษรหรือตัวเลขรวม 6 ตัว และห้ามมีช่องว่าง');
+      return res.redirect('/register');
+    }
     if (!/^[0-9]{10}$/.test(cleanPhone)) {
       upload.cleanupUploadedFiles(req);
       req.flash('error', 'กรุณากรอกเบอร์โทรศัพท์เป็นตัวเลข 10 หลักเท่านั้น');

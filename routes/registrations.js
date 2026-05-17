@@ -109,6 +109,100 @@ function vehiclePlateSearchCondition(vehicleAlias) {
   )`;
 }
 
+function publicVehiclePredicate(vehicleAlias, registrationAlias = 'r') {
+  return `${vehicleAlias}.deleted_at IS NULL
+      AND (
+        ${vehicleAlias}.source_registration_id = ${registrationAlias}.id
+        OR (
+          ${vehicleAlias}.owner_registration_id = ${registrationAlias}.id
+          AND ${vehicleAlias}.source_registration_id IS NULL
+          AND ${vehicleAlias}.created_by IS NULL
+        )
+      )`;
+}
+
+function effectiveRegistrationStatusExpression(registrationAlias = 'r') {
+  return `CASE
+    WHEN EXISTS (
+      SELECT 1 FROM vehicles ev_pending
+      WHERE ${publicVehiclePredicate('ev_pending', registrationAlias)}
+        AND ev_pending.status = 'pending'
+    ) THEN 'pending'
+    WHEN EXISTS (
+      SELECT 1 FROM vehicles ev_rejected
+      WHERE ${publicVehiclePredicate('ev_rejected', registrationAlias)}
+        AND ev_rejected.status = 'rejected'
+    ) THEN 'rejected'
+    WHEN EXISTS (
+      SELECT 1 FROM vehicles ev_any
+      WHERE ${publicVehiclePredicate('ev_any', registrationAlias)}
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM vehicles ev_open
+      WHERE ${publicVehiclePredicate('ev_open', registrationAlias)}
+        AND ev_open.status <> 'approved'
+    ) THEN 'approved'
+    ELSE ${registrationAlias}.status
+  END`;
+}
+
+async function syncRegistrationStatusFromPublicVehicles(conn, registrationId, adminId, notes = null) {
+  const [reg] = await conn.query(
+    'SELECT id FROM registrations WHERE id = ? AND deleted_at IS NULL',
+    [registrationId]
+  );
+  if (!reg) return;
+
+  const vehicles = await conn.query(
+    `SELECT status
+     FROM vehicles
+     WHERE deleted_at IS NULL
+       AND (
+         source_registration_id = ?
+         OR (
+           owner_registration_id = ?
+           AND source_registration_id IS NULL
+           AND created_by IS NULL
+         )
+       )`,
+    [registrationId, registrationId]
+  );
+
+  if (!vehicles.length) return;
+
+  let nextStatus = 'pending';
+  if (vehicles.some(vehicle => vehicle.status === 'pending')) {
+    nextStatus = 'pending';
+  } else if (vehicles.some(vehicle => vehicle.status === 'rejected')) {
+    nextStatus = 'rejected';
+  } else if (vehicles.every(vehicle => vehicle.status === 'approved')) {
+    nextStatus = 'approved';
+  }
+
+  if (nextStatus === 'approved') {
+    await conn.query(
+      `UPDATE registrations
+       SET status = 'approved', approved_by = ?, approved_at = NOW()
+       WHERE id = ?`,
+      [adminId, registrationId]
+    );
+  } else if (nextStatus === 'rejected') {
+    await conn.query(
+      `UPDATE registrations
+       SET status = 'rejected', notes = COALESCE(?, notes), approved_by = ?, approved_at = NOW()
+       WHERE id = ?`,
+      [notes || null, adminId, registrationId]
+    );
+  } else {
+    await conn.query(
+      `UPDATE registrations
+       SET status = 'pending', approved_by = NULL, approved_at = NULL
+       WHERE id = ?`,
+      [registrationId]
+    );
+  }
+}
+
 function matchedVehiclePlateJoin(joinAlias, subqueryAlias) {
   return `LEFT JOIN vehicles ${joinAlias} ON ${joinAlias}.id = (
     SELECT ${subqueryAlias}.id
@@ -237,6 +331,7 @@ router.get('/', isHead, async (req, res) => {
     const vehicleSearchJoinParams = [];
     let licensePlateSelect = 'r.license_plate';
     let provinceSelect = 'r.province';
+    const effectiveStatusSql = effectiveRegistrationStatusExpression('r');
 
     if (search) {
       // Normalize: trim and collapse multiple spaces for reliable matching
@@ -262,7 +357,7 @@ router.get('/', isHead, async (req, res) => {
       params.push(s, s, s, sName, s, sNoSpace, s, s, sNoSpace, sNoSpace);
     }
     if (type) { where += ' AND r.user_type = ?'; params.push(type); }
-    if (status && !isDeletedView) { where += ' AND r.status = ?'; params.push(status); }
+    if (status && !isDeletedView) { where += ` AND (${effectiveStatusSql}) = ?`; params.push(status); }
 
     const [countResult] = await conn.query(`SELECT COUNT(*) as cnt FROM registrations r ${where}`, params);
     const total = parseInt(countResult.cnt);
@@ -272,7 +367,7 @@ router.get('/', isHead, async (req, res) => {
       `SELECT r.id, r.id_number, r.user_type, r.first_name, r.last_name, r.phone,
               ${licensePlateSelect} AS license_plate,
               ${provinceSelect} AS province,
-              r.status, r.registered_at, r.deleted_at, r.delete_reason,
+              ${effectiveStatusSql} AS status, r.registered_at, r.deleted_at, r.delete_reason,
               a.full_name AS deleted_by_name,
               ap.full_name AS approved_by_name
        FROM registrations r
@@ -305,10 +400,10 @@ router.get('/', isHead, async (req, res) => {
 
     // Per-status counts
     const statusRows = await conn.query(
-      `SELECT r.status, COUNT(*) as cnt
+      `SELECT ${effectiveStatusSql} AS status, COUNT(*) as cnt
        FROM registrations r
        WHERE r.deleted_at IS NULL AND ${publicRegistrationOnlySql}
-       GROUP BY r.status`
+       GROUP BY status`
     );
     const statusCountMap = { pending: 0, approved: 0, rejected: 0 };
     statusRows.forEach(r => { statusCountMap[r.status] = parseInt(r.cnt); });
@@ -659,11 +754,9 @@ router.post('/:id/vehicles/:vehicleId/edit', isHead, upload.fields([
     if (vehicle.source_registration_id) {
       await conn.query(
         `UPDATE registrations
-         SET license_plate = ?, province = ?, status = ?, notes = ?,
-             approved_by = CASE WHEN ? = 'approved' THEN ? ELSE approved_by END,
-             approved_at = CASE WHEN ? = 'approved' THEN NOW() ELSE approved_at END
+         SET license_plate = ?, province = ?, notes = ?
          WHERE id = ?`,
-        [licensePlate, province, status, notes, status, req.session.admin.id, status, vehicle.source_registration_id]
+        [licensePlate, province, notes, vehicle.source_registration_id]
       );
 
       if (req.files && req.files.motorcycle_photo) {
@@ -720,6 +813,13 @@ router.post('/:id/vehicles/:vehicleId/edit', isHead, upload.fields([
       }
     }
 
+    await syncRegistrationStatusFromPublicVehicles(
+      conn,
+      Number(vehicle.source_registration_id || vehicle.owner_registration_id),
+      req.session.admin.id,
+      notes
+    );
+
     await conn.commit();
     req.flash('success', 'แก้ไขข้อมูลรถเรียบร้อยแล้ว');
   } catch (err) {
@@ -746,7 +846,7 @@ router.post('/:id/vehicles/:vehicleId/approve', isHead, verifyCsrf, async (req, 
     await conn.beginTransaction();
 
     const [vehicle] = await conn.query(
-      `SELECT source_registration_id
+      `SELECT owner_registration_id, source_registration_id
        FROM vehicles
        WHERE id = ?
          AND (owner_registration_id = ? OR source_registration_id = ?)
@@ -765,14 +865,11 @@ router.post('/:id/vehicles/:vehicleId/approve', isHead, verifyCsrf, async (req, 
        WHERE id = ? AND (owner_registration_id = ? OR source_registration_id = ?)`,
       [req.session.admin.id, req.params.vehicleId, req.params.id, req.params.id]
     );
-    if (vehicle.source_registration_id) {
-      await conn.query(
-        `UPDATE registrations
-         SET status = 'approved', approved_by = ?, approved_at = NOW()
-         WHERE id = ?`,
-        [req.session.admin.id, vehicle.source_registration_id]
-      );
-    }
+    await syncRegistrationStatusFromPublicVehicles(
+      conn,
+      Number(vehicle.source_registration_id || vehicle.owner_registration_id),
+      req.session.admin.id
+    );
     await conn.commit();
     req.flash('success', 'อนุมัติรถเรียบร้อยแล้ว');
   } catch (err) {
@@ -794,7 +891,7 @@ router.post('/:id/vehicles/:vehicleId/reject', isHead, verifyCsrf, async (req, r
 
     const note = (req.body.notes || '').trim();
     const [vehicle] = await conn.query(
-      `SELECT source_registration_id
+      `SELECT owner_registration_id, source_registration_id
        FROM vehicles
        WHERE id = ?
          AND (owner_registration_id = ? OR source_registration_id = ?)
@@ -813,14 +910,12 @@ router.post('/:id/vehicles/:vehicleId/reject', isHead, verifyCsrf, async (req, r
        WHERE id = ? AND (owner_registration_id = ? OR source_registration_id = ?)`,
       [note, req.session.admin.id, req.params.vehicleId, req.params.id, req.params.id]
     );
-    if (vehicle.source_registration_id) {
-      await conn.query(
-        `UPDATE registrations
-         SET status = 'rejected', notes = ?, approved_by = ?, approved_at = NOW()
-         WHERE id = ?`,
-        [note, req.session.admin.id, vehicle.source_registration_id]
-      );
-    }
+    await syncRegistrationStatusFromPublicVehicles(
+      conn,
+      Number(vehicle.source_registration_id || vehicle.owner_registration_id),
+      req.session.admin.id,
+      note
+    );
     await conn.commit();
     req.flash('success', 'ปฏิเสธรถเรียบร้อยแล้ว');
   } catch (err) {
@@ -869,11 +964,21 @@ router.get('/:id', isHead, async (req, res) => {
   try {
     conn = await pool.getConnection();
     await ensureVehicleSchema(conn);
-    const [reg] = await conn.query('SELECT r.*, a.full_name AS deleted_by_name, ap.full_name AS approved_by_name FROM registrations r LEFT JOIN admins a ON r.deleted_by = a.id LEFT JOIN admins ap ON r.approved_by = ap.id WHERE r.id = ?', [req.params.id]);
+    const [reg] = await conn.query(
+      `SELECT r.*, ${effectiveRegistrationStatusExpression('r')} AS effective_status,
+              a.full_name AS deleted_by_name,
+              ap.full_name AS approved_by_name
+       FROM registrations r
+       LEFT JOIN admins a ON r.deleted_by = a.id
+       LEFT JOIN admins ap ON r.approved_by = ap.id
+       WHERE r.id = ?`,
+      [req.params.id]
+    );
     if (!reg) {
       req.flash('error', 'ไม่พบข้อมูล');
       return res.redirect('/registrations');
     }
+    reg.status = reg.effective_status || reg.status;
     const relatedRegistrationIds = await getRelatedRegistrationIdsForUser(conn, reg);
     const relatedRegistrationPlaceholders = sqlPlaceholders(relatedRegistrationIds);
 
@@ -984,18 +1089,26 @@ router.post('/:id/approve', isHead, async (req, res) => {
   try {
     conn = await pool.getConnection();
     await ensureVehicleSchema(conn);
-    await conn.query(
-      'UPDATE registrations SET status = ?, approved_by = ?, approved_at = NOW() WHERE id = ?',
-      ['approved', req.session.admin.id, req.params.id]
-    );
+    await conn.beginTransaction();
     await conn.query(
       `UPDATE vehicles
        SET status = 'approved', approved_by = ?, approved_at = NOW()
-       WHERE source_registration_id = ? AND deleted_at IS NULL`,
-      [req.session.admin.id, req.params.id]
+       WHERE deleted_at IS NULL
+         AND (
+           source_registration_id = ?
+           OR (
+             owner_registration_id = ?
+             AND source_registration_id IS NULL
+             AND created_by IS NULL
+           )
+         )`,
+      [req.session.admin.id, req.params.id, req.params.id]
     );
+    await syncRegistrationStatusFromPublicVehicles(conn, Number(req.params.id), req.session.admin.id);
+    await conn.commit();
     req.flash('success', 'อนุมัติเรียบร้อยแล้ว');
   } catch (err) {
+    if (conn) await conn.rollback().catch(() => {});
     console.error(err);
     req.flash('error', 'เกิดข้อผิดพลาด');
   } finally {
@@ -1010,18 +1123,26 @@ router.post('/:id/reject', isHead, async (req, res) => {
   try {
     conn = await pool.getConnection();
     await ensureVehicleSchema(conn);
-    await conn.query(
-      'UPDATE registrations SET status = ?, notes = ?, approved_by = ?, approved_at = NOW() WHERE id = ?',
-      ['rejected', req.body.notes || '', req.session.admin.id, req.params.id]
-    );
+    await conn.beginTransaction();
     await conn.query(
       `UPDATE vehicles
        SET status = 'rejected', notes = ?, approved_by = ?, approved_at = NOW()
-       WHERE source_registration_id = ? AND deleted_at IS NULL`,
-      [req.body.notes || '', req.session.admin.id, req.params.id]
+       WHERE deleted_at IS NULL
+         AND (
+           source_registration_id = ?
+           OR (
+             owner_registration_id = ?
+             AND source_registration_id IS NULL
+             AND created_by IS NULL
+           )
+         )`,
+      [req.body.notes || '', req.session.admin.id, req.params.id, req.params.id]
     );
+    await syncRegistrationStatusFromPublicVehicles(conn, Number(req.params.id), req.session.admin.id, req.body.notes || '');
+    await conn.commit();
     req.flash('success', 'ปฏิเสธเรียบร้อยแล้ว');
   } catch (err) {
+    if (conn) await conn.rollback().catch(() => {});
     console.error(err);
     req.flash('error', 'เกิดข้อผิดพลาด');
   } finally {

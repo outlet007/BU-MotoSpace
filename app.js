@@ -19,7 +19,7 @@ const { backfillVehiclesFromRegistrations } = require('./utils/vehicles');
 const app = express();
 const PORT = process.env.APP_PORT || 3000;
 const DEFAULT_SUMMONS_THRESHOLD = 3;
-const NAV_COUNTER_CACHE_TTL_MS = 10 * 1000;
+const NAV_COUNTER_CACHE_TTL_MS = 0;
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'bu_motospace.sid';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const sessionStore = new MariaDbSessionStore(pool);
@@ -150,14 +150,66 @@ async function countSummonsCandidates() {
   return Number(rows[0] && rows[0].count) || 0;
 }
 
+function publicVehiclePredicate(vehicleAlias, registrationAlias = 'r') {
+  return `${vehicleAlias}.deleted_at IS NULL
+      AND (
+        ${vehicleAlias}.source_registration_id = ${registrationAlias}.id
+        OR (
+          ${vehicleAlias}.owner_registration_id = ${registrationAlias}.id
+          AND ${vehicleAlias}.source_registration_id IS NULL
+          AND ${vehicleAlias}.created_by IS NULL
+        )
+      )`;
+}
+
+function effectiveRegistrationStatusExpression(registrationAlias = 'r') {
+  return `CASE
+    WHEN EXISTS (
+      SELECT 1 FROM vehicles ev_pending
+      WHERE ${publicVehiclePredicate('ev_pending', registrationAlias)}
+        AND ev_pending.status = 'pending'
+    ) THEN 'pending'
+    WHEN EXISTS (
+      SELECT 1 FROM vehicles ev_rejected
+      WHERE ${publicVehiclePredicate('ev_rejected', registrationAlias)}
+        AND ev_rejected.status = 'rejected'
+    ) THEN 'rejected'
+    WHEN EXISTS (
+      SELECT 1 FROM vehicles ev_any
+      WHERE ${publicVehiclePredicate('ev_any', registrationAlias)}
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM vehicles ev_open
+      WHERE ${publicVehiclePredicate('ev_open', registrationAlias)}
+        AND ev_open.status <> 'approved'
+    ) THEN 'approved'
+    ELSE ${registrationAlias}.status
+  END`;
+}
+
 async function getNavbarCounters() {
   const now = Date.now();
-  if (navCounterCache.values && navCounterCache.expiresAt > now) {
+  if (NAV_COUNTER_CACHE_TTL_MS > 0 && navCounterCache.values && navCounterCache.expiresAt > now) {
     return navCounterCache.values;
   }
 
+  const effectiveStatusSql = effectiveRegistrationStatusExpression('r');
+  const publicRegistrationOnlySql = `
+    NOT EXISTS (
+      SELECT 1
+      FROM vehicles vx
+      WHERE vx.source_registration_id = r.id
+        AND vx.created_by IS NOT NULL
+    )`;
+
   const [pendingRows, pendingReportRows, summonsCandidatesCount] = await Promise.all([
-    pool.query("SELECT COUNT(*) as count FROM registrations WHERE status = 'pending' AND deleted_at IS NULL"),
+    pool.query(
+      `SELECT COUNT(*) as count
+       FROM registrations r
+       WHERE r.deleted_at IS NULL
+         AND ${publicRegistrationOnlySql}
+         AND (${effectiveStatusSql}) = 'pending'`
+    ),
     pool.query("SELECT COUNT(*) as count FROM violation_reports WHERE status = 'pending' AND deleted_at IS NULL"),
     countSummonsCandidates(),
   ]);
