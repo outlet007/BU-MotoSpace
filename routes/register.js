@@ -5,8 +5,26 @@ const { generateHash } = require('../utils/imageHash');
 const rateLimit = require('express-rate-limit');
 const https = require('https');
 const { verifyCsrf } = require('../middleware/csrf');
+const {
+  ensureVehicleSchema,
+  assertPlateAvailable,
+  normalizePlate,
+  normalizeCompact,
+  normalizeDisplayText,
+  findCanonicalOwnerRegistrationId,
+  assertOwnerIdentityAvailable,
+} = require('../utils/vehicles');
 
 const VALID_USER_TYPES = new Set(['student', 'staff']);
+const DUPLICATE_PLATE_MESSAGE = 'ข้อมูลทะเบียนนี้ได้มีการลงทะเบียนไว้แล้ว';
+
+function isDuplicatePlateError(err) {
+  return err && (err.code === 'DUPLICATE_PLATE' || err.code === 'ER_DUP_ENTRY' || err.errno === 1062);
+}
+
+function flashDuplicatePlatePopup(req) {
+  req.flash('duplicatePlatePopup', DUPLICATE_PLATE_MESSAGE);
+}
 
 // ─── Rate Limiter ─────────────────────────────────────────────────────────────
 // จำกัด POST /register ไม่เกิน 5 ครั้ง / 15 นาที / IP
@@ -24,6 +42,12 @@ const registerLimiter = rateLimit({
 
 // ─── reCAPTCHA v3 Verify ──────────────────────────────────────────────────────
 async function verifyRecaptcha(token) {
+  // ── Dev bypass: ข้าม reCAPTCHA เมื่อรันใน development mode ──────────────────
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[reCAPTCHA] DEV MODE — verification skipped, score=1.0');
+    return { success: true, score: 1.0 };
+  }
+
   const secretKey = process.env.RECAPTCHA_SECRET_KEY;
   if (!secretKey || !token) return { success: false, score: 0 };
 
@@ -79,6 +103,8 @@ router.get('/', (req, res) => {
 router.post('/', registerLimiter, upload.fields([
   { name: 'motorcycle_photo', maxCount: 1 },
   { name: 'plate_photo', maxCount: 1 },
+  { name: 'motorcycle_photo_2', maxCount: 1 },
+  { name: 'plate_photo_2', maxCount: 1 },
   { name: 'id_card_photo', maxCount: 1 },
 ]), verifyCsrf, async (req, res) => {
   const {
@@ -89,6 +115,9 @@ router.post('/', registerLimiter, upload.fields([
     phone,
     license_plate,
     province,
+    license_plate_2,
+    province_2,
+    has_second_vehicle,
   } = req.body;
   let conn;
   let transactionStarted = false;
@@ -104,16 +133,51 @@ router.post('/', registerLimiter, upload.fields([
     }
 
     const cleanUserType = VALID_USER_TYPES.has(user_type) ? user_type : null;
-    const cleanIdNumber = (id_number || '').trim();
-    const cleanFirstName = (first_name || '').trim();
-    const cleanLastName = (last_name || '').trim();
-    const cleanPhone = (phone || '').trim() || null;
-    const cleanLicensePlate = (license_plate || '').trim();
-    const cleanProvince = (province || '').trim();
+    const cleanIdNumber = normalizeCompact(id_number);
+    const cleanFirstName = normalizeDisplayText(first_name);
+    const cleanLastName = normalizeDisplayText(last_name);
+    const cleanPhone = (phone || '').trim();
+    const cleanLicensePlate = normalizePlate(license_plate);
+    const cleanProvince = normalizeDisplayText(province);
+    const hasSecondVehicle = has_second_vehicle === 'on';
+    const cleanLicensePlate2 = hasSecondVehicle ? normalizePlate(license_plate_2) : '';
+    const cleanProvince2 = hasSecondVehicle ? normalizeDisplayText(province_2) : '';
 
-    if (!cleanUserType || !cleanIdNumber || !cleanFirstName || !cleanLastName || !cleanLicensePlate || !cleanProvince) {
+    if (!cleanUserType || !cleanIdNumber || !cleanFirstName || !cleanLastName || !cleanPhone || !cleanLicensePlate || !cleanProvince) {
       upload.cleanupUploadedFiles(req);
       req.flash('error', 'กรุณากรอกข้อมูลให้ครบถ้วน');
+      return res.redirect('/register');
+    }
+    if (!/^[0-9]{10}$/.test(cleanPhone)) {
+      upload.cleanupUploadedFiles(req);
+      req.flash('error', 'กรุณากรอกเบอร์โทรศัพท์เป็นตัวเลข 10 หลักเท่านั้น');
+      return res.redirect('/register');
+    }
+    if (hasSecondVehicle && (!cleanLicensePlate2 || !cleanProvince2)) {
+      upload.cleanupUploadedFiles(req);
+      req.flash('error', 'กรุณากรอกข้อมูลรถคันที่ 2 ให้ครบถ้วน');
+      return res.redirect('/register');
+    }
+    if (hasSecondVehicle && normalizePlate(cleanLicensePlate2) === normalizePlate(cleanLicensePlate)) {
+      upload.cleanupUploadedFiles(req);
+      flashDuplicatePlatePopup(req);
+      return res.redirect('/register');
+    }
+
+    const hasIdCardPhoto = Boolean(req.files && req.files.id_card_photo && req.files.id_card_photo[0]);
+    const hasMotorcyclePhoto = Boolean(req.files && req.files.motorcycle_photo && req.files.motorcycle_photo[0]);
+    const hasPlatePhoto = Boolean(req.files && req.files.plate_photo && req.files.plate_photo[0]);
+    const hasMotorcyclePhoto2 = Boolean(req.files && req.files.motorcycle_photo_2 && req.files.motorcycle_photo_2[0]);
+    const hasPlatePhoto2 = Boolean(req.files && req.files.plate_photo_2 && req.files.plate_photo_2[0]);
+
+    if (!hasIdCardPhoto || !hasMotorcyclePhoto || !hasPlatePhoto) {
+      upload.cleanupUploadedFiles(req);
+      req.flash('error', 'กรุณาอัปโหลดรูปถ่ายบัตร รูปรถจักรยานยนต์ และรูปป้ายทะเบียนให้ครบถ้วน');
+      return res.redirect('/register');
+    }
+    if (hasSecondVehicle && (!hasMotorcyclePhoto2 || !hasPlatePhoto2)) {
+      upload.cleanupUploadedFiles(req);
+      req.flash('error', 'กรุณาอัปโหลดรูปรถจักรยานยนต์และรูปป้ายทะเบียนของรถคันที่ 2 ให้ครบถ้วน');
       return res.redirect('/register');
     }
 
@@ -136,19 +200,32 @@ router.post('/', registerLimiter, upload.fields([
     conn = await pool.getConnection();
     await conn.beginTransaction();
     transactionStarted = true;
+    await ensureVehicleSchema(conn);
+
+    await assertOwnerIdentityAvailable(conn, cleanUserType, cleanIdNumber, cleanFirstName, cleanLastName);
 
     // Check duplicate plate
-    const existing = await conn.query('SELECT id FROM registrations WHERE license_plate = ?', [cleanLicensePlate]);
-    if (existing.length > 0) {
+    try {
+      await assertPlateAvailable(conn, cleanLicensePlate);
+      if (hasSecondVehicle) {
+        await assertPlateAvailable(conn, cleanLicensePlate2);
+      }
+    } catch (err) {
       await conn.rollback();
       transactionStarted = false;
       upload.cleanupUploadedFiles(req);
-      req.flash('error', 'ป้ายทะเบียนนี้ได้ลงทะเบียนไว้แล้ว');
+      if (isDuplicatePlateError(err)) {
+        flashDuplicatePlatePopup(req);
+      } else {
+        req.flash('error', 'ข้อมูลทะเบียนรถไม่ถูกต้อง');
+      }
       return res.redirect('/register');
     }
 
     const motorcyclePhoto = req.files['motorcycle_photo'] ? '/uploads/motorcycles/' + req.files['motorcycle_photo'][0].filename : null;
     const platePhoto = req.files['plate_photo'] ? '/uploads/plates/' + req.files['plate_photo'][0].filename : null;
+    const motorcyclePhoto2 = req.files['motorcycle_photo_2'] ? '/uploads/motorcycles/' + req.files['motorcycle_photo_2'][0].filename : null;
+    const platePhoto2 = req.files['plate_photo_2'] ? '/uploads/plates/' + req.files['plate_photo_2'][0].filename : null;
     const idCardPhoto = req.files['id_card_photo'] ? '/uploads/id-cards/' + req.files['id_card_photo'][0].filename : null;
 
     const result = await conn.query(
@@ -158,6 +235,39 @@ router.post('/', registerLimiter, upload.fields([
     );
 
     const regId = Number(result.insertId);
+    const ownerRegistrationId = await findCanonicalOwnerRegistrationId(conn, cleanUserType, cleanIdNumber, regId);
+
+    await conn.query(
+      `INSERT INTO vehicles (
+        owner_registration_id,
+        source_registration_id,
+        license_plate,
+        normalized_plate,
+        province,
+        motorcycle_photo,
+        plate_photo,
+        status,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NOW())`,
+      [ownerRegistrationId, regId, cleanLicensePlate, normalizePlate(cleanLicensePlate), cleanProvince, motorcyclePhoto, platePhoto]
+    );
+
+    if (hasSecondVehicle) {
+      await conn.query(
+        `INSERT INTO vehicles (
+          owner_registration_id,
+          source_registration_id,
+          license_plate,
+          normalized_plate,
+          province,
+          motorcycle_photo,
+          plate_photo,
+          status,
+          created_at
+        ) VALUES (?, NULL, ?, ?, ?, ?, ?, 'pending', NOW())`,
+        [ownerRegistrationId, cleanLicensePlate2, normalizePlate(cleanLicensePlate2), cleanProvince2, motorcyclePhoto2, platePhoto2]
+      );
+    }
 
     // Generate image hashes for search
     if (req.files['motorcycle_photo']) {
@@ -174,6 +284,20 @@ router.post('/', registerLimiter, upload.fields([
           [regId, 'plate', hash, platePhoto]);
       }
     }
+    if (req.files['motorcycle_photo_2']) {
+      const hash = await generateHash(req.files['motorcycle_photo_2'][0].path);
+      if (hash) {
+        await conn.query('INSERT INTO image_hashes (registration_id, image_type, phash, file_path) VALUES (?, ?, ?, ?)',
+          [ownerRegistrationId, 'motorcycle', hash, motorcyclePhoto2]);
+      }
+    }
+    if (req.files['plate_photo_2']) {
+      const hash = await generateHash(req.files['plate_photo_2'][0].path);
+      if (hash) {
+        await conn.query('INSERT INTO image_hashes (registration_id, image_type, phash, file_path) VALUES (?, ?, ?, ?)',
+          [ownerRegistrationId, 'plate', hash, platePhoto2]);
+      }
+    }
 
     await conn.commit();
     transactionStarted = false;
@@ -185,8 +309,10 @@ router.post('/', registerLimiter, upload.fields([
       await conn.rollback().catch(() => {});
     }
     upload.cleanupUploadedFiles(req);
-    if (err.code === 'ER_DUP_ENTRY') {
-      req.flash('error', 'ป้ายทะเบียนนี้ได้ลงทะเบียนไว้แล้ว');
+    if (isDuplicatePlateError(err)) {
+      flashDuplicatePlatePopup(req);
+    } else if (err.code === 'OWNER_IDENTITY_MISMATCH') {
+      req.flash('error', 'พบรหัสนี้ในระบบแล้ว แต่ชื่อ-นามสกุลไม่ตรงกับข้อมูลเดิม กรุณาตรวจสอบข้อมูลอีกครั้ง');
     } else {
       req.flash('error', 'เกิดข้อผิดพลาดในการลงทะเบียน กรุณาลองใหม่อีกครั้ง');
     }

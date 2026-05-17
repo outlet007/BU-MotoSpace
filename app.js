@@ -14,6 +14,7 @@ const cleanupUploadedFiles = require('./middleware/upload').cleanupUploadedFiles
 process.env.TZ = 'Asia/Bangkok';
 const pool = require('./config/database');
 const { generateSignedUrl, verifySignedUrl, resolveFilePath } = require('./utils/signedUrl');
+const { backfillVehiclesFromRegistrations } = require('./utils/vehicles');
 
 const app = express();
 const PORT = process.env.APP_PORT || 3000;
@@ -178,6 +179,7 @@ app.use(async (req, res, next) => {
   res.locals.admin = req.session.admin || null;
   res.locals.success = req.flash('success');
   res.locals.error = req.flash('error');
+  res.locals.duplicatePlatePopup = req.flash('duplicatePlatePopup');
   res.locals.currentPath = req.path;
   res.locals.currentUrl = req.originalUrl;
   res.locals.csrfToken = generateCsrfToken(req);
@@ -224,6 +226,7 @@ app.get('/img/:encoded', (req, res) => {
   const { encoded } = req.params;
   const { exp, sig } = req.query;
   const filePath = verifySignedUrl(encoded, exp, sig);
+
 
   if (!filePath) {
     return res.status(403).send(`
@@ -315,18 +318,40 @@ app.use((err, req, res, next) => {
     return res.redirect(req.get('referer') || '/dashboard');
   }
 
-  // CSRF token ไม่ถูกต้อง — แลสดงข้อความแล้วเด้งกลับหน้าครั้งที่ไประบบรู้จัก (login page)
+  // CSRF token ไม่ถูกต้อง
   if (err.code === 'EBADCSRFTOKEN') {
     try { req.flash('error', '⚠️ Session หมดอายุหรือคำขอไม่ถูกต้อง กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง'); } catch(e) {}
-    // Redirect to the GET version of the same page (not 'back' to avoid loop)
     const safeUrl = req.originalUrl.split('?')[0];
     return res.redirect(safeUrl);
   }
 
-  // General errors — render 500 page instead of redirecting (prevents redirect loop)
-  console.error('App Error:', err.message);
+  // Image resize / sharp error — redirect กลับฟอร์มแทน render 404
+  if (
+    err.message && (
+      err.message.includes('Input file') ||
+      err.message.includes('sharp') ||
+      err.message.includes('resize') ||
+      (err.code && String(err.code).startsWith('E'))
+    )
+  ) {
+    console.error('[Upload/Image Error]', err.message);
+    const imgErrReferer = req.get('referer');
+    const imgErrFallback = imgErrReferer && imgErrReferer.includes('/register')
+      ? '/register' : (imgErrReferer || '/register');
+    try { req.flash('error', 'ไม่สามารถประมวลผลไฟล์รูปภาพได้ กรุณาลองใหม่อีกครั้ง'); } catch(e) {}
+    return res.redirect(imgErrFallback);
+  }
+
+  // General errors
+  console.error('App Error:', err.message, err.stack);
+  const errReferer = req.get('referer') || '';
+  if (errReferer.includes('/register') || req.originalUrl.includes('/register')) {
+    try { req.flash('error', 'เกิดข้อผิดพลาดในการลงทะเบียน กรุณาลองใหม่อีกครั้ง'); } catch(e) {}
+    return res.redirect('/register');
+  }
   res.status(err.status || 500).render('404', { title: 'เกิดข้อผิดพลาด' });
 });
+
 
 // Database init & start
 const bcrypt = require('bcrypt');
@@ -383,6 +408,7 @@ async function ensureRuntimeSchema(conn) {
   await ensureColumn(conn, 'registrations', 'deleted_by', 'INT DEFAULT NULL');
   await ensureColumn(conn, 'registrations', 'delete_reason', 'TEXT DEFAULT NULL');
   await ensureIndex(conn, 'registrations', 'idx_registrations_deleted_at', 'INDEX idx_registrations_deleted_at (deleted_at)');
+  await backfillVehiclesFromRegistrations(conn);
 
   await ensureIndex(conn, 'violations', 'idx_violations_registration_rule_recorded', 'INDEX idx_violations_registration_rule_recorded (registration_id, rule_id, recorded_at)');
   await ensureIndex(conn, 'violations', 'idx_recorded_at', 'INDEX idx_recorded_at (recorded_at)');

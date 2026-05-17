@@ -7,6 +7,7 @@ const { Parser } = require('json2csv');
 const fs = require('fs');
 const xlsx = require('xlsx');
 const csvParser = require('csv-parser');
+const { ensureVehicleSchema, assertPlateAvailable, normalizePlate, findCanonicalOwnerRegistrationId } = require('../utils/vehicles');
 
 router.use(isAuthenticated, isSuperAdmin);
 
@@ -875,26 +876,42 @@ router.post('/import/registrations', upload.single('file'), verifyCsrf, async (r
     }
 
     conn = await pool.getConnection();
+    await ensureVehicleSchema(conn);
     let imported = 0;
     let skipped = 0;
 
     for (const row of results) {
       try {
-        await conn.query(
+        await conn.beginTransaction();
+        const userType = (row['ประเภท'] || row.user_type || 'student').trim();
+        const idNumber = (row['รหัส'] || row.id_number || '').trim();
+        const firstName = (row['ชื่อ'] || row.first_name || '').trim();
+        const lastName = (row['นามสกุล'] || row.last_name || '').trim();
+        const phone = (row['โทรศัพท์'] || row.phone || '').trim();
+        const licensePlate = (row['ป้ายทะเบียน'] || row.license_plate || '').trim();
+        const province = (row['จังหวัด'] || row.province || '').trim();
+
+        if (!idNumber || !firstName || !lastName || !licensePlate || !province) {
+          throw new Error('missing_required_registration_fields');
+        }
+
+        const normalizedPlate = await assertPlateAvailable(conn, licensePlate);
+        const result = await conn.query(
           `INSERT INTO registrations (user_type, id_number, first_name, last_name, phone, license_plate, province, status)
            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
-          [
-            row['ประเภท'] || row.user_type || 'student',
-            row['รหัส'] || row.id_number,
-            row['ชื่อ'] || row.first_name,
-            row['นามสกุล'] || row.last_name,
-            row['โทรศัพท์'] || row.phone || '',
-            row['ป้ายทะเบียน'] || row.license_plate,
-            row['จังหวัด'] || row.province || '',
-          ]
+          [userType, idNumber, firstName, lastName, phone, licensePlate, province]
         );
+        const sourceRegistrationId = Number(result.insertId);
+        const ownerRegistrationId = await findCanonicalOwnerRegistrationId(conn, userType, idNumber, sourceRegistrationId);
+        await conn.query(
+          `INSERT INTO vehicles (owner_registration_id, source_registration_id, license_plate, normalized_plate, province, status)
+           VALUES (?, ?, ?, ?, ?, 'pending')`,
+          [ownerRegistrationId, sourceRegistrationId, licensePlate, normalizedPlate, province]
+        );
+        await conn.commit();
         imported++;
       } catch (e) {
+        await conn.rollback().catch(() => {});
         skipped++;
       }
     }

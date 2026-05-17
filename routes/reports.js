@@ -310,14 +310,21 @@ async function fetchSummonsAppointments(conn, options = {}) {
     const searchTrimmed = search.trim().replace(/\s+/g, ' ');
     const s = `%${searchTrimmed}%`;
     const sNoSpace = `%${searchTrimmed.replace(/\s+/g, '')}%`;
-    where += ` AND (
-      r.id_number LIKE ? OR
-      r.first_name LIKE ? OR
-      r.last_name LIKE ? OR
-      CONCAT(r.first_name, ' ', r.last_name) LIKE ? OR
-      r.license_plate LIKE ? OR
-      REPLACE(r.license_plate, ' ', '') LIKE ? OR
-      r.phone LIKE ?
+    where += ` AND EXISTS (
+      SELECT 1
+      FROM registrations rs
+      WHERE rs.user_type = r.user_type
+        AND rs.id_number = r.id_number
+        AND rs.deleted_at IS NULL
+        AND (
+          rs.id_number LIKE ? OR
+          rs.first_name LIKE ? OR
+          rs.last_name LIKE ? OR
+          CONCAT(rs.first_name, ' ', rs.last_name) LIKE ? OR
+          rs.license_plate LIKE ? OR
+          REPLACE(rs.license_plate, ' ', '') LIKE ? OR
+          rs.phone LIKE ?
+        )
     )`;
     params.push(s, s, s, s, s, sNoSpace, s);
   }
@@ -553,21 +560,28 @@ async function fetchSummonsCandidates(conn, options = {}) {
     includeAll = false,
   } = options;
 
-  let where = 'WHERE 1=1';
+  let where = 'WHERE v.deleted_at IS NULL AND r.deleted_at IS NULL';
   const params = [];
 
   if (search && search.trim()) {
     const searchTrimmed = search.trim().replace(/\s+/g, ' ');
     const s = `%${searchTrimmed}%`;
     const sNoSpace = `%${searchTrimmed.replace(/\s+/g, '')}%`;
-    where += ` AND (
-      r.id_number LIKE ? OR
-      r.first_name LIKE ? OR
-      r.last_name LIKE ? OR
-      CONCAT(r.first_name, ' ', r.last_name) LIKE ? OR
-      r.license_plate LIKE ? OR
-      REPLACE(r.license_plate, ' ', '') LIKE ? OR
-      r.phone LIKE ?
+    where += ` AND EXISTS (
+      SELECT 1
+      FROM registrations rs
+      WHERE rs.user_type = r.user_type
+        AND rs.id_number = r.id_number
+        AND rs.deleted_at IS NULL
+        AND (
+          rs.id_number LIKE ? OR
+          rs.first_name LIKE ? OR
+          rs.last_name LIKE ? OR
+          CONCAT(rs.first_name, ' ', rs.last_name) LIKE ? OR
+          rs.license_plate LIKE ? OR
+          REPLACE(rs.license_plate, ' ', '') LIKE ? OR
+          rs.phone LIKE ?
+        )
     )`;
     params.push(s, s, s, s, s, sNoSpace, s);
   }
@@ -585,7 +599,14 @@ async function fetchSummonsCandidates(conn, options = {}) {
 
   const qualifyingRowsSql = `
     SELECT
-      r.id AS registration_id,
+      MIN(r.id) AS registration_id,
+      r.user_type,
+      r.id_number,
+      MAX(r.first_name) AS first_name,
+      MAX(r.last_name) AS last_name,
+      MAX(r.phone) AS phone,
+      GROUP_CONCAT(DISTINCT NULLIF(r.license_plate, '') ORDER BY r.id ASC SEPARATOR ', ') AS license_plate,
+      GROUP_CONCAT(DISTINCT NULLIF(r.province, '') ORDER BY r.id ASC SEPARATOR ', ') AS province,
       COALESCE(ru.violation_type_id, -ru.id) AS violation_group_id,
       COALESCE(MAX(vt.type_name), MAX(ru.rule_name)) AS type_name,
       COUNT(v.id) AS type_violations,
@@ -598,18 +619,22 @@ async function fetchSummonsCandidates(conn, options = {}) {
     JOIN rules ru ON v.rule_id = ru.id
     LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
     LEFT JOIN (
-      SELECT registration_id, violation_type_id, MAX(created_at) AS latest_reset_at
-      FROM summons_appointments
-      WHERE violation_type_id IS NOT NULL
-      GROUP BY registration_id, violation_type_id
-    ) sa_type ON sa_type.registration_id = r.id
+      SELECT sr.user_type, sr.id_number, sa.violation_type_id, MAX(sa.created_at) AS latest_reset_at
+      FROM summons_appointments sa
+      JOIN registrations sr ON sa.registration_id = sr.id
+      WHERE sa.violation_type_id IS NOT NULL
+      GROUP BY sr.user_type, sr.id_number, sa.violation_type_id
+    ) sa_type ON sa_type.user_type = r.user_type
+              AND sa_type.id_number = r.id_number
               AND sa_type.violation_type_id = ru.violation_type_id
     LEFT JOIN (
-      SELECT registration_id, MAX(created_at) AS latest_reset_at
-      FROM summons_appointments
-      WHERE violation_type_id IS NULL
-      GROUP BY registration_id
-    ) sa_global ON sa_global.registration_id = r.id
+      SELECT sr.user_type, sr.id_number, MAX(sa.created_at) AS latest_reset_at
+      FROM summons_appointments sa
+      JOIN registrations sr ON sa.registration_id = sr.id
+      WHERE sa.violation_type_id IS NULL
+      GROUP BY sr.user_type, sr.id_number
+    ) sa_global ON sa_global.user_type = r.user_type
+                AND sa_global.id_number = r.id_number
     ${where}
     AND v.recorded_at > COALESCE(
       GREATEST(
@@ -618,7 +643,7 @@ async function fetchSummonsCandidates(conn, options = {}) {
       ),
       '1000-01-01 00:00:00'
     )
-    GROUP BY r.id, COALESCE(ru.violation_type_id, -ru.id)
+    GROUP BY r.user_type, r.id_number, COALESCE(ru.violation_type_id, -ru.id)
     HAVING type_violations >= required_violations
   `;
 
@@ -633,11 +658,8 @@ async function fetchSummonsCandidates(conn, options = {}) {
   const pagingParams = includeAll ? [] : [limit, offset];
 
   const qualifiedRows = await conn.query(
-    `SELECT q.*,
-            r.id_number, r.user_type, r.first_name, r.last_name,
-            r.phone, r.license_plate, r.province
+    `SELECT q.*
      FROM (${qualifyingRowsSql}) q
-     JOIN registrations r ON r.id = q.registration_id
      ORDER BY q.type_violations DESC, q.latest_recorded_at DESC
      ${pagingSql}`,
     [...params, ...pagingParams]

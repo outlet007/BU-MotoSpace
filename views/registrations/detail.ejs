@@ -17,6 +17,9 @@
     .tooltip:hover::after { opacity: 1; }
     .modal-backdrop { background: rgba(15,23,42,0.5); backdrop-filter: blur(4px); display:none; }
     .modal-backdrop.active { display: flex; }
+    .vehicle-accordion-panel { max-height:0; overflow:hidden; transition:max-height .28s ease; }
+    .vehicle-accordion-chevron { transition:transform .2s ease; }
+    .vehicle-card-open .vehicle-accordion-chevron { transform:rotate(180deg); }
     /* Lightbox */
     .lightbox-overlay { position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); display:none; align-items:center; justify-content:center; cursor:zoom-out; }
     .lightbox-overlay.active { display:flex; animation:lbFadeIn 0.25s ease; }
@@ -44,6 +47,40 @@
       <%- include('../partials/topbar') %>
       <main class="flex-1 p-4 sm:p-6 fade-in">
         <%- include('../partials/flash') %>
+        <% const duplicatePlateMessages = typeof duplicatePlatePopup !== 'undefined' && duplicatePlatePopup ? duplicatePlatePopup : []; %>
+        <% if (duplicatePlateMessages.length > 0) { %>
+        <div id="duplicatePlateModal"
+             style="display:flex;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;padding:1rem;"
+             aria-modal="true" role="dialog" aria-labelledby="duplicate-plate-title">
+          <div data-duplicate-plate-close style="position:absolute;inset:0;background:rgba(15,23,42,.68);backdrop-filter:blur(4px);"></div>
+          <div style="position:relative;width:100%;max-width:480px;background:#fff;border-radius:16px;box-shadow:0 25px 60px rgba(15,23,42,.28);overflow:hidden;animation:modalSlideUp .25s cubic-bezier(.16,1,.3,1);">
+            <div style="padding:20px 24px 14px;border-bottom:1px solid #fee2e2;">
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex items-start gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <h3 id="duplicate-plate-title" class="text-base font-bold text-slate-800">พบทะเบียนรถซ้ำ</h3>
+                    <p class="text-sm text-slate-500 mt-1">ไม่สามารถเพิ่มหรือแก้ไขรถด้วยทะเบียนนี้ได้</p>
+                  </div>
+                </div>
+                <button type="button" data-duplicate-plate-close class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label="ปิด">
+                  <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+              </div>
+            </div>
+            <div style="padding:20px 24px;">
+              <div class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 leading-relaxed">
+                <%= duplicatePlateMessages[0] %>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;padding:0 24px 22px;">
+              <button type="button" data-duplicate-plate-close class="btn btn-primary justify-center">รับทราบ</button>
+            </div>
+          </div>
+        </div>
+        <% } %>
 
         <!-- Back -->
         <a href="/registrations" class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-brand-600 mb-4">
@@ -95,7 +132,7 @@
                   </div>
                   <div>
                     <h2 class="text-xl font-bold text-slate-800"><%= reg.first_name %> <%= reg.last_name %></h2>
-                    <p class="text-sm text-slate-500"><%= reg.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %> · <%= reg.id_number %></p>
+                    <p class="text-sm text-slate-500"><%= reg.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %> รหัส <%= reg.id_number %></p>
                   </div>
                 </div>
                 <span class="badge text-sm px-3 py-1 <%= reg.deleted_at ? 'badge-danger' : reg.status === 'approved' ? 'badge-success' : reg.status === 'pending' ? 'badge-warning' : 'badge-danger' %>">
@@ -103,55 +140,245 @@
                 </span>
               </div>
 
-              <div class="grid grid-cols-2 gap-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="p-3 bg-slate-50 rounded-xl">
                   <p class="text-xs text-slate-400 mb-1">เบอร์โทรศัพท์</p>
                   <p class="text-sm font-medium text-slate-700"><%= reg.phone || '-' %></p>
-                </div>
-                <div class="p-3 bg-slate-50 rounded-xl">
-                  <p class="text-xs text-slate-400 mb-1">ป้ายทะเบียน</p>
-                  <p class="text-sm font-bold text-slate-800"><%= reg.license_plate %></p>
-                </div>
-                <div class="p-3 bg-slate-50 rounded-xl">
-                  <p class="text-xs text-slate-400 mb-1">จังหวัด</p>
-                  <p class="text-sm font-medium text-slate-700"><%= reg.province %></p>
                 </div>
                 <div class="p-3 bg-slate-50 rounded-xl">
                   <p class="text-xs text-slate-400 mb-1">วันที่ลงทะเบียน</p>
                   <p class="text-sm font-medium text-slate-700"><%= new Date(reg.registered_at).toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric'}) %></p>
                 </div>
               </div>
+
+              <div style="margin-top:10px;">
+                <h3 class="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                  <i data-lucide="id-card" class="w-4 h-4 text-brand-500"></i>
+                  เอกสารผู้ใช้
+                </h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <% if (reg.id_card_photo) { %>
+                  <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p class="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1">
+                      <i data-lucide="id-card" class="w-3.5 h-3.5"></i> รูปบัตรประจำตัว
+                    </p>
+                    <img src="<%= signedUrl(reg.id_card_photo) %>"
+                         alt="ID Card"
+                         class="w-full h-36 object-cover rounded-lg border border-slate-200 lightbox-thumb"
+                         data-lightbox-src="<%= signedUrl(reg.id_card_photo) %>"
+                         data-lightbox-caption="รูปบัตรประจำตัว">
+                  </div>
+                  <% } else { %>
+                  <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-10 text-center text-sm text-slate-400">
+                    ไม่มีเอกสารผู้ใช้
+                  </div>
+                  <% } %>
+                </div>
+              </div>
             </div>
 
-            <!-- Photos -->
-            <div class="card p-6">
-              <h3 class="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                <i data-lucide="image" class="w-4 h-4 text-brand-500"></i>
-                รูปภาพ
-              </h3>
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <% if (reg.motorcycle_photo) { %>
+            <!-- Vehicles -->
+            <div id="vehicles" class="card p-6">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                 <div>
-                  <p class="text-xs text-slate-400 mb-2">รูปรถจักรยานยนต์</p>
-                  <img src="<%= signedUrl(reg.motorcycle_photo) %>" alt="Motorcycle" class="w-full h-40 object-cover rounded-xl border border-slate-200 lightbox-thumb" data-lightbox-src="<%= signedUrl(reg.motorcycle_photo) %>" data-lightbox-caption="รูปรถจักรยานยนต์">
+                  <h3 class="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="bike" class="w-4 h-4 text-brand-500"></i>
+                    รถทั้งหมดของผู้ใช้
+                  </h3>
                 </div>
-                <% } %>
-                <% if (reg.plate_photo) { %>
-                <div>
-                  <p class="text-xs text-slate-400 mb-2">รูปป้ายทะเบียน</p>
-                  <img src="<%= signedUrl(reg.plate_photo) %>" alt="License Plate" class="w-full h-40 object-cover rounded-xl border border-slate-200 lightbox-thumb" data-lightbox-src="<%= signedUrl(reg.plate_photo) %>" data-lightbox-caption="รูปป้ายทะเบียน">
-                </div>
-                <% } %>
-                <% if (reg.id_card_photo) { %>
-                <div>
-                  <p class="text-xs text-slate-400 mb-2">รูปบัตรประจำตัว</p>
-                  <img src="<%= signedUrl(reg.id_card_photo) %>" alt="ID Card" class="w-full h-40 object-cover rounded-xl border border-slate-200 lightbox-thumb" data-lightbox-src="<%= signedUrl(reg.id_card_photo) %>" data-lightbox-caption="รูปบัตรประจำตัว">
-                </div>
-                <% } %>
-                <% if (!reg.motorcycle_photo && !reg.plate_photo && !reg.id_card_photo) { %>
-                <p class="text-sm text-slate-400 col-span-3 text-center py-4">ไม่มีรูปภาพ</p>
+                <% if (!reg.deleted_at) { %>
+                <button type="button" class="btn btn-primary justify-center" data-add-vehicle-open>
+                  <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มรถ
+                </button>
                 <% } %>
               </div>
+
+              <% if (typeof vehicles !== 'undefined' && vehicles.length > 0) { %>
+                <div class="space-y-4">
+                  <% vehicles.forEach(function(vehicle, idx) { %>
+                  <% const vehicleStatusLabel = vehicle.deleted_at ? 'ถูกลบชั่วคราว' : vehicle.status === 'approved' ? 'อนุมัติ' : vehicle.status === 'pending' ? 'รอตรวจสอบ' : 'ปฏิเสธ'; %>
+                  <% const vehicleStatusClass = vehicle.deleted_at ? 'badge-danger' : vehicle.status === 'approved' ? 'badge-success' : vehicle.status === 'pending' ? 'badge-warning' : 'badge-danger'; %>
+                  <div class="rounded-xl border border-slate-200 bg-white overflow-hidden <%= vehicle.deleted_at ? 'opacity-70' : '' %>" data-vehicle-accordion>
+                    <button type="button"
+                            class="w-full text-left p-4 hover:bg-slate-50 transition-colors"
+                            data-vehicle-toggle
+                            aria-expanded="false"
+                            aria-controls="vehicle-panel-<%= vehicle.id %>">
+                      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                        <div class="min-w-0 flex-1">
+                          <div class="flex items-start gap-3 min-w-0">
+                            <span class="font-bold text-brand-700 bg-brand-50 border border-brand-100 rounded-lg flex-shrink-0" style="font-size:14px;line-height:20px;padding:4px 10px;">รถคันที่ <%= idx + 1 %></span>
+                            <div class="min-w-0">
+                              <p class="font-bold text-slate-800 truncate" style="font-size:14px;line-height:20px;"><%= vehicle.license_plate %></p>
+                              <p class="text-slate-500 truncate" style="font-size:13px;line-height:18px;"><%= vehicle.province || '-' %></p>
+                            </div>
+                            <span class="badge <%= vehicleStatusClass %> flex-shrink-0" style="font-size:14px;line-height:20px;padding:2px 10px;white-space:nowrap;"><%= vehicleStatusLabel %></span>
+                          </div>
+                          <% if (vehicle.notes) { %>
+                            <p class="text-sm text-slate-500 mt-1">หมายเหตุ: <%= vehicle.notes %></p>
+                          <% } %>
+                          <% if (vehicle.deleted_at) { %>
+                            <p class="text-xs text-red-500 mt-1">หมายเหตุลบ: <%= vehicle.delete_reason || '-' %> · โดย <%= vehicle.deleted_by_name || '-' %></p>
+                          <% } %>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs font-semibold text-brand-600 flex-shrink-0">
+                          ดูรายละเอียด
+                          <i data-lucide="chevron-down" class="w-4 h-4 vehicle-accordion-chevron"></i>
+                        </div>
+                      </div>
+                    </button>
+
+                    <div id="vehicle-panel-<%= vehicle.id %>" class="vehicle-accordion-panel border-t border-slate-100" data-vehicle-panel>
+                      <div class="p-4 space-y-4">
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <p class="font-bold text-slate-700 mb-3" style="font-size:14px;line-height:20px;">ข้อมูลรถคันนี้</p>
+                          <% if (!vehicle.deleted_at) { %>
+                            <form id="vehicle-edit-<%= vehicle.id %>" method="POST" action="/registrations/<%= reg.id %>/vehicles/<%= vehicle.id %>/edit" enctype="multipart/form-data"></form>
+                            <input form="vehicle-edit-<%= vehicle.id %>" type="hidden" name="_csrf" value="<%= csrfToken %>">
+                          <% } %>
+                          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label class="label">ป้ายทะเบียน</label>
+                              <input form="vehicle-edit-<%= vehicle.id %>" type="text" name="license_plate" value="<%= vehicle.license_plate %>" class="input" <%= vehicle.deleted_at ? 'disabled' : '' %> required>
+                            </div>
+                            <div>
+                              <label class="label">จังหวัด</label>
+                              <input form="vehicle-edit-<%= vehicle.id %>" type="text" name="province" value="<%= vehicle.province %>" class="input" <%= vehicle.deleted_at ? 'disabled' : '' %> required>
+                            </div>
+                            <div>
+                              <label class="label">สถานะรถ</label>
+                              <select form="vehicle-edit-<%= vehicle.id %>" name="status" class="input" <%= vehicle.deleted_at ? 'disabled' : '' %>>
+                                <option value="pending" <%= vehicle.status === 'pending' ? 'selected' : '' %>>รอตรวจสอบ</option>
+                                <option value="approved" <%= vehicle.status === 'approved' ? 'selected' : '' %>>อนุมัติ</option>
+                                <option value="rejected" <%= vehicle.status === 'rejected' ? 'selected' : '' %>>ปฏิเสธ</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label class="label">ผู้ดำเนินการ</label>
+                              <div class="input bg-white text-slate-500"><%= vehicle.approved_by_name || '-' %></div>
+                            </div>
+                            <div class="md:col-span-2">
+                              <label class="label">หมายเหตุ</label>
+                              <input form="vehicle-edit-<%= vehicle.id %>" type="text" name="notes" value="<%= vehicle.notes || '' %>" class="input" <%= vehicle.deleted_at ? 'disabled' : '' %> placeholder="หมายเหตุของรถคันนี้">
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <p class="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1">
+                              <i data-lucide="bike" class="w-3.5 h-3.5"></i> รูปรถคันนี้
+                            </p>
+                            <% if (vehicle.motorcycle_photo) { %>
+                              <img src="<%= signedUrl(vehicle.motorcycle_photo) %>"
+                                   alt="Motorcycle <%= vehicle.license_plate %>"
+                                   class="w-full h-36 object-cover rounded-lg border border-slate-200 lightbox-thumb"
+                                   data-lightbox-src="<%= signedUrl(vehicle.motorcycle_photo) %>"
+                                   data-lightbox-caption="รูปรถทะเบียน <%= vehicle.license_plate %>">
+                            <% } else { %>
+                              <div class="h-36 rounded-lg border border-dashed border-slate-300 bg-white flex flex-col items-center justify-center text-slate-400 text-xs">
+                                <i data-lucide="image-off" class="w-6 h-6 mb-1"></i>
+                                ยังไม่มีรูปรถ
+                              </div>
+                            <% } %>
+                            <% if (!vehicle.deleted_at) { %>
+                              <input form="vehicle-edit-<%= vehicle.id %>"
+                                     id="vehicle-motorcycle-photo-<%= vehicle.id %>"
+                                     type="file"
+                                     name="motorcycle_photo"
+                                     accept="image/*"
+                                     class="hidden"
+                                     data-file-name-target="vehicle-motorcycle-photo-name-<%= vehicle.id %>">
+                              <button type="button" class="btn btn-secondary btn-sm w-full justify-center mt-3" data-file-button="vehicle-motorcycle-photo-<%= vehicle.id %>">
+                                <i data-lucide="image-plus" class="w-3.5 h-3.5"></i>
+                                <%= vehicle.motorcycle_photo ? 'เปลี่ยนรูป' : 'เพิ่มรูป' %>
+                              </button>
+                              <p id="vehicle-motorcycle-photo-name-<%= vehicle.id %>" class="text-xs text-slate-400 mt-2" data-default-text="ยังไม่ได้เลือกไฟล์">ยังไม่ได้เลือกไฟล์</p>
+                            <% } %>
+                          </div>
+
+                          <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <p class="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1">
+                              <i data-lucide="rectangle-horizontal" class="w-3.5 h-3.5"></i> รูปป้ายทะเบียนคันนี้
+                            </p>
+                            <% if (vehicle.plate_photo) { %>
+                              <img src="<%= signedUrl(vehicle.plate_photo) %>"
+                                   alt="Plate <%= vehicle.license_plate %>"
+                                   class="w-full h-36 object-cover rounded-lg border border-slate-200 lightbox-thumb"
+                                   data-lightbox-src="<%= signedUrl(vehicle.plate_photo) %>"
+                                   data-lightbox-caption="รูปป้ายทะเบียน <%= vehicle.license_plate %>">
+                            <% } else { %>
+                              <div class="h-36 rounded-lg border border-dashed border-slate-300 bg-white flex flex-col items-center justify-center text-slate-400 text-xs">
+                                <i data-lucide="image-off" class="w-6 h-6 mb-1"></i>
+                                ยังไม่มีรูปป้ายทะเบียน
+                              </div>
+                            <% } %>
+                            <% if (!vehicle.deleted_at) { %>
+                              <input form="vehicle-edit-<%= vehicle.id %>"
+                                     id="vehicle-plate-photo-<%= vehicle.id %>"
+                                     type="file"
+                                     name="plate_photo"
+                                     accept="image/*"
+                                     class="hidden"
+                                     data-file-name-target="vehicle-plate-photo-name-<%= vehicle.id %>">
+                              <button type="button" class="btn btn-secondary btn-sm w-full justify-center mt-3" data-file-button="vehicle-plate-photo-<%= vehicle.id %>">
+                                <i data-lucide="image-plus" class="w-3.5 h-3.5"></i>
+                                <%= vehicle.plate_photo ? 'เปลี่ยนรูป' : 'เพิ่มรูป' %>
+                              </button>
+                              <p id="vehicle-plate-photo-name-<%= vehicle.id %>" class="text-xs text-slate-400 mt-2" data-default-text="ยังไม่ได้เลือกไฟล์">ยังไม่ได้เลือกไฟล์</p>
+                            <% } %>
+                          </div>
+                        </div>
+
+                        <% if (!vehicle.deleted_at) { %>
+                        <div class="flex flex-wrap gap-2 justify-end pt-4 border-t border-slate-100" data-no-nav>
+                          <button form="vehicle-edit-<%= vehicle.id %>" type="submit" class="btn btn-secondary btn-sm">
+                            <i data-lucide="save" class="w-3.5 h-3.5"></i> บันทึก
+                          </button>
+                          <% if (vehicle.status !== 'approved') { %>
+                          <form method="POST" action="/registrations/<%= reg.id %>/vehicles/<%= vehicle.id %>/approve">
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                              <i data-lucide="check" class="w-3.5 h-3.5"></i> อนุมัติ
+                            </button>
+                          </form>
+                          <% } %>
+                          <% if (vehicle.status !== 'rejected') { %>
+                          <button type="button"
+                                  class="btn btn-secondary btn-sm text-red-500 hover:bg-red-50"
+                                  data-vehicle-reject-open
+                                  data-reject-action="/registrations/<%= reg.id %>/vehicles/<%= vehicle.id %>/reject"
+                                  data-vehicle-label="รถทะเบียน <%= vehicle.license_plate %>"
+                                  data-vehicle-notes="<%= vehicle.notes || '' %>">
+                            <i data-lucide="x-circle" class="w-3.5 h-3.5"></i> ปฏิเสธ
+                          </button>
+                          <% } %>
+                          <form method="POST"
+                                action="/registrations/<%= reg.id %>/vehicles/<%= vehicle.id %>/delete"
+                                data-delete-confirm
+                                data-delete-reason-required="true"
+                                data-delete-reason-placeholder="ระบุเหตุผลในการลบรถคันนี้"
+                                data-delete-item="รถทะเบียน <%= vehicle.license_plate %>"
+                                data-delete-detail="ผู้ใช้: <%= reg.first_name %> <%= reg.last_name %>"
+                                data-delete-confirm-text="ลบรถชั่วคราว">
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                            <button type="submit" class="btn btn-secondary btn-sm text-red-500 hover:bg-red-50">
+                              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> ลบ
+                            </button>
+                          </form>
+                        </div>
+                        <% } %>
+                      </div>
+                    </div>
+                  </div>
+                  <% }); %>
+                </div>
+              <% } else { %>
+                <div class="text-center text-slate-400 py-8 rounded-xl border border-dashed border-slate-200 bg-slate-50">
+                  <i data-lucide="bike" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i>
+                  <p class="text-sm font-medium">ยังไม่มีข้อมูลรถ</p>
+                </div>
+              <% } %>
             </div>
 
             <!-- Violations -->
@@ -180,7 +407,7 @@
               <% } %>
 
               <table class="data-table">
-                <thead><tr><th>#</th><th style="font-size:12px;">รายการแจ้งเลขที่</th><th>วันที่</th><th>ประเภทความผิด</th><th>กฎที่กระทำผิด</th><th>แจ้งโดย</th><th>ยืนยันโดย</th><th></th></tr></thead>
+                <thead><tr><th>#</th><th style="font-size:12px;">รายการแจ้งเลขที่</th><th>วันที่</th><th>ทะเบียนรถ</th><th>ประเภทความผิด</th><th>กฎที่กระทำผิด</th><th>แจ้งโดย</th><th>ยืนยันโดย</th><th></th></tr></thead>
                 <tbody>
                   <% if (violations.length > 0) { %>
                     <% violations.forEach(function(v, idx) { %>
@@ -191,6 +418,12 @@
                         <div class="font-semibold text-slate-800" style="font-size:12px;"><%= v.incident_code || ('IR-GEN-' + String(v.id).padStart(6, '0')) %></div>
                       </td>
                       <td class="text-xs whitespace-nowrap"><%= new Date(v.recorded_at).toLocaleDateString('th-TH') %></td>
+                      <td class="text-sm text-slate-700 whitespace-nowrap">
+                        <div class="font-semibold"><%= v.violation_license_plate || '-' %></div>
+                        <% if (v.violation_province) { %>
+                          <div class="text-xs text-slate-400 mt-0.5"><%= v.violation_province %></div>
+                        <% } %>
+                      </td>
                       <td><span class="badge badge-danger"><%= v.violation_type_name %></span></td>
                       <td class="text-sm text-slate-600"><%= v.rule_name %></td>
                       <td class="text-xs text-slate-600"><%= v.reported_by_name || v.recorded_by_name %></td>
@@ -204,7 +437,7 @@
                     </tr>
                     <% }); %>
                   <% } else { %>
-                    <tr><td colspan="8" class="text-center text-slate-400 py-6">ไม่มีประวัติการกระทำผิด</td></tr>
+                    <tr><td colspan="9" class="text-center text-slate-400 py-6">ไม่มีประวัติการกระทำผิด</td></tr>
                   <% } %>
                 </tbody>
               </table>
@@ -399,6 +632,145 @@
     </div>
   </div>
 
+  <% if (!reg.deleted_at) { %>
+  <!-- Add Vehicle Modal -->
+  <div id="addVehicleModal"
+       style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;padding:1rem;"
+       aria-modal="true" role="dialog" aria-labelledby="add-vehicle-title">
+    <div data-add-vehicle-close style="position:absolute;inset:0;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);"></div>
+    <div style="position:relative;width:100%;max-width:640px;background:#fff;border-radius:16px;box-shadow:0 25px 60px rgba(15,23,42,.28);overflow:hidden;animation:modalSlideUp .25s cubic-bezier(.16,1,.3,1);">
+      <div style="padding:20px 24px 14px;border-bottom:1px solid #f1f5f9;">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-xl bg-brand-100 text-brand-600 flex items-center justify-center flex-shrink-0">
+              <i data-lucide="plus" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 id="add-vehicle-title" class="text-base font-bold text-slate-800">เพิ่มรถ</h3>
+              <p class="text-sm text-slate-500 mt-1"><%= reg.first_name %> <%= reg.last_name %></p>
+            </div>
+          </div>
+          <button type="button" data-add-vehicle-close class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label="ปิด">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+      <form id="addVehicleForm" method="POST" action="/registrations/<%= reg.id %>/vehicles" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div style="padding:20px 24px;" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="label" for="add-vehicle-license-plate">ป้ายทะเบียน</label>
+            <input id="add-vehicle-license-plate" type="text" name="license_plate" class="input" required placeholder="เช่น กข 1234">
+          </div>
+          <div>
+            <label class="label" for="add-vehicle-province">จังหวัด</label>
+            <% const addVehicleProvinces = ['กรุงเทพมหานคร','กระบี่','กาญจนบุรี','กาฬสินธุ์','กำแพงเพชร','ขอนแก่น','จันทบุรี','ฉะเชิงเทรา','ชลบุรี','ชัยนาท','ชัยภูมิ','ชุมพร','เชียงราย','เชียงใหม่','ตรัง','ตราด','ตาก','นครนายก','นครปฐม','นครพนม','นครราชสีมา','นครศรีธรรมราช','นครสวรรค์','นนทบุรี','นราธิวาส','น่าน','บึงกาฬ','บุรีรัมย์','ปทุมธานี','ประจวบคีรีขันธ์','ปราจีนบุรี','ปัตตานี','พะเยา','พังงา','พัทลุง','พิจิตร','พิษณุโลก','เพชรบุรี','เพชรบูรณ์','แพร่','ภูเก็ต','มหาสารคาม','มุกดาหาร','แม่ฮ่องสอน','ยโสธร','ยะลา','ร้อยเอ็ด','ระนอง','ระยอง','ราชบุรี','ลพบุรี','ลำปาง','ลำพูน','เลย','ศรีสะเกษ','สกลนคร','สงขลา','สตูล','สมุทรปราการ','สมุทรสงคราม','สมุทรสาคร','สระแก้ว','สระบุรี','สิงห์บุรี','สุโขทัย','สุพรรณบุรี','สุราษฎร์ธานี','สุรินทร์','หนองคาย','หนองบัวลำภู','อ่างทอง','อำนาจเจริญ','อุดรธานี','อุตรดิตถ์','อุทัยธานี','อุบลราชธานี']; %>
+            <select id="add-vehicle-province" name="province" class="input" required>
+              <option value="">เลือกจังหวัด</option>
+              <% addVehicleProvinces.forEach(function(provinceName) { %>
+                <option value="<%= provinceName %>"><%= provinceName %></option>
+              <% }); %>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="add-vehicle-status">สถานะ</label>
+            <select id="add-vehicle-status" name="status" class="input">
+              <option value="pending">รอตรวจสอบ</option>
+              <option value="approved">อนุมัติ</option>
+              <option value="rejected">ปฏิเสธ</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="add-vehicle-notes">หมายเหตุ</label>
+            <input id="add-vehicle-notes" type="text" name="notes" class="input" placeholder="ไม่บังคับ">
+          </div>
+          <div>
+            <label class="label" for="add-vehicle-motorcycle-photo">รูปรถ</label>
+            <input id="add-vehicle-motorcycle-photo"
+                   type="file"
+                   name="motorcycle_photo"
+                   accept="image/*"
+                   class="hidden"
+                   data-file-name-target="add-vehicle-motorcycle-photo-name">
+            <button type="button" class="btn btn-secondary w-full justify-center" data-file-button="add-vehicle-motorcycle-photo">
+              <i data-lucide="image-plus" class="w-4 h-4"></i> เพิ่มรูป
+            </button>
+            <p id="add-vehicle-motorcycle-photo-name" class="text-xs text-slate-400 mt-2" data-default-text="ยังไม่ได้เลือกไฟล์">ยังไม่ได้เลือกไฟล์</p>
+          </div>
+          <div>
+            <label class="label" for="add-vehicle-plate-photo">รูปป้ายทะเบียน</label>
+            <input id="add-vehicle-plate-photo"
+                   type="file"
+                   name="plate_photo"
+                   accept="image/*"
+                   class="hidden"
+                   data-file-name-target="add-vehicle-plate-photo-name">
+            <button type="button" class="btn btn-secondary w-full justify-center" data-file-button="add-vehicle-plate-photo">
+              <i data-lucide="image-plus" class="w-4 h-4"></i> เพิ่มรูป
+            </button>
+            <p id="add-vehicle-plate-photo-name" class="text-xs text-slate-400 mt-2" data-default-text="ยังไม่ได้เลือกไฟล์">ยังไม่ได้เลือกไฟล์</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:.75rem;justify-content:flex-end;padding:0 24px 22px;">
+          <button type="button" data-add-vehicle-close class="btn btn-secondary justify-center">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary justify-center">
+            <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มรถ
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <% } %>
+
+  <% if (!reg.deleted_at) { %>
+  <!-- Vehicle Reject Modal -->
+  <div id="vehicleRejectModal"
+       style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;padding:1rem;"
+       aria-modal="true" role="dialog" aria-labelledby="vehicle-reject-title">
+    <div data-vehicle-reject-close style="position:absolute;inset:0;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);"></div>
+    <div style="position:relative;width:100%;max-width:480px;background:#fff;border-radius:16px;box-shadow:0 25px 60px rgba(15,23,42,.28);overflow:hidden;animation:modalSlideUp .25s cubic-bezier(.16,1,.3,1);">
+      <div style="padding:20px 24px 14px;border-bottom:1px solid #f1f5f9;">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0">
+              <i data-lucide="x-circle" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 id="vehicle-reject-title" class="text-base font-bold text-slate-800">ปฏิเสธรถ</h3>
+              <p id="vehicle-reject-label" class="text-sm text-slate-500 mt-1">-</p>
+            </div>
+          </div>
+          <button type="button" data-vehicle-reject-close class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label="ปิด">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+      <form id="vehicleRejectForm" method="POST" action="">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div style="padding:20px 24px;" class="space-y-3">
+          <div class="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">
+            กรุณาระบุหมายเหตุหรือเหตุผลก่อนยืนยันการปฏิเสธรถคันนี้
+          </div>
+          <div>
+            <label class="label" for="vehicle-reject-notes">หมายเหตุการปฏิเสธ <span class="text-red-500">*</span></label>
+            <textarea id="vehicle-reject-notes"
+                      name="notes"
+                      class="input h-28 resize-none"
+                      required
+                      placeholder="เช่น รูปไม่ชัดเจน, ข้อมูลทะเบียนไม่ถูกต้อง, เอกสารไม่ครบ"></textarea>
+          </div>
+        </div>
+        <div style="display:flex;gap:.75rem;justify-content:flex-end;padding:0 24px 22px;">
+          <button type="button" data-vehicle-reject-close class="btn btn-secondary justify-center">ยกเลิก</button>
+          <button type="submit" class="btn btn-secondary justify-center text-red-500 hover:bg-red-50">
+            <i data-lucide="x-circle" class="w-4 h-4"></i> ยืนยันปฏิเสธ
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <% } %>
+
   <!-- Summons Detail Modal -->
   <div id="summonsDetailModal"
        style="display:none;position:fixed;inset:0;z-index:9998;align-items:center;justify-content:center;padding:1rem;"
@@ -539,12 +911,163 @@
 
   <script>lucide.createIcons();</script>
   <script>
+    (function() {
+      var modal = document.getElementById('duplicatePlateModal');
+      if (!modal) return;
+      function closeModal() {
+        modal.style.display = 'none';
+      }
+      document.querySelectorAll('[data-duplicate-plate-close]').forEach(function(button) {
+        button.addEventListener('click', closeModal);
+      });
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.style.display === 'flex') closeModal();
+      });
+    })();
+
     document.addEventListener('click', function(e) {
       var row = e.target.closest('tr[data-href]');
       if (!row) return;
       if (e.target.closest('button, a, input, select, textarea, form, [data-no-nav]')) return;
       window.location.href = row.dataset.href;
     });
+
+    (function() {
+      document.querySelectorAll('[data-file-button]').forEach(function(button) {
+        button.addEventListener('click', function() {
+          var input = document.getElementById(button.dataset.fileButton);
+          if (input) input.click();
+        });
+      });
+
+      document.querySelectorAll('input[type="file"][data-file-name-target]').forEach(function(input) {
+        input.addEventListener('change', function() {
+          var fileName = document.getElementById(input.dataset.fileNameTarget);
+          var file = input.files && input.files[0];
+          if (fileName) fileName.textContent = file ? file.name : (fileName.dataset.defaultText || 'ยังไม่ได้เลือกไฟล์');
+          var panel = input.closest('[data-vehicle-panel]');
+          if (panel && panel.style.maxHeight && panel.style.maxHeight !== '0px') {
+            panel.style.maxHeight = panel.scrollHeight + 'px';
+          }
+        });
+      });
+    })();
+
+    (function() {
+      var modal = document.getElementById('addVehicleModal');
+      if (!modal) return;
+      var form = document.getElementById('addVehicleForm');
+      var firstInput = document.getElementById('add-vehicle-license-plate');
+
+      function openModal() {
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        window.setTimeout(function() {
+          if (firstInput) firstInput.focus();
+        }, 50);
+      }
+
+      function closeModal() {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+        if (form) {
+          form.reset();
+          form.querySelectorAll('[data-default-text]').forEach(function(label) {
+            label.textContent = label.dataset.defaultText || 'ยังไม่ได้เลือกไฟล์';
+          });
+        }
+      }
+
+      document.querySelectorAll('[data-add-vehicle-open]').forEach(function(button) {
+        button.addEventListener('click', openModal);
+      });
+
+      document.querySelectorAll('[data-add-vehicle-close]').forEach(function(button) {
+        button.addEventListener('click', closeModal);
+      });
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.style.display === 'flex') closeModal();
+      });
+    })();
+
+    (function() {
+      var vehicleCards = Array.prototype.slice.call(document.querySelectorAll('[data-vehicle-accordion]'));
+      if (!vehicleCards.length) return;
+
+      function setVehicleOpen(card, isOpen) {
+        var panel = card.querySelector('[data-vehicle-panel]');
+        var toggle = card.querySelector('[data-vehicle-toggle]');
+        if (!panel || !toggle) return;
+
+        card.classList.toggle('vehicle-card-open', isOpen);
+        toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        panel.style.maxHeight = isOpen ? panel.scrollHeight + 'px' : '0px';
+      }
+
+      vehicleCards.forEach(function(card) {
+        var toggle = card.querySelector('[data-vehicle-toggle]');
+        if (!toggle) return;
+
+        toggle.addEventListener('click', function() {
+          var shouldOpen = toggle.getAttribute('aria-expanded') !== 'true';
+          vehicleCards.forEach(function(otherCard) {
+            if (otherCard !== card) setVehicleOpen(otherCard, false);
+          });
+          setVehicleOpen(card, shouldOpen);
+        });
+      });
+
+      window.addEventListener('resize', function() {
+        vehicleCards.forEach(function(card) {
+          var toggle = card.querySelector('[data-vehicle-toggle]');
+          if (toggle && toggle.getAttribute('aria-expanded') === 'true') {
+            setVehicleOpen(card, true);
+          }
+        });
+      });
+    })();
+
+    (function() {
+      var modal = document.getElementById('vehicleRejectModal');
+      if (!modal) return;
+      var form = document.getElementById('vehicleRejectForm');
+      var label = document.getElementById('vehicle-reject-label');
+      var notes = document.getElementById('vehicle-reject-notes');
+
+      function openModal(button) {
+        if (!form) return;
+        form.action = button.dataset.rejectAction || '';
+        if (label) label.textContent = button.dataset.vehicleLabel || 'รถคันนี้';
+        if (notes) notes.value = button.dataset.vehicleNotes || '';
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        window.setTimeout(function() {
+          if (notes) notes.focus();
+        }, 50);
+      }
+
+      function closeModal() {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+        if (form) form.action = '';
+        if (notes) notes.value = '';
+      }
+
+      document.querySelectorAll('[data-vehicle-reject-open]').forEach(function(button) {
+        button.addEventListener('click', function() {
+          openModal(button);
+        });
+      });
+
+      document.querySelectorAll('[data-vehicle-reject-close]').forEach(function(button) {
+        button.addEventListener('click', closeModal);
+      });
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.style.display === 'flex') closeModal();
+      });
+    })();
 
     (function() {
       var modal = document.getElementById('summonsDetailModal');

@@ -33,8 +33,8 @@
                 <i data-lucide="pencil" class="w-6 h-6 text-brand-600"></i>
               </div>
               <div>
-                <h2 class="text-xl font-bold text-slate-800">แก้ไขข้อมูลทะเบียน</h2>
-                <p class="text-sm text-slate-500"><%= reg.first_name %> <%= reg.last_name %> · <%= reg.license_plate %></p>
+                <h2 class="text-xl font-bold text-slate-800">แก้ไขข้อมูลส่วนตัว</h2>
+                <p class="text-sm text-slate-500"><%= reg.first_name %> <%= reg.last_name %> · <%= reg.id_number %></p>
               </div>
             </div>
 
@@ -65,79 +65,27 @@
                   <label class="label">เบอร์โทรศัพท์</label>
                   <input type="tel" name="phone" value="<%= reg.phone || '' %>" class="input">
                 </div>
-                <div>
-                  <label class="label">สถานะ</label>
-                  <select name="status" class="input" required>
-                    <option value="pending" <%= reg.status === 'pending' ? 'selected' : '' %>>รอดำเนินการ</option>
-                    <option value="approved" <%= reg.status === 'approved' ? 'selected' : '' %>>อนุมัติ</option>
-                    <option value="rejected" <%= reg.status === 'rejected' ? 'selected' : '' %>>ปฏิเสธ</option>
-                  </select>
-                </div>
-              </div>
-
-              <!-- Vehicle Info -->
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label class="label">ป้ายทะเบียน</label>
-                  <input type="text" name="license_plate" value="<%= reg.license_plate %>" class="input" required>
-                </div>
-                <div>
-                  <label class="label">จังหวัด</label>
-                  <select name="province" class="input" required>
-                    <option value="">เลือกจังหวัด</option>
-                    <% const provinces = ['กรุงเทพมหานคร','กระบี่','กาญจนบุรี','กาฬสินธุ์','กำแพงเพชร','ขอนแก่น','จันทบุรี','ฉะเชิงเทรา','ชลบุรี','ชัยนาท','ชัยภูมิ','ชุมพร','เชียงราย','เชียงใหม่','ตรัง','ตราด','ตาก','นครนายก','นครปฐม','นครพนม','นครราชสีมา','นครศรีธรรมราช','นครสวรรค์','นนทบุรี','นราธิวาส','น่าน','บึงกาฬ','บุรีรัมย์','ปทุมธานี','ประจวบคีรีขันธ์','ปราจีนบุรี','ปัตตานี','พะเยา','พังงา','พัทลุง','พิจิตร','พิษณุโลก','เพชรบุรี','เพชรบูรณ์','แพร่','ภูเก็ต','มหาสารคาม','มุกดาหาร','แม่ฮ่องสอน','ยโสธร','ยะลา','ร้อยเอ็ด','ระนอง','ระยอง','ราชบุรี','ลพบุรี','ลำปาง','ลำพูน','เลย','ศรีสะเกษ','สกลนคร','สงขลา','สตูล','สมุทรปราการ','สมุทรสงคราม','สมุทรสาคร','สระแก้ว','สระบุรี','สิงห์บุรี','สุโขทัย','สุพรรณบุรี','สุราษฎร์ธานี','สุรินทร์','หนองคาย','หนองบัวลำภู','อ่างทอง','อำนาจเจริญ','อุดรธานี','อุตรดิตถ์','อุทัยธานี','อุบลราชธานี']; %>
-                    <% provinces.forEach(function(p) { %>
-                      <option value="<%= p %>" <%= reg.province === p ? 'selected' : '' %>><%= p %></option>
-                    <% }); %>
-                  </select>
-                </div>
               </div>
 
               <!-- Current Photos -->
               <div>
-                <label class="label mb-2">รูปภาพปัจจุบัน</label>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <% if (reg.motorcycle_photo) { %>
-                  <div>
-                    <p class="text-xs text-slate-400 mb-1">รูปรถจักรยานยนต์</p>
-                    <img src="<%= signedUrl(reg.motorcycle_photo) %>" alt="Motorcycle" class="w-full h-32 object-cover rounded-xl border border-slate-200">
-                  </div>
-                  <% } %>
-                  <% if (reg.plate_photo) { %>
-                  <div>
-                    <p class="text-xs text-slate-400 mb-1">รูปป้ายทะเบียน</p>
-                    <img src="<%= signedUrl(reg.plate_photo) %>" alt="Plate" class="w-full h-32 object-cover rounded-xl border border-slate-200">
-                  </div>
-                  <% } %>
+                <label class="label mb-2">รูปบัตรประจำตัว</label>
+                <div class="grid grid-cols-1 gap-4 max-w-sm">
                   <% if (reg.id_card_photo) { %>
                   <div>
                     <p class="text-xs text-slate-400 mb-1">รูปบัตรประจำตัว</p>
                     <img src="<%= signedUrl(reg.id_card_photo) %>" alt="ID Card" class="w-full h-32 object-cover rounded-xl border border-slate-200">
+                  </div>
+                  <% } else { %>
+                  <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-6 text-center text-sm text-slate-400">
+                    ยังไม่มีรูปบัตรประจำตัว
                   </div>
                   <% } %>
                 </div>
               </div>
 
               <!-- Upload New Photos (optional) -->
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label class="label">เปลี่ยนรูปรถจักรยานยนต์</label>
-                  <input type="file" name="motorcycle_photo" id="edit-motorcycle-input" accept="image/*" class="hidden" data-preview-target="edit-motorcycle-preview" data-file-name-target="edit-motorcycle-name">
-                  <button type="button" class="btn btn-secondary w-full justify-center" data-file-button="edit-motorcycle-input">
-                    <i data-lucide="image-plus" class="w-4 h-4"></i> เลือกรูปรถ
-                  </button>
-                  <p id="edit-motorcycle-name" class="text-xs text-slate-400 mt-2">ยังไม่ได้เลือกไฟล์</p>
-                  <img id="edit-motorcycle-preview" class="hidden w-full h-32 object-cover rounded-xl border border-slate-200 mt-2" alt="Preview">
-                </div>
-                <div>
-                  <label class="label">เปลี่ยนรูปป้ายทะเบียน</label>
-                  <input type="file" name="plate_photo" id="edit-plate-input" accept="image/*" class="hidden" data-preview-target="edit-plate-preview" data-file-name-target="edit-plate-name">
-                  <button type="button" class="btn btn-secondary w-full justify-center" data-file-button="edit-plate-input">
-                    <i data-lucide="image-plus" class="w-4 h-4"></i> เลือกรูปป้ายทะเบียน
-                  </button>
-                  <p id="edit-plate-name" class="text-xs text-slate-400 mt-2">ยังไม่ได้เลือกไฟล์</p>
-                  <img id="edit-plate-preview" class="hidden w-full h-32 object-cover rounded-xl border border-slate-200 mt-2" alt="Preview">
-                </div>
+              <div class="grid grid-cols-1 gap-4 max-w-sm">
                 <div>
                   <label class="label">เปลี่ยนรูปบัตรประจำตัว</label>
                   <input type="file" name="id_card_photo" id="edit-id-card-input" accept="image/*" class="hidden" data-preview-target="edit-id-card-preview" data-file-name-target="edit-id-card-name">

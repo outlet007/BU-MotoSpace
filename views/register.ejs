@@ -35,28 +35,193 @@
     .preview-img { max-height: 160px; border-radius: 12px; object-fit: cover; }
     .id-card-section { display: none; }
     .id-card-section.active { display: block; }
+    .required-mark { color: #dc2626; font-weight: 700; margin-left: 0.15rem; }
+    .language-toggle-wrap {
+      display: inline-flex;
+      align-items: center;
+    }
+    .flag-toggle {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    .flag-toggle-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .flag-track {
+      position: relative;
+      width: 4rem;
+      height: 2.15rem;
+      border-radius: 999px;
+      background: #cbd5e1;
+      padding: 0.2rem;
+      transition: background 0.2s ease;
+      flex-shrink: 0;
+      display: block;
+    }
+    .flag-track::after {
+      content: '';
+      position: absolute;
+      top: 0.2rem;
+      left: 0.2rem;
+      width: 1.75rem;
+      height: 1.75rem;
+      border-radius: 999px;
+      background:
+        linear-gradient(to bottom,
+          #a51931 0 16%,
+          #f4f5f8 16% 28%,
+          #2d2a4a 28% 72%,
+          #f4f5f8 72% 84%,
+          #a51931 84% 100%);
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+    .flag-toggle-input:checked + .flag-track {
+      background: #cbd5e1;
+    }
+    .flag-toggle-input:checked + .flag-track::after {
+      transform: translateX(1.85rem);
+      background:
+        /* Blue canton – top-left ~40% × 46% */
+        linear-gradient(to right, #3C3B6E 0% 42%, transparent 42% 100%) top left / 100% 46% no-repeat,
+        /* 13 alternating red/white stripes */
+        repeating-linear-gradient(
+          to bottom,
+          #BF0A30 0%,
+          #BF0A30 7.69%,
+          #fff    7.69%,
+          #fff    15.38%
+        );
+    }
+    .flag-toggle-input:focus-visible + .flag-track {
+      outline: 2px solid #16a34a;
+      outline-offset: 3px;
+    }
+    .vehicle-extra {
+      max-height: 0;
+      opacity: 0;
+      overflow: hidden;
+      margin-top: 0 !important;
+      transform: translateY(-8px);
+      transition: max-height 0.35s ease, opacity 0.25s ease, transform 0.35s ease, margin-top 0.35s ease;
+    }
+    .vehicle-extra.active {
+      max-height: 760px;
+      opacity: 1;
+      transform: translateY(0);
+      margin-top: 1rem !important;
+    }
+    .toggle-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .toggle-switch {
+      width: 3.25rem;
+      height: 1.75rem;
+      border-radius: 999px;
+      background: #cbd5e1;
+      padding: 0.2rem;
+      transition: background 0.2s ease;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .toggle-switch::after {
+      content: '';
+      width: 1.35rem;
+      height: 1.35rem;
+      border-radius: 999px;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+      position: absolute;
+      top: 0.2rem;
+      left: 0.2rem;
+      transition: transform 0.2s ease;
+    }
+    .toggle-input:checked + .toggle-switch { background: #16a34a; }
+    .toggle-input:checked + .toggle-switch::after { transform: translateX(1.5rem); }
+    .toggle-input:focus-visible + .toggle-switch {
+      outline: 2px solid #16a34a;
+      outline-offset: 3px;
+    }
   </style>
 </head>
 <body class="register-bg">
   <div class="max-w-3xl mx-auto px-4 py-8 fade-in">
     <!-- Header -->
-    <div class="text-center mb-8">
-      <div class="w-16 h-16 bg-brand-500 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-brand-500/30 mb-4">
-        <i data-lucide="bike" class="w-8 h-8 text-white"></i>
+    <div class="mb-8">
+      <div class="flex items-start justify-between">
+        <div class="flex-1"></div>
+        <div class="flex flex-col items-center">
+          <div class="w-16 h-16 bg-brand-500 rounded-2xl flex items-center justify-center shadow-lg shadow-brand-500/30 mb-4">
+            <i data-lucide="bike" class="w-8 h-8 text-white"></i>
+          </div>
+          <h1 class="text-3xl font-bold text-slate-800">BU MotoSpace</h1>
+          <p class="text-slate-500 mt-2" data-i18n="header.subtitle">ระบบลงทะเบียนรถจักรยานยนต์</p>
+        </div>
+        <div class="flex-1 flex justify-end pt-1">
+          <div class="language-toggle-wrap" aria-label="เลือกภาษา">
+            <label class="flag-toggle" for="language-toggle">
+              <input type="checkbox" id="language-toggle" class="flag-toggle-input" aria-label="สลับภาษา ไทย/อังกฤษ">
+              <span class="flag-track" aria-hidden="true"></span>
+            </label>
+          </div>
+        </div>
       </div>
-      <h1 class="text-3xl font-bold text-slate-800">BU MotoSpace</h1>
-      <p class="text-slate-500 mt-2">ระบบลงทะเบียนรถจักรยานยนต์</p>
     </div>
 
-    <!-- Flash Messages -->
+    <!-- ─── Success Modal Popup ───────────────────────────────────────── -->
     <% if (typeof success !== 'undefined' && success && success.length > 0) { %>
-      <% success.forEach(msg => { %>
-      <div class="mb-6 flex items-center gap-3 p-4 rounded-xl bg-brand-50 border border-brand-200 text-brand-700 text-sm">
-        <i data-lucide="check-circle-2" class="w-5 h-5 flex-shrink-0"></i>
-        <span><%= msg %></span>
+    <div id="successModal"
+         style="display:flex;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;padding:1rem;"
+         aria-modal="true" role="dialog" aria-labelledby="success-modal-title">
+      <!-- Backdrop -->
+      <div style="position:absolute;inset:0;background:rgba(15,23,42,.65);backdrop-filter:blur(6px);"></div>
+      <!-- Card -->
+      <div style="position:relative;width:100%;max-width:420px;background:#fff;border-radius:24px;box-shadow:0 30px 70px rgba(15,23,42,.25);overflow:hidden;text-align:center;padding:2.5rem 2rem 2rem;">
+        <!-- Icon circle -->
+        <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#16a34a,#22c55e);margin:0 auto 1.25rem;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(22,163,74,.35);animation:successPop .45s cubic-bezier(.34,1.56,.64,1) both;">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:checkDraw .5s .3s ease both;">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <!-- Title -->
+        <h2 id="success-modal-title" style="font-size:1.3rem;font-weight:700;color:#0f172a;margin-bottom:.5rem;">ลงทะเบียนสำเร็จ!</h2>
+        <!-- Message -->
+        <p style="font-size:.925rem;color:#475569;line-height:1.6;margin-bottom:1.75rem;">
+          <%= success[0] %>
+        </p>
+        <!-- Divider -->
+        <div style="width:48px;height:3px;background:linear-gradient(90deg,#16a34a,#22c55e);border-radius:99px;margin:0 auto 1.75rem;"></div>
+        <!-- Info box -->
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:.875rem 1rem;font-size:.825rem;color:#15803d;margin-bottom:1.75rem;display:flex;align-items:center;gap:.625rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>เจ้าหน้าที่จะตรวจสอบและแจ้งผลการอนุมัติให้ทราบในภายหลัง</span>
+        </div>
+        <!-- Button -->
+        <button type="button" id="successModalClose"
+          style="width:100%;padding:.875rem;background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;font-size:.975rem;font-weight:600;border:none;border-radius:12px;cursor:pointer;box-shadow:0 4px 14px rgba(22,163,74,.4);transition:opacity .15s,transform .15s;">
+          ตกลง
+        </button>
       </div>
-      <% }); %>
+    </div>
+    <style>
+      @keyframes successPop {
+        from { opacity:0; transform:scale(.6); }
+        to   { opacity:1; transform:scale(1); }
+      }
+    </style>
     <% } %>
+
+    <!-- Error flash (keep as banner) -->
     <% if (typeof error !== 'undefined' && error && error.length > 0) { %>
       <% error.forEach(msg => { %>
       <div class="mb-6 flex items-center gap-3 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
@@ -66,17 +231,53 @@
       <% }); %>
     <% } %>
 
+
+    <% const duplicatePlateMessages = typeof duplicatePlatePopup !== 'undefined' && duplicatePlatePopup ? duplicatePlatePopup : []; %>
+    <% if (duplicatePlateMessages.length > 0) { %>
+    <div id="duplicatePlateModal"
+         style="display:flex;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;padding:1rem;"
+         aria-modal="true" role="dialog" aria-labelledby="duplicate-plate-title">
+      <div data-duplicate-plate-close style="position:absolute;inset:0;background:rgba(15,23,42,.68);backdrop-filter:blur(4px);"></div>
+      <div style="position:relative;width:100%;max-width:460px;background:#fff;border-radius:16px;box-shadow:0 25px 60px rgba(15,23,42,.28);overflow:hidden;">
+        <div style="padding:20px 24px 14px;border-bottom:1px solid #fee2e2;">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0">
+                <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h3 id="duplicate-plate-title" class="text-base font-bold text-slate-800">พบทะเบียนรถซ้ำ</h3>
+                <p class="text-sm text-slate-500 mt-1">ไม่สามารถลงทะเบียนด้วยทะเบียนนี้ได้</p>
+              </div>
+            </div>
+            <button type="button" data-duplicate-plate-close class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label="ปิด">
+              <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+        <div style="padding:20px 24px;">
+          <div class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 leading-relaxed">
+            <%= duplicatePlateMessages[0] %>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;padding:0 24px 22px;">
+          <button type="button" data-duplicate-plate-close class="btn btn-primary justify-center">รับทราบ</button>
+        </div>
+      </div>
+    </div>
+    <% } %>
+
     <!-- Main Card -->
     <div class="glass-card rounded-3xl shadow-xl shadow-slate-200/50 border border-white/60 overflow-hidden">
       <!-- Tabs -->
       <div class="flex border-b border-slate-200">
         <button type="button" class="tab-btn active flex-1 py-4 px-6 text-sm font-semibold border-b-2 border-transparent transition-all flex items-center justify-center gap-2" data-tab="student">
           <i data-lucide="graduation-cap" class="w-5 h-5"></i>
-          นักศึกษา
+          <span data-i18n="tabs.student">นักศึกษา</span>
         </button>
         <button type="button" class="tab-btn flex-1 py-4 px-6 text-sm font-semibold border-b-2 border-transparent text-slate-500 transition-all flex items-center justify-center gap-2" data-tab="staff">
           <i data-lucide="briefcase" class="w-5 h-5"></i>
-          อาจารย์/บุคลากร
+          <span data-i18n="tabs.staff">อาจารย์/บุคลากร</span>
         </button>
       </div>
 
@@ -98,8 +299,8 @@
               <i data-lucide="clipboard-list" class="w-5 h-5 text-white"></i>
             </div>
             <div>
-              <h3 class="font-semibold text-slate-800 text-base">กรุณากรอกข้อมูลเพื่อระบบลงทะเบียนรถจักรยานยนต์</h3>
-              <p class="text-xs text-slate-500 mt-0.5">กรอกข้อมูลให้ครบถ้วนและถูกต้อง เพื่อการลงทะเบียนที่สมบูรณ์</p>
+              <h3 class="font-semibold text-slate-800 text-base" data-i18n="notice.title">กรุณากรอกข้อมูลเพื่อระบบลงทะเบียนรถจักรยานยนต์</h3>
+              <p class="text-xs text-slate-500 mt-0.5" data-i18n="notice.description">กรอกข้อมูลให้ครบถ้วนและถูกต้อง เพื่อการลงทะเบียนที่สมบูรณ์</p>
             </div>
           </div>
         </div>
@@ -107,73 +308,84 @@
         <!-- Form Fields -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
-            <label class="label" id="id_number_label">รหัสนักศึกษา</label>
+            <label class="label" data-i18n-html="form.firstName">ชื่อ <span class="required-mark">*</span></label>
+            <div class="relative">
+              <i data-lucide="user" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input type="text" name="first_name" id="first_name" class="input" style="padding-left:2.75rem" placeholder="กรอกชื่อ" data-i18n-placeholder="placeholder.firstName" required>
+            </div>
+          </div>
+          <div>
+            <label class="label" data-i18n-html="form.lastName">นามสกุล <span class="required-mark">*</span></label>
+            <div class="relative">
+              <i data-lucide="user" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input type="text" name="last_name" id="last_name" class="input" style="padding-left:2.75rem" placeholder="กรอกนามสกุล" data-i18n-placeholder="placeholder.lastName" required>
+            </div>
+          </div>
+          <div>
+            <label class="label" id="id_number_label">รหัสนักศึกษา <span class="required-mark">*</span></label>
             <div class="relative">
               <i data-lucide="hash" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-              <input type="text" name="id_number" id="id_number" class="input" style="padding-left:2.75rem" placeholder="กรอกรหัส" required>
+              <input type="text" name="id_number" id="id_number" class="input uppercase" style="padding-left:2.75rem" placeholder="กรอกรหัส" autocomplete="off" required>
             </div>
           </div>
           <div>
-            <label class="label">เบอร์โทรศัพท์</label>
+            <label class="label" data-i18n-html="form.phone">เบอร์โทรศัพท์ <span class="required-mark">*</span></label>
             <div class="relative">
               <i data-lucide="phone" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-              <input type="tel" name="phone" id="phone" class="input" style="padding-left:2.75rem" placeholder="0xx-xxx-xxxx">
-            </div>
-          </div>
-          <div>
-            <label class="label">ชื่อ</label>
-            <div class="relative">
-              <i data-lucide="user" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-              <input type="text" name="first_name" id="first_name" class="input" style="padding-left:2.75rem" placeholder="กรอกชื่อ" required>
-            </div>
-          </div>
-          <div>
-            <label class="label">นามสกุล</label>
-            <div class="relative">
-              <i data-lucide="user" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-              <input type="text" name="last_name" id="last_name" class="input" style="padding-left:2.75rem" placeholder="กรอกนามสกุล" required>
+              <input type="tel" name="phone" id="phone" class="input" style="padding-left:2.75rem" placeholder="0xxxxxxxxx" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" required>
             </div>
           </div>
         </div>
 
         <!-- ID Card Photo Upload (switches by tab) -->
         <div class="id-card-section active" id="student-card-section">
-          <label class="label">รูปถ่ายบัตรนักศึกษา</label>
+          <label class="label" data-i18n-html="form.studentCardPhoto">รูปถ่ายบัตรนักศึกษา <span class="required-mark">*</span></label>
           <div class="upload-zone rounded-xl p-5 text-center cursor-pointer block" id="student-card-zone" role="button" tabindex="0" data-file-target="student_card_input">
             <i data-lucide="id-card" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
-            <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตรนักศึกษา</p>
-            <p class="text-xs text-slate-400 mt-1">รองรับไฟล์ JPG, PNG</p>
-            <input type="file" name="id_card_photo" id="student_card_input" accept="image/*" class="upload-input" aria-label="เลือกรูปถ่ายบัตรนักศึกษา" onchange="previewImage(this, 'student-card-preview', 'student-card-zone')">
+            <p class="text-sm text-slate-500" data-i18n="upload.studentCard">คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตรนักศึกษา</p>
+            <p class="text-xs text-slate-400 mt-1" data-i18n="upload.supported">รองรับไฟล์ JPG, PNG</p>
+            <input type="file" name="id_card_photo" id="student_card_input" accept="image/*" class="upload-input" aria-label="เลือกรูปถ่ายบัตรนักศึกษา" data-i18n-aria-label="aria.studentCard" onchange="previewImage(this, 'student-card-preview', 'student-card-zone')" required>
             <img id="student-card-preview" class="preview-img mx-auto mt-3 hidden">
           </div>
         </div>
 
         <div class="id-card-section" id="staff-card-section">
-          <label class="label">รูปถ่ายบัตรอาจารย์/บุคลากร</label>
+          <label class="label" data-i18n-html="form.staffCardPhoto">รูปถ่ายบัตรอาจารย์/บุคลากร <span class="required-mark">*</span></label>
           <div class="upload-zone rounded-xl p-5 text-center cursor-pointer block" id="staff-card-zone" role="button" tabindex="0" data-file-target="staff_card_input">
             <i data-lucide="id-card" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
-            <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตรอาจารย์/บุคลากร</p>
-            <p class="text-xs text-slate-400 mt-1">รองรับไฟล์ JPG, PNG</p>
-            <input type="file" name="id_card_photo" id="staff_card_input" accept="image/*" class="upload-input" aria-label="เลือกรูปถ่ายบัตรอาจารย์หรือบุคลากร" onchange="previewImage(this, 'staff-card-preview', 'staff-card-zone')">
+            <p class="text-sm text-slate-500" data-i18n="upload.staffCard">คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตรอาจารย์/บุคลากร</p>
+            <p class="text-xs text-slate-400 mt-1" data-i18n="upload.supported">รองรับไฟล์ JPG, PNG</p>
+            <input type="file" name="id_card_photo" id="staff_card_input" accept="image/*" class="upload-input" aria-label="เลือกรูปถ่ายบัตรอาจารย์หรือบุคลากร" data-i18n-aria-label="aria.staffCard" onchange="previewImage(this, 'staff-card-preview', 'staff-card-zone')">
             <img id="staff-card-preview" class="preview-img mx-auto mt-3 hidden">
           </div>
         </div>
 
-        <!-- Photo Uploads (motorcycle & plate) -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <!-- Vehicle 1 -->
+        <div class="rounded-2xl border border-slate-200 bg-white/70 p-5 md:p-6 space-y-5">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-brand-100 text-brand-600 flex items-center justify-center flex-shrink-0">
+              <i data-lucide="bike" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-slate-800" data-i18n="vehicle1.title">ข้อมูลรถคันที่ 1</h3>
+              <p class="text-xs text-slate-500 mt-0.5" data-i18n="vehicle1.description">กรอกข้อมูลรถจักรยานยนต์คันหลักที่ต้องการลงทะเบียน</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
-            <label class="label">ป้ายทะเบียน</label>
+            <label class="label" data-i18n-html="form.plate">ป้ายทะเบียน <span class="required-mark">*</span></label>
             <div class="relative">
               <i data-lucide="rectangle-horizontal" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-              <input type="text" name="license_plate" id="license_plate" class="input" style="padding-left:2.75rem" placeholder="เช่น กข 1234" required>
+              <input type="text" name="license_plate" id="license_plate" class="input" style="padding-left:2.75rem" placeholder="กข1234" autocomplete="off" required>
             </div>
           </div>
           <div>
-            <label class="label">จังหวัด</label>
+            <label class="label" data-i18n-html="form.province">จังหวัด <span class="required-mark">*</span></label>
             <div class="relative">
               <i data-lucide="map-pin" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
               <select name="province" id="province" class="input" style="padding-left:2.75rem" required>
-                <option value="">เลือกจังหวัด</option>
+                <option value="" data-i18n="form.selectProvince">เลือกจังหวัด</option>
                 <option value="กรุงเทพมหานคร">กรุงเทพมหานคร</option>
                 <option value="กระบี่">กระบี่</option>
                 <option value="กาญจนบุรี">กาญจนบุรี</option>
@@ -256,53 +468,120 @@
         </div>
 
 
-        <!-- Motorcycle & Plate Photos -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <!-- Motorcycle & Plate Photos -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
-            <label class="label">รูปรถจักรยานยนต์</label>
+            <label class="label" data-i18n-html="form.motorcyclePhoto">รูปรถจักรยานยนต์ <span class="required-mark">*</span></label>
             <div class="upload-zone rounded-xl p-6 text-center cursor-pointer block" id="moto-upload-zone" role="button" tabindex="0" data-file-target="motorcycle_photo_input">
               <i data-lucide="camera" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
-              <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
-              <input type="file" name="motorcycle_photo" id="motorcycle_photo_input" accept="image/*" class="upload-input" aria-label="เลือกรูปรถจักรยานยนต์" onchange="previewImage(this, 'moto-preview', 'moto-upload-zone')">
+              <p class="text-sm text-slate-500" data-i18n="upload.photo">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
+              <input type="file" name="motorcycle_photo" id="motorcycle_photo_input" accept="image/*" class="upload-input" aria-label="เลือกรูปรถจักรยานยนต์" data-i18n-aria-label="aria.motorcyclePhoto" onchange="previewImage(this, 'moto-preview', 'moto-upload-zone')" required>
               <img id="moto-preview" class="preview-img mx-auto mt-3 hidden">
             </div>
           </div>
           <div>
-            <label class="label">รูปป้ายทะเบียน</label>
+            <label class="label" data-i18n-html="form.platePhoto">รูปป้ายทะเบียน <span class="required-mark">*</span></label>
             <div class="upload-zone rounded-xl p-6 text-center cursor-pointer block" id="plate-upload-zone" role="button" tabindex="0" data-file-target="plate_photo_input">
               <i data-lucide="rectangle-horizontal" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
-              <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
-              <input type="file" name="plate_photo" id="plate_photo_input" accept="image/*" class="upload-input" aria-label="เลือกรูปป้ายทะเบียน" onchange="previewImage(this, 'plate-preview', 'plate-upload-zone')">
+              <p class="text-sm text-slate-500" data-i18n="upload.photo">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
+              <input type="file" name="plate_photo" id="plate_photo_input" accept="image/*" class="upload-input" aria-label="เลือกรูปป้ายทะเบียน" data-i18n-aria-label="aria.platePhoto" onchange="previewImage(this, 'plate-preview', 'plate-upload-zone')" required>
               <img id="plate-preview" class="preview-img mx-auto mt-3 hidden">
             </div>
           </div>
         </div>
+        </div>
+
+        <!-- Vehicle 2 Toggle -->
+        <div class="bg-gradient-to-r from-brand-50 to-emerald-50 rounded-2xl p-5 md:p-6 border border-brand-100">
+          <label class="flex items-center justify-between gap-4 cursor-pointer">
+            <div class="min-w-0">
+              <p class="text-base font-bold text-slate-800" data-i18n="vehicle2.toggleTitle">มีรถคันที่ 2 หรือไม่</p>
+              <p class="text-xs text-slate-500 mt-1" data-i18n="vehicle2.toggleDescription">เปิดเพื่อกรอกข้อมูลรถจักรยานยนต์อีกคันในคำขอลงทะเบียนเดียวกัน</p>
+            </div>
+            <input type="checkbox" id="has_second_vehicle" name="has_second_vehicle" class="toggle-input">
+            <span class="toggle-switch" aria-hidden="true"></span>
+          </label>
+        </div>
+
+        <div id="second-vehicle-section" class="vehicle-extra" aria-hidden="true">
+          <div class="rounded-2xl border border-slate-200 bg-white/70 p-5 md:p-6 space-y-5">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-brand-100 text-brand-600 flex items-center justify-center flex-shrink-0">
+                  <i data-lucide="bike" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h3 class="text-base font-bold text-slate-800" data-i18n="vehicle2.title">ข้อมูลรถคันที่ 2</h3>
+                  <p class="text-xs text-slate-500 mt-0.5" data-i18n="vehicle2.description">ทะเบียนรถต้องไม่ซ้ำกับคันที่ 1 หรือข้อมูลที่มีอยู่ในระบบ</p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label class="label" data-i18n-html="form.plate">ป้ายทะเบียน <span class="required-mark">*</span></label>
+                  <div class="relative">
+                    <i data-lucide="rectangle-horizontal" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" name="license_plate_2" id="license_plate_2" class="input" style="padding-left:2.75rem" placeholder="กข5678" autocomplete="off" data-second-vehicle disabled>
+                  </div>
+                </div>
+                <div>
+                  <label class="label" data-i18n-html="form.province">จังหวัด <span class="required-mark">*</span></label>
+                  <div class="relative">
+                    <i data-lucide="map-pin" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <select name="province_2" id="province_2" class="input" style="padding-left:2.75rem" data-second-vehicle disabled>
+                      <option value="">เลือกจังหวัด</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label class="label" data-i18n-html="form.motorcyclePhoto">รูปรถจักรยานยนต์ <span class="required-mark">*</span></label>
+                  <div class="upload-zone rounded-xl p-6 text-center cursor-pointer block" id="moto-upload-zone-2" role="button" tabindex="0" data-file-target="motorcycle_photo_input_2">
+                    <i data-lucide="camera" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
+                    <p class="text-sm text-slate-500" data-i18n="upload.photo">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
+                    <input type="file" name="motorcycle_photo_2" id="motorcycle_photo_input_2" accept="image/*" class="upload-input" aria-label="เลือกรูปรถจักรยานยนต์คันที่ 2" data-i18n-aria-label="aria.motorcyclePhoto2" data-second-vehicle disabled>
+                    <img id="moto-preview-2" class="preview-img mx-auto mt-3 hidden">
+                  </div>
+                </div>
+                <div>
+                  <label class="label" data-i18n-html="form.platePhoto">รูปป้ายทะเบียน <span class="required-mark">*</span></label>
+                  <div class="upload-zone rounded-xl p-6 text-center cursor-pointer block" id="plate-upload-zone-2" role="button" tabindex="0" data-file-target="plate_photo_input_2">
+                    <i data-lucide="rectangle-horizontal" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
+                    <p class="text-sm text-slate-500" data-i18n="upload.photo">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
+                    <input type="file" name="plate_photo_2" id="plate_photo_input_2" accept="image/*" class="upload-input" aria-label="เลือกรูปป้ายทะเบียนคันที่ 2" data-i18n-aria-label="aria.platePhoto2" data-second-vehicle disabled>
+                    <img id="plate-preview-2" class="preview-img mx-auto mt-3 hidden">
+                  </div>
+                </div>
+              </div>
+            </div>
+        </div>
 
         <!-- PDPA Consent -->
-        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200">
+        <div class="bg-gradient-to-r from-brand-50 to-emerald-50 rounded-2xl p-5 border border-brand-100">
           <div class="flex items-center gap-2 mb-3">
             <i data-lucide="shield-check" class="w-5 h-5 text-brand-500 flex-shrink-0"></i>
-            <h4 class="font-semibold text-slate-800 text-sm">ข้อตกลงการยินยอมข้อมูลส่วนบุคคล (PDPA)</h4>
+            <h4 class="font-semibold text-slate-800 text-sm" data-i18n-html="pdpa.title">ข้อตกลงการยินยอมข้อมูลส่วนบุคคล (PDPA) <span class="required-mark">*</span></h4>
           </div>
-          <div class="text-sm text-slate-600 leading-relaxed bg-white rounded-xl p-4 border border-slate-100 mb-4">
+          <div class="text-sm text-slate-600 leading-relaxed bg-white/70 rounded-xl p-4 border border-brand-100 mb-4" data-i18n="pdpa.description">
             ข้าพเจ้ายินยอมให้มีการเก็บรวบรวม ใช้ และเปิดเผยข้อมูลส่วนบุคคลที่ได้ให้ไว้ในระบบนี้ เพื่อวัตถุประสงค์ในการลงทะเบียนและบริหารจัดการข้อมูลรถจักรยานยนต์ รวมถึงการตรวจสอบสิทธิ์และการติดต่อประสานงานที่เกี่ยวข้อง ทั้งนี้ ข้อมูลจะถูกเก็บรักษาอย่างเหมาะสมตามมาตรการความปลอดภัยของหน่วยงาน และจะไม่นำไปใช้เพื่อวัตถุประสงค์อื่นนอกเหนือจากที่กำหนดโดยไม่ได้รับความยินยอมจากข้าพเจ้า
           </div>
           <label class="flex items-start gap-3 cursor-pointer group">
-            <input type="checkbox" id="pdpa_consent" name="pdpa_consent" class="mt-0.5 w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer" onchange="toggleSubmitBtn()">
-            <span class="text-sm text-slate-700 group-hover:text-slate-900 transition-colors">ข้าพเจ้าได้อ่านและยอมรับเงื่อนไขการใช้ข้อมูลส่วนบุคคลแล้ว</span>
+            <input type="checkbox" id="pdpa_consent" name="pdpa_consent" class="mt-0.5 w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer" required>
+            <span class="text-sm text-slate-700 group-hover:text-slate-900 transition-colors" data-i18n="pdpa.accept">ข้าพเจ้าได้อ่านและยอมรับเงื่อนไขการใช้ข้อมูลส่วนบุคคลแล้ว</span>
           </label>
         </div>
 
         <!-- Submit -->
         <button type="submit" id="submit-btn" class="btn btn-primary w-full justify-center text-base py-3.5 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
           <i data-lucide="send" class="w-5 h-5" id="submit-icon"></i>
-          <span id="submit-label">ลงทะเบียน</span>
+          <span id="submit-label" data-i18n="submit.default">ลงทะเบียน</span>
         </button>
         <!-- reCAPTCHA Notice -->
         <p class="text-center text-xs text-slate-400 mt-2">
-          เว็บไซต์นี้ได้รับการป้องกันโดย reCAPTCHA และนโยบาย
-          <a href="https://policies.google.com/privacy" target="_blank" class="underline hover:text-slate-600">ความเป็นส่วนตัว</a>
-          และ <a href="https://policies.google.com/terms" target="_blank" class="underline hover:text-slate-600">ข้อกำหนดการใช้งาน</a> ของ Google มีผลบังคับใช้
+          <span data-i18n="recaptcha.prefix">เว็บไซต์นี้ได้รับการป้องกันโดย reCAPTCHA และนโยบาย</span>
+          <a href="https://policies.google.com/privacy" target="_blank" class="underline hover:text-slate-600" data-i18n="recaptcha.privacy">ความเป็นส่วนตัว</a>
+          <span data-i18n="recaptcha.and">และ</span> <a href="https://policies.google.com/terms" target="_blank" class="underline hover:text-slate-600" data-i18n="recaptcha.terms">ข้อกำหนดการใช้งาน</a> <span data-i18n="recaptcha.suffix">ของ Google มีผลบังคับใช้</span>
         </p>
       </form>
     </div>
@@ -311,7 +590,7 @@
     <div class="text-center mt-6">
       <a href="/auth/login" class="text-sm text-slate-500 hover:text-brand-600 font-medium inline-flex items-center gap-1">
         <i data-lucide="lock" class="w-3.5 h-3.5"></i>
-        เข้าสู่ระบบสำหรับเจ้าหน้าที่
+        <span data-i18n="footer.adminLogin">เข้าสู่ระบบสำหรับเจ้าหน้าที่</span>
       </a>
     </div>
   </div>
@@ -320,6 +599,185 @@
     if (window.lucide) {
       lucide.createIcons();
     }
+
+    const i18n = {
+      th: {
+        title: 'ลงทะเบียนรถจักรยานยนต์ - BU MotoSpace',
+        'header.subtitle': 'ระบบลงทะเบียนรถจักรยานยนต์',
+        'tabs.student': 'นักศึกษา',
+        'tabs.staff': 'อาจารย์/บุคลากร',
+        'notice.title': 'กรุณากรอกข้อมูลเพื่อระบบลงทะเบียนรถจักรยานยนต์',
+        'notice.description': 'กรอกข้อมูลให้ครบถ้วนและถูกต้อง เพื่อการลงทะเบียนที่สมบูรณ์',
+        'form.firstName': 'ชื่อ <span class="required-mark">*</span>',
+        'form.lastName': 'นามสกุล <span class="required-mark">*</span>',
+        'form.studentId': 'รหัสนักศึกษา',
+        'form.staffId': 'รหัสอาจารย์/บุคลากร',
+        'form.phone': 'เบอร์โทรศัพท์ <span class="required-mark">*</span>',
+        'form.studentCardPhoto': 'รูปถ่ายบัตรนักศึกษา <span class="required-mark">*</span>',
+        'form.staffCardPhoto': 'รูปถ่ายบัตรอาจารย์/บุคลากร <span class="required-mark">*</span>',
+        'form.plate': 'ป้ายทะเบียน <span class="required-mark">*</span>',
+        'form.province': 'จังหวัด <span class="required-mark">*</span>',
+        'form.selectProvince': 'เลือกจังหวัด',
+        'form.motorcyclePhoto': 'รูปรถจักรยานยนต์ <span class="required-mark">*</span>',
+        'form.platePhoto': 'รูปป้ายทะเบียน <span class="required-mark">*</span>',
+        'placeholder.firstName': 'กรอกชื่อ',
+        'placeholder.lastName': 'กรอกนามสกุล',
+        'placeholder.studentId': 'กรอกรหัสนักศึกษา',
+        'placeholder.staffId': 'กรอกรหัสอาจารย์/บุคลากร',
+        'upload.studentCard': 'คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตรนักศึกษา',
+        'upload.staffCard': 'คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตรอาจารย์/บุคลากร',
+        'upload.supported': 'รองรับไฟล์ JPG, PNG',
+        'upload.photo': 'คลิกเพื่อถ่ายรูปหรือเลือกภาพ',
+        'vehicle1.title': 'ข้อมูลรถคันที่ 1',
+        'vehicle1.description': 'กรอกข้อมูลรถจักรยานยนต์คันหลักที่ต้องการลงทะเบียน',
+        'vehicle2.toggleTitle': 'มีรถคันที่ 2 หรือไม่',
+        'vehicle2.toggleDescription': 'เปิดเพื่อกรอกข้อมูลรถจักรยานยนต์อีกคันในคำขอลงทะเบียนเดียวกัน',
+        'vehicle2.title': 'ข้อมูลรถคันที่ 2',
+        'vehicle2.description': 'ทะเบียนรถต้องไม่ซ้ำกับคันที่ 1 หรือข้อมูลที่มีอยู่ในระบบ',
+        'pdpa.title': 'ข้อตกลงการยินยอมข้อมูลส่วนบุคคล (PDPA) <span class="required-mark">*</span>',
+        'pdpa.description': 'ข้าพเจ้ายินยอมให้มีการเก็บรวบรวม ใช้ และเปิดเผยข้อมูลส่วนบุคคลที่ได้ให้ไว้ในระบบนี้ เพื่อวัตถุประสงค์ในการลงทะเบียนและบริหารจัดการข้อมูลรถจักรยานยนต์ รวมถึงการตรวจสอบสิทธิ์และการติดต่อประสานงานที่เกี่ยวข้อง ทั้งนี้ ข้อมูลจะถูกเก็บรักษาอย่างเหมาะสมตามมาตรการความปลอดภัยของหน่วยงาน และจะไม่นำไปใช้เพื่อวัตถุประสงค์อื่นนอกเหนือจากที่กำหนดโดยไม่ได้รับความยินยอมจากข้าพเจ้า',
+        'pdpa.accept': 'ข้าพเจ้าได้อ่านและยอมรับเงื่อนไขการใช้ข้อมูลส่วนบุคคลแล้ว',
+        'submit.default': 'ลงทะเบียน',
+        'submit.checking': 'กำลังตรวจสอบ...',
+        'submit.sending': 'กำลังส่งข้อมูล...',
+        'recaptcha.prefix': 'เว็บไซต์นี้ได้รับการป้องกันโดย reCAPTCHA และนโยบาย',
+        'recaptcha.privacy': 'ความเป็นส่วนตัว',
+        'recaptcha.and': 'และ',
+        'recaptcha.terms': 'ข้อกำหนดการใช้งาน',
+        'recaptcha.suffix': 'ของ Google มีผลบังคับใช้',
+        'footer.adminLogin': 'เข้าสู่ระบบสำหรับเจ้าหน้าที่',
+        'aria.languageToggle': 'สลับภาษา ไทย/อังกฤษ',
+        'aria.studentCard': 'เลือกรูปถ่ายบัตรนักศึกษา',
+        'aria.staffCard': 'เลือกรูปถ่ายบัตรอาจารย์หรือบุคลากร',
+        'aria.motorcyclePhoto': 'เลือกรูปรถจักรยานยนต์',
+        'aria.platePhoto': 'เลือกรูปป้ายทะเบียน',
+        'aria.motorcyclePhoto2': 'เลือกรูปรถจักรยานยนต์คันที่ 2',
+        'aria.platePhoto2': 'เลือกรูปป้ายทะเบียนคันที่ 2',
+      },
+      en: {
+        title: 'Motorcycle Registration - BU MotoSpace',
+        'header.subtitle': 'Motorcycle Registration System',
+        'tabs.student': 'Student',
+        'tabs.staff': 'Lecturer / Staff',
+        'notice.title': 'Please complete the motorcycle registration form',
+        'notice.description': 'Fill in all required information correctly to complete your registration.',
+        'form.firstName': 'First name <span class="required-mark">*</span>',
+        'form.lastName': 'Last name <span class="required-mark">*</span>',
+        'form.studentId': 'Student ID',
+        'form.staffId': 'Lecturer / Staff ID',
+        'form.phone': 'Phone number <span class="required-mark">*</span>',
+        'form.studentCardPhoto': 'Student ID card photo <span class="required-mark">*</span>',
+        'form.staffCardPhoto': 'Lecturer / Staff ID card photo <span class="required-mark">*</span>',
+        'form.plate': 'License plate <span class="required-mark">*</span>',
+        'form.province': 'Province <span class="required-mark">*</span>',
+        'form.selectProvince': 'Select province',
+        'form.motorcyclePhoto': 'Motorcycle photo <span class="required-mark">*</span>',
+        'form.platePhoto': 'License plate photo <span class="required-mark">*</span>',
+        'placeholder.firstName': 'Enter first name',
+        'placeholder.lastName': 'Enter last name',
+        'placeholder.studentId': 'Enter student ID',
+        'placeholder.staffId': 'Enter lecturer / staff ID',
+        'upload.studentCard': 'Click to take or choose a student ID card photo',
+        'upload.staffCard': 'Click to take or choose a lecturer / staff ID card photo',
+        'upload.supported': 'Supports JPG and PNG files',
+        'upload.photo': 'Click to take or choose a photo',
+        'vehicle1.title': 'Vehicle 1 information',
+        'vehicle1.description': 'Enter the main motorcycle you want to register.',
+        'vehicle2.toggleTitle': 'Do you have a second vehicle?',
+        'vehicle2.toggleDescription': 'Turn on to add another motorcycle in this registration request.',
+        'vehicle2.title': 'Vehicle 2 information',
+        'vehicle2.description': 'The license plate must not duplicate vehicle 1 or existing records.',
+        'pdpa.title': 'Personal Data Consent Agreement (PDPA) <span class="required-mark">*</span>',
+        'pdpa.description': 'I consent to the collection, use, and disclosure of the personal data provided in this system for motorcycle registration and management, including eligibility verification and related communication. The data will be protected using appropriate security measures and will not be used for other purposes without my consent.',
+        'pdpa.accept': 'I have read and agree to the personal data terms.',
+        'submit.default': 'Register',
+        'submit.checking': 'Verifying...',
+        'submit.sending': 'Submitting...',
+        'recaptcha.prefix': 'This site is protected by reCAPTCHA and the Google',
+        'recaptcha.privacy': 'Privacy Policy',
+        'recaptcha.and': 'and',
+        'recaptcha.terms': 'Terms of Service',
+        'recaptcha.suffix': 'apply',
+        'footer.adminLogin': 'Staff login',
+        'aria.languageToggle': 'Switch language Thai / English',
+        'aria.studentCard': 'Choose student ID card photo',
+        'aria.staffCard': 'Choose lecturer or staff ID card photo',
+        'aria.motorcyclePhoto': 'Choose motorcycle photo',
+        'aria.platePhoto': 'Choose license plate photo',
+        'aria.motorcyclePhoto2': 'Choose second motorcycle photo',
+        'aria.platePhoto2': 'Choose second license plate photo',
+      },
+    };
+    let currentLanguage = 'th';
+
+    function t(key) {
+      return (i18n[currentLanguage] && i18n[currentLanguage][key]) || i18n.th[key] || '';
+    }
+
+    function applyLanguage(language) {
+      currentLanguage = language === 'en' ? 'en' : 'th';
+      document.documentElement.lang = currentLanguage;
+      document.title = t('title');
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        el.textContent = t(el.dataset.i18n);
+      });
+      document.querySelectorAll('[data-i18n-html]').forEach(function(el) {
+        el.innerHTML = t(el.dataset.i18nHtml);
+      });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
+        el.placeholder = t(el.dataset.i18nPlaceholder);
+      });
+      document.querySelectorAll('[data-i18n-aria-label]').forEach(function(el) {
+        el.setAttribute('aria-label', t(el.dataset.i18nAriaLabel));
+      });
+      const languageToggle = document.getElementById('language-toggle');
+      if (languageToggle) languageToggle.setAttribute('aria-label', t('aria.languageToggle'));
+      if (typeof switchTab === 'function') {
+        switchTab(document.getElementById('user_type').value || 'student');
+      }
+    }
+
+    (function() {
+      var modal = document.getElementById('duplicatePlateModal');
+      if (!modal) return;
+      function closeModal() {
+        modal.style.display = 'none';
+      }
+      document.querySelectorAll('[data-duplicate-plate-close]').forEach(function(button) {
+        button.addEventListener('click', closeModal);
+      });
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.style.display === 'flex') closeModal();
+      });
+    })();
+
+    // ─── Success Modal ────────────────────────────────────────────────────────
+    (function() {
+      var successModal = document.getElementById('successModal');
+      var closeBtn     = document.getElementById('successModalClose');
+      if (!successModal || !closeBtn) return;
+
+      function closeSuccessModal() {
+        successModal.style.transition = 'opacity .25s ease';
+        successModal.style.opacity = '0';
+        setTimeout(function() {
+          successModal.style.display = 'none';
+          // Reset form and redirect clean URL (removes flash from address bar)
+          window.location.replace('/register');
+        }, 260);
+      }
+
+      closeBtn.addEventListener('click', closeSuccessModal);
+      closeBtn.addEventListener('mouseover',  function() { closeBtn.style.opacity = '.88'; });
+      closeBtn.addEventListener('mouseout',   function() { closeBtn.style.opacity = '1'; });
+      closeBtn.addEventListener('mousedown',  function() { closeBtn.style.transform = 'scale(.97)'; });
+      closeBtn.addEventListener('mouseup',    function() { closeBtn.style.transform = 'scale(1)'; });
+
+      // Also close on Escape
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && successModal.style.display === 'flex') closeSuccessModal();
+      });
+    })();
 
     // Tab switching
     function switchTab(type) {
@@ -332,8 +790,8 @@
           btn.classList.remove('text-slate-500');
         }
       });
-      document.getElementById('id_number_label').textContent = type === 'student' ? 'รหัสนักศึกษา' : 'รหัสอาจารย์/บุคลากร';
-      document.getElementById('id_number').placeholder = type === 'student' ? 'กรอกรหัสนักศึกษา' : 'กรอกรหัสอาจารย์/บุคลากร';
+      document.getElementById('id_number_label').innerHTML = (type === 'student' ? t('form.studentId') : t('form.staffId')) + ' <span class="required-mark">*</span>';
+      document.getElementById('id_number').placeholder = type === 'student' ? t('placeholder.studentId') : t('placeholder.staffId');
       // Toggle ID card sections
       document.getElementById('student-card-section').classList.toggle('active', type === 'student');
       document.getElementById('staff-card-section').classList.toggle('active', type === 'staff');
@@ -341,6 +799,8 @@
       // Only submit the visible ID-card input.
       document.getElementById('student_card_input').disabled = type !== 'student';
       document.getElementById('staff_card_input').disabled = type !== 'staff';
+      document.getElementById('student_card_input').required = type === 'student';
+      document.getElementById('staff_card_input').required = type === 'staff';
     }
 
     window.switchTab = switchTab;
@@ -352,6 +812,108 @@
     });
 
     switchTab(document.getElementById('user_type').value || 'student');
+
+    (function() {
+      const idInput = document.getElementById('id_number');
+      const phoneInput = document.getElementById('phone');
+      const plateInputs = [
+        document.getElementById('license_plate'),
+        document.getElementById('license_plate_2'),
+      ].filter(Boolean);
+
+      if (idInput) {
+        idInput.addEventListener('input', function() {
+          const upperValue = idInput.value.toUpperCase();
+          if (idInput.value !== upperValue) idInput.value = upperValue;
+        });
+      }
+
+      if (phoneInput) {
+        phoneInput.addEventListener('input', function() {
+          const numericValue = phoneInput.value.replace(/\D/g, '').slice(0, 10);
+          if (phoneInput.value !== numericValue) phoneInput.value = numericValue;
+        });
+      }
+
+      plateInputs.forEach(function(input) {
+        input.addEventListener('input', function() {
+          const compactValue = input.value.replace(/\s+/g, '').toUpperCase();
+          if (input.value !== compactValue) input.value = compactValue;
+        });
+      });
+    })();
+
+    (function() {
+      const sourceProvince = document.getElementById('province');
+      const secondProvince = document.getElementById('province_2');
+      if (sourceProvince && secondProvince) {
+        secondProvince.innerHTML = sourceProvince.innerHTML;
+      }
+
+      const toggle = document.getElementById('has_second_vehicle');
+      const section = document.getElementById('second-vehicle-section');
+      const secondFields = Array.from(document.querySelectorAll('[data-second-vehicle]'));
+      const requiredIds = new Set(['license_plate_2', 'province_2', 'motorcycle_photo_input_2', 'plate_photo_input_2']);
+
+      function setSecondVehicleEnabled(enabled) {
+        if (!toggle || !section) return;
+        section.classList.toggle('active', enabled);
+        section.setAttribute('aria-hidden', enabled ? 'false' : 'true');
+        secondFields.forEach(function(field) {
+          field.disabled = !enabled;
+          field.required = enabled && requiredIds.has(field.id);
+          if (!enabled) {
+            if (field.type === 'file') {
+              field.value = '';
+              const zone = document.querySelector('[data-file-target="' + field.id + '"]');
+              if (zone) zone.classList.remove('has-file');
+            } else {
+              field.value = '';
+            }
+          }
+        });
+        if (!enabled) {
+          ['moto-preview-2', 'plate-preview-2'].forEach(function(previewId) {
+            const preview = document.getElementById(previewId);
+            if (!preview) return;
+            if (preview.dataset.objectUrl) {
+              URL.revokeObjectURL(preview.dataset.objectUrl);
+              delete preview.dataset.objectUrl;
+            }
+            preview.removeAttribute('src');
+            preview.classList.add('hidden');
+            preview.style.display = 'none';
+          });
+        }
+      }
+
+      if (toggle) {
+        toggle.addEventListener('change', function() {
+          setSecondVehicleEnabled(toggle.checked);
+        });
+        setSecondVehicleEnabled(toggle.checked);
+      }
+    })();
+
+    (function() {
+      const languageToggle = document.getElementById('language-toggle');
+      if (!languageToggle) return;
+      languageToggle.checked = false;
+      applyLanguage('th');
+      languageToggle.addEventListener('change', function() {
+        applyLanguage(languageToggle.checked ? 'en' : 'th');
+      });
+    })();
+
+    // ─── PDPA: sync ปุ่ม submit ทุกครั้งที่ checkbox เปลี่ยน และ sync ตอน load ───
+    (function() {
+      const pdpa = document.getElementById('pdpa_consent');
+      if (!pdpa) return;
+      pdpa.addEventListener('change', toggleSubmitBtn);
+      // sync ตอน page load (รองรับ browser autofill / re-render หลัง error)
+      toggleSubmitBtn();
+    })();
+
 
     document.querySelectorAll('.upload-zone[data-file-target]').forEach(function(zone) {
       const input = document.getElementById(zone.dataset.fileTarget);
@@ -370,6 +932,8 @@
           if (input.id === 'staff_card_input') previewId = 'staff-card-preview';
           if (input.id === 'motorcycle_photo_input') previewId = 'moto-preview';
           if (input.id === 'plate_photo_input') previewId = 'plate-preview';
+          if (input.id === 'motorcycle_photo_input_2') previewId = 'moto-preview-2';
+          if (input.id === 'plate_photo_input_2') previewId = 'plate-preview-2';
           if (previewId) previewImage(input, previewId, zone.id);
         });
       }
@@ -422,7 +986,7 @@
 
       // UI: กำลังดำเนินการ
       btn.disabled = true;
-      label.textContent = 'กำลังตรวจสอบ...';
+      label.textContent = t('submit.checking');
 
       try {
         // รับ reCAPTCHA token จาก Google
@@ -442,13 +1006,19 @@
         document.getElementById('recaptcha_token').value = token;
 
         // Submit form จริง
-        label.textContent = 'กำลังส่งข้อมูล...';
+        label.textContent = t('submit.sending');
         this.submit();
       } catch (err) {
         console.error('reCAPTCHA error:', err);
-        // ให้ submit ผ่านโดยไม่มี token (server จะ handle)
         document.getElementById('recaptcha_token').value = '';
-        this.submit();
+        try {
+          this.submit();
+        } catch (submitErr) {
+          // ถ้า submit ล้มเหลว ให้ re-enable ปุ่มเพื่อให้ user ลองใหม่ได้
+          btn.disabled = false;
+          label.textContent = t('submit.default');
+          console.error('Submit error:', submitErr);
+        }
       }
     });
 

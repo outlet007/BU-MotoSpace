@@ -32,28 +32,47 @@ router.get('/', async (req, res) => {
       const [summonsRow] = await conn.query(
         `SELECT COUNT(*) AS cnt
          FROM (
-           SELECT registration_id
+           SELECT owner_key
            FROM (
              SELECT
-               r.id AS registration_id,
+               CONCAT(r.user_type, ':', r.id_number) AS owner_key,
                COALESCE(ru.violation_type_id, -ru.id) AS violation_group_id,
                COUNT(v.id) AS type_violations,
                COALESCE(MAX(vt.max_violations), MAX(ru.max_violations), ${DEFAULT_SUMMONS_THRESHOLD}) AS required_violations
              FROM registrations r
-             LEFT JOIN (
-               SELECT registration_id, MAX(created_at) AS latest_reset_at
-               FROM summons_appointments
-               GROUP BY registration_id
-             ) sa ON sa.registration_id = r.id
-             JOIN violations v
-               ON v.registration_id = r.id
-              AND v.recorded_at > COALESCE(sa.latest_reset_at, '1000-01-01 00:00:00')
+             JOIN violations v ON v.registration_id = r.id
              JOIN rules ru ON v.rule_id = ru.id
              LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
-             GROUP BY r.id, COALESCE(ru.violation_type_id, -ru.id)
+             LEFT JOIN (
+               SELECT sr.user_type, sr.id_number, sa.violation_type_id, MAX(sa.created_at) AS latest_reset_at
+               FROM summons_appointments sa
+               JOIN registrations sr ON sa.registration_id = sr.id
+               WHERE sa.violation_type_id IS NOT NULL
+               GROUP BY sr.user_type, sr.id_number, sa.violation_type_id
+             ) sa_type ON sa_type.user_type = r.user_type
+                       AND sa_type.id_number = r.id_number
+                       AND sa_type.violation_type_id = ru.violation_type_id
+             LEFT JOIN (
+               SELECT sr.user_type, sr.id_number, MAX(sa.created_at) AS latest_reset_at
+               FROM summons_appointments sa
+               JOIN registrations sr ON sa.registration_id = sr.id
+               WHERE sa.violation_type_id IS NULL
+               GROUP BY sr.user_type, sr.id_number
+             ) sa_global ON sa_global.user_type = r.user_type
+                         AND sa_global.id_number = r.id_number
+             WHERE v.deleted_at IS NULL
+               AND r.deleted_at IS NULL
+               AND v.recorded_at > COALESCE(
+               GREATEST(
+                 COALESCE(sa_type.latest_reset_at, '1000-01-01'),
+                 COALESCE(sa_global.latest_reset_at, '1000-01-01')
+               ),
+               '1000-01-01 00:00:00'
+             )
+             GROUP BY r.user_type, r.id_number, COALESCE(ru.violation_type_id, -ru.id)
              HAVING type_violations >= required_violations
            ) qualified_by_type
-           GROUP BY registration_id
+           GROUP BY owner_key
          ) candidates`
       );
       summonsCandidatesCount = parseInt(summonsRow.cnt) || 0;

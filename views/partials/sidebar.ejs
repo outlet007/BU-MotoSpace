@@ -24,7 +24,7 @@
 
   <!-- Navigation -->
   <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
-    <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold px-4 mb-2">เมนูหลัก</p>
+    <p class="sidebar-section-label px-4 mb-2">เมนูหลัก</p>
 
     <% if (admin && (admin.role === 'head' || admin.role === 'superadmin')) { %>
     <a href="/dashboard" class="sidebar-link <%= currentPath === '/dashboard' ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
@@ -50,7 +50,7 @@
     </a>
 
     <% if (admin && (admin.role === 'head' || admin.role === 'superadmin')) { %>
-    <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold px-4 mt-6 mb-2">ตรวจสอบ และรายงาน</p>
+    <p class="sidebar-section-label px-4 mt-3 mb-2">ตรวจสอบ และรายงาน</p>
 
     <a href="/registrations?status=pending" class="sidebar-link <%= currentUrl.includes('/registrations') && currentUrl.includes('status=pending') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
       <i data-lucide="file-check" class="w-5 h-5"></i>
@@ -81,37 +81,57 @@
       รายงานสถิติ
     </a>
 
-    <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold px-4 mt-6 mb-2">จัดการ</p>
+    <%# ── หมวด: จัดการ ── %>
+    <button type="button"
+            id="sidebar-section-manage-btn"
+            class="sidebar-section-toggle w-full flex items-center justify-between mt-3 mb-1 group"
+            aria-expanded="false"
+            aria-controls="sidebar-section-manage">
+      <span class="sidebar-section-label">จัดการ</span>
+      <i data-lucide="chevron-down" class="w-3.5 h-3.5 sidebar-section-chevron transition-all duration-300 sidebar-chevron"></i>
+    </button>
 
-    <a href="/rules" class="sidebar-link <%= currentPath.startsWith('/rules') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
-      <i data-lucide="shield" class="w-5 h-5"></i>
-      กฎและข้อบังคับ
-    </a>
+    <div id="sidebar-section-manage" class="sidebar-submenu space-y-1 overflow-hidden">
+      <a href="/rules" class="sidebar-link <%= currentPath.startsWith('/rules') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+        <i data-lucide="shield" class="w-5 h-5"></i>
+        กฎและข้อบังคับ
+      </a>
 
-    <% if (admin.role === 'superadmin') { %>
-    <a href="/data/import-export" class="sidebar-link <%= currentPath.startsWith('/data/import') || currentPath.startsWith('/data/export') || currentPath === '/data' ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
-      <i data-lucide="files" class="w-5 h-5"></i>
-      นำเข้า-ส่งออก ข้อมูล
-    </a>
+      <% if (admin.role === 'superadmin') { %>
+      <a href="/data/import-export" class="sidebar-link <%= currentPath.startsWith('/data/import') || currentPath.startsWith('/data/export') || currentPath === '/data' ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+        <i data-lucide="files" class="w-5 h-5"></i>
+        นำเข้า-ส่งออก ข้อมูล
+      </a>
 
-    <a href="/data/manage" class="sidebar-link <%= currentPath.startsWith('/data/manage') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
-      <i data-lucide="database-zap" class="w-5 h-5"></i>
-      จัดการข้อมูล
-    </a>
-    <% } %>
+      <a href="/data/manage" class="sidebar-link <%= currentPath.startsWith('/data/manage') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+        <i data-lucide="database-zap" class="w-5 h-5"></i>
+        จัดการข้อมูล
+      </a>
+      <% } %>
+    </div>
     <% } %>
 
     <% if (admin && admin.role === 'superadmin') { %>
-    <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold px-4 mt-6 mb-2">ระบบ</p>
+    <%# ── หมวด: ระบบ ── %>
+    <button type="button"
+            id="sidebar-section-system-btn"
+            class="sidebar-section-toggle w-full flex items-center justify-between mt-1 mb-1 group"
+            aria-expanded="false"
+            aria-controls="sidebar-section-system">
+      <span class="sidebar-section-label">ระบบ</span>
+      <i data-lucide="chevron-down" class="w-3.5 h-3.5 sidebar-section-chevron transition-all duration-300 sidebar-chevron"></i>
+    </button>
 
-    <a href="/users" class="sidebar-link <%= currentPath.startsWith('/users') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
-      <i data-lucide="users" class="w-5 h-5"></i>
-      จัดการผู้ใช้
-    </a>
-    <a href="/departments" class="sidebar-link <%= currentPath.startsWith('/departments') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
-      <i data-lucide="building-2" class="w-5 h-5"></i>
-      หน่วยงาน
-    </a>
+    <div id="sidebar-section-system" class="sidebar-submenu space-y-1 overflow-hidden">
+      <a href="/users" class="sidebar-link <%= currentPath.startsWith('/users') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+        <i data-lucide="users" class="w-5 h-5"></i>
+        จัดการผู้ใช้
+      </a>
+      <a href="/departments" class="sidebar-link <%= currentPath.startsWith('/departments') ? 'active' : '' %>" onclick="closeSidebarOnMobile()">
+        <i data-lucide="building-2" class="w-5 h-5"></i>
+        หน่วยงาน
+      </a>
+    </div>
     <% } %>
   </nav>
 
@@ -160,6 +180,81 @@
     line-height: 1;
     text-align: center;
     font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Hide sidebar scrollbar ── */
+  #sidebar nav {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+  }
+  #sidebar nav::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+  }
+
+  /* ── Collapsible sidebar sections ── */
+  .sidebar-section-toggle {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0.625rem 1rem;
+    border-radius: 0.75rem;
+    transition: background 0.2s ease;
+  }
+
+  .sidebar-section-toggle:hover {
+    background: rgba(255,255,255,0.1);
+  }
+
+  .sidebar-section-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: #fff;
+    transition: color 0.18s ease;
+  }
+
+  .sidebar-section-label::before {
+    content: '';
+    display: inline-block;
+    width: 3px;
+    height: 14px;
+    border-radius: 99px;
+    background: linear-gradient(180deg, #22c55e, #16a34a);
+    flex-shrink: 0;
+    transition: opacity 0.18s ease;
+  }
+
+  .sidebar-section-toggle:hover .sidebar-section-label {
+    color: #e2e8f0;
+  }
+
+  .sidebar-section-chevron {
+    color: #64748b;
+    flex-shrink: 0;
+    transition: color 0.18s ease, transform 0.3s ease;
+  }
+
+  .sidebar-section-toggle:hover .sidebar-section-chevron {
+    color: #cbd5e1;
+  }
+
+  .sidebar-submenu {
+    max-height: 500px;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    opacity: 1;
+  }
+
+  .sidebar-submenu.collapsed {
+    max-height: 0 !important;
+    opacity: 0;
+  }
+
+  .sidebar-chevron.rotated {
+    transform: rotate(-90deg);
   }
 
   @media (max-width: 1023px) {
@@ -672,6 +767,50 @@
       button.addEventListener('click', function(e) {
         e.preventDefault();
         setSidebarOpen(false);
+      });
+    });
+
+    /* ── Collapsible sidebar sections ── */
+    var STORAGE_KEY = 'sidebar_sections';
+
+    function loadSectionStates() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e) { return {}; }
+    }
+
+    function saveSectionState(id, isOpen) {
+      var states = loadSectionStates();
+      states[id] = isOpen;
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(states)); } catch(e) {}
+    }
+
+    function applySectionState(btn, submenu, isOpen, animate) {
+      var chevron = btn.querySelector('.sidebar-chevron');
+      if (isOpen) {
+        submenu.classList.remove('collapsed');
+        if (chevron) chevron.classList.remove('rotated');
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        submenu.classList.add('collapsed');
+        if (chevron) chevron.classList.add('rotated');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    }
+
+    document.querySelectorAll('.sidebar-section-toggle').forEach(function(btn) {
+      var targetId = btn.getAttribute('aria-controls');
+      var submenu = targetId ? document.getElementById(targetId) : null;
+      if (!submenu) return;
+
+      /* restore saved state (default: closed) */
+      var savedStates = loadSectionStates();
+      var isOpen = (savedStates[targetId] !== undefined) ? savedStates[targetId] : false;
+      applySectionState(btn, submenu, isOpen, false);
+
+      btn.addEventListener('click', function() {
+        var currentlyOpen = btn.getAttribute('aria-expanded') === 'true';
+        var nextState = !currentlyOpen;
+        applySectionState(btn, submenu, nextState, true);
+        saveSectionState(targetId, nextState);
       });
     });
   });

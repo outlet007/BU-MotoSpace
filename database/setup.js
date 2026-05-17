@@ -85,6 +85,39 @@ async function setup() {
     console.log('  ✅ registrations');
 
     await conn.query(`
+      CREATE TABLE IF NOT EXISTS vehicles (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        owner_registration_id INT NOT NULL,
+        source_registration_id INT DEFAULT NULL,
+        license_plate VARCHAR(20) NOT NULL,
+        normalized_plate VARCHAR(50) NOT NULL,
+        province VARCHAR(100) NOT NULL,
+        motorcycle_photo VARCHAR(500) DEFAULT NULL,
+        plate_photo VARCHAR(500) DEFAULT NULL,
+        status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+        notes TEXT DEFAULT NULL,
+        created_by INT DEFAULT NULL,
+        approved_by INT DEFAULT NULL,
+        approved_at TIMESTAMP NULL DEFAULT NULL,
+        deleted_at TIMESTAMP NULL DEFAULT NULL,
+        deleted_by INT DEFAULT NULL,
+        delete_reason TEXT DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_vehicles_normalized_plate (normalized_plate),
+        INDEX idx_vehicles_owner (owner_registration_id),
+        INDEX idx_vehicles_status (status),
+        INDEX idx_vehicles_deleted_at (deleted_at),
+        FOREIGN KEY (owner_registration_id) REFERENCES registrations(id) ON DELETE CASCADE,
+        FOREIGN KEY (source_registration_id) REFERENCES registrations(id) ON DELETE SET NULL,
+        FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL,
+        FOREIGN KEY (approved_by) REFERENCES admins(id) ON DELETE SET NULL,
+        FOREIGN KEY (deleted_by) REFERENCES admins(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB
+    `);
+    console.log('  ✅ vehicles');
+
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS violation_types (
         id INT AUTO_INCREMENT PRIMARY KEY,
         type_name VARCHAR(200) NOT NULL UNIQUE,

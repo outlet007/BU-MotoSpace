@@ -7,6 +7,54 @@ const { parsePositiveInt, clampPage, buildPaginationItems } = require('../utils/
 
 router.use(isAuthenticated);
 
+async function getRelatedRegistrationIdsForOwner(conn, userType, idNumber, fallbackRegistrationId) {
+  const rows = await conn.query(
+    `SELECT id
+     FROM registrations
+     WHERE user_type = ?
+       AND id_number = ?
+     ORDER BY id ASC`,
+    [userType, idNumber]
+  );
+  const ids = rows.map(row => Number(row.id)).filter(Number.isFinite);
+  const fallbackId = Number(fallbackRegistrationId);
+  if (Number.isFinite(fallbackId) && fallbackId > 0 && !ids.includes(fallbackId)) ids.unshift(fallbackId);
+  return [...new Set(ids)];
+}
+
+function sqlPlaceholders(values) {
+  return values.map(() => '?').join(', ');
+}
+
+async function getLatestOwnerResetAt(conn, registrationIds, violationTypeId) {
+  const placeholders = sqlPlaceholders(registrationIds);
+  let latestResetAt = '1000-01-01 00:00:00';
+
+  if (violationTypeId) {
+    const [typeReset] = await conn.query(
+      `SELECT MAX(created_at) as latest_reset_at
+       FROM summons_appointments
+       WHERE registration_id IN (${placeholders})
+         AND violation_type_id = ?`,
+      [...registrationIds, violationTypeId]
+    );
+    if (typeReset && typeReset.latest_reset_at) latestResetAt = typeReset.latest_reset_at;
+  }
+
+  const [globalReset] = await conn.query(
+    `SELECT MAX(created_at) as latest_reset_at
+     FROM summons_appointments
+     WHERE registration_id IN (${placeholders})
+       AND violation_type_id IS NULL`,
+    registrationIds
+  );
+  if (globalReset && globalReset.latest_reset_at && globalReset.latest_reset_at > latestResetAt) {
+    latestResetAt = globalReset.latest_reset_at;
+  }
+
+  return latestResetAt;
+}
+
 async function indexExists(conn, tableName, indexName) {
   const [row] = await conn.query(
     `SELECT COUNT(*) AS cnt
@@ -329,7 +377,10 @@ router.get('/:id', isHead, async (req, res) => {
               CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(vr.id, 6, '0')) AS report_code,
               r.id_number, r.user_type, r.first_name, r.last_name, r.license_plate,
               r.province, r.phone, r.motorcycle_photo, r.plate_photo, r.id_card_photo,
-              ru.rule_name, ru.description AS rule_desc, ru.max_violations, ru.penalty,
+              ru.rule_name, ru.description AS rule_desc,
+              COALESCE(vt.max_violations, ru.max_violations) AS max_violations,
+              ru.penalty,
+              ru.violation_type_id AS rule_violation_type_id,
               a.full_name AS reported_by_name,
               a.email     AS reported_by_email,
               a.phone     AS reported_by_phone,
@@ -351,44 +402,42 @@ router.get('/:id', isHead, async (req, res) => {
       return res.redirect('/violation-reports');
     }
 
-    // Find the violation_type_id for this rule
-    let ruleViolationTypeId = null;
-    try {
-      const [ruleRow] = await conn.query(
-        `SELECT violation_type_id FROM rules WHERE id = ?`,
-        [report.rule_id]
-      );
-      ruleViolationTypeId = ruleRow && ruleRow.violation_type_id ? ruleRow.violation_type_id : null;
-    } catch (e) { /* ignore */ }
+    const ruleViolationTypeId = report.rule_violation_type_id || null;
 
+    const relatedRegistrationIds = await getRelatedRegistrationIdsForOwner(
+      conn,
+      report.user_type,
+      report.id_number,
+      report.registration_id
+    );
+    const relatedRegistrationPlaceholders = sqlPlaceholders(relatedRegistrationIds);
     let latestResetAt = '1000-01-01 00:00:00';
     try {
-      // Type-specific reset
-      if (ruleViolationTypeId) {
-        const [typeReset] = await conn.query(
-          `SELECT MAX(created_at) as latest_reset_at FROM summons_appointments WHERE registration_id = ? AND violation_type_id = ?`,
-          [report.registration_id, ruleViolationTypeId]
-        );
-        if (typeReset && typeReset.latest_reset_at) {
-          latestResetAt = typeReset.latest_reset_at;
-        }
-      }
-      // Legacy global reset (where violation_type_id IS NULL)
-      const [globalReset] = await conn.query(
-        `SELECT MAX(created_at) as latest_reset_at FROM summons_appointments WHERE registration_id = ? AND violation_type_id IS NULL`,
-        [report.registration_id]
-      );
-      if (globalReset && globalReset.latest_reset_at && globalReset.latest_reset_at > latestResetAt) {
-        latestResetAt = globalReset.latest_reset_at;
-      }
+      latestResetAt = await getLatestOwnerResetAt(conn, relatedRegistrationIds, ruleViolationTypeId);
     } catch (e) {
       // ignore
     }
 
-    // How many confirmed violations already exist for this person+rule
+    // How many confirmed violations already exist for this owner and violation group.
     const [vioCount] = await conn.query(
-      `SELECT COUNT(*) as cnt FROM violations WHERE registration_id = ? AND rule_id = ? AND recorded_at > ?`,
-      [report.registration_id, report.rule_id, latestResetAt]
+      `SELECT COUNT(*) as cnt
+       FROM violations v
+       JOIN rules counted_rule ON v.rule_id = counted_rule.id
+       WHERE v.registration_id IN (${relatedRegistrationPlaceholders})
+         AND v.recorded_at > ?
+         AND v.deleted_at IS NULL
+         AND (
+           (? IS NOT NULL AND counted_rule.violation_type_id = ?)
+           OR (? IS NULL AND v.rule_id = ?)
+         )`,
+      [
+        ...relatedRegistrationIds,
+        latestResetAt,
+        ruleViolationTypeId,
+        ruleViolationTypeId,
+        ruleViolationTypeId,
+        report.rule_id,
+      ]
     );
 
     res.render('violation-reports/detail', {
@@ -457,9 +506,16 @@ router.post('/:id/confirm', isHead, async (req, res) => {
     transactionStarted = true;
 
     const [report] = await conn.query(
-      `SELECT vr.*, ru.max_violations, ru.rule_name, ru.penalty
+      `SELECT vr.*,
+              COALESCE(vt.max_violations, ru.max_violations) AS max_violations,
+              ru.rule_name,
+              ru.penalty,
+              ru.violation_type_id AS rule_violation_type_id,
+              r.user_type, r.id_number
        FROM violation_reports vr
        JOIN rules ru ON vr.rule_id = ru.id
+       LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
+       JOIN registrations r ON vr.registration_id = r.id
        WHERE vr.id = ? AND vr.status IN ('pending', 'rejected') AND vr.deleted_at IS NULL
        FOR UPDATE`,
       [req.params.id]
@@ -472,47 +528,43 @@ router.post('/:id/confirm', isHead, async (req, res) => {
       return res.redirect('/violation-reports');
     }
 
-    // Find the violation_type_id for this rule
-    let ruleViolationTypeId = null;
-    try {
-      const [ruleRow] = await conn.query(
-        `SELECT violation_type_id FROM rules WHERE id = ?`,
-        [report.rule_id]
-      );
-      ruleViolationTypeId = ruleRow && ruleRow.violation_type_id ? ruleRow.violation_type_id : null;
-    } catch (e) { /* ignore */ }
+    const ruleViolationTypeId = report.rule_violation_type_id || null;
 
+    const relatedRegistrationIds = await getRelatedRegistrationIdsForOwner(
+      conn,
+      report.user_type,
+      report.id_number,
+      report.registration_id
+    );
+    const relatedRegistrationPlaceholders = sqlPlaceholders(relatedRegistrationIds);
     let latestResetAt = '1000-01-01 00:00:00';
     try {
-      // Type-specific reset
-      if (ruleViolationTypeId) {
-        const [typeReset] = await conn.query(
-          `SELECT MAX(created_at) as latest_reset_at FROM summons_appointments WHERE registration_id = ? AND violation_type_id = ?`,
-          [report.registration_id, ruleViolationTypeId]
-        );
-        if (typeReset && typeReset.latest_reset_at) {
-          latestResetAt = typeReset.latest_reset_at;
-        }
-      }
-      // Legacy global reset (where violation_type_id IS NULL)
-      const [globalReset] = await conn.query(
-        `SELECT MAX(created_at) as latest_reset_at FROM summons_appointments WHERE registration_id = ? AND violation_type_id IS NULL`,
-        [report.registration_id]
-      );
-      if (globalReset && globalReset.latest_reset_at && globalReset.latest_reset_at > latestResetAt) {
-        latestResetAt = globalReset.latest_reset_at;
-      }
+      latestResetAt = await getLatestOwnerResetAt(conn, relatedRegistrationIds, ruleViolationTypeId);
     } catch (e) {
       // ignore
     }
 
     // Check violation limit
     const existingViolations = await conn.query(
-      `SELECT id
-       FROM violations
-       WHERE registration_id = ? AND rule_id = ? AND recorded_at > ?
+      `SELECT v.id
+       FROM violations v
+       JOIN rules counted_rule ON v.rule_id = counted_rule.id
+       WHERE v.registration_id IN (${relatedRegistrationPlaceholders})
+         AND v.recorded_at > ?
+         AND v.deleted_at IS NULL
+         AND (
+           (? IS NOT NULL AND counted_rule.violation_type_id = ?)
+           OR (? IS NULL AND v.rule_id = ?)
+         )
        FOR UPDATE`,
-      [report.registration_id, report.rule_id, latestResetAt]
+      [
+        ...relatedRegistrationIds,
+        latestResetAt,
+        ruleViolationTypeId,
+        ruleViolationTypeId,
+        ruleViolationTypeId,
+        report.rule_id,
+      ]
     );
     const currentCount = existingViolations.length;
 

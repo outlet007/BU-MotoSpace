@@ -17,6 +17,54 @@ function toSqlDatetime(datetimeLocal) {
   return datetimeLocal.replace('T', ' ') + ':00';
 }
 
+async function getRelatedRegistrationIdsForOwner(conn, userType, idNumber, fallbackRegistrationId) {
+  const rows = await conn.query(
+    `SELECT id
+     FROM registrations
+     WHERE user_type = ?
+       AND id_number = ?
+     ORDER BY id ASC`,
+    [userType, idNumber]
+  );
+  const ids = rows.map(row => Number(row.id)).filter(Number.isFinite);
+  const fallbackId = Number(fallbackRegistrationId);
+  if (Number.isFinite(fallbackId) && fallbackId > 0 && !ids.includes(fallbackId)) ids.unshift(fallbackId);
+  return [...new Set(ids)];
+}
+
+function sqlPlaceholders(values) {
+  return values.map(() => '?').join(', ');
+}
+
+async function getLatestOwnerResetAt(conn, registrationIds, violationTypeId) {
+  const placeholders = sqlPlaceholders(registrationIds);
+  let latestResetAt = '1000-01-01 00:00:00';
+
+  if (violationTypeId) {
+    const [typeReset] = await conn.query(
+      `SELECT MAX(created_at) as latest_reset_at
+       FROM summons_appointments
+       WHERE registration_id IN (${placeholders})
+         AND violation_type_id = ?`,
+      [...registrationIds, violationTypeId]
+    );
+    if (typeReset && typeReset.latest_reset_at) latestResetAt = typeReset.latest_reset_at;
+  }
+
+  const [globalReset] = await conn.query(
+    `SELECT MAX(created_at) as latest_reset_at
+     FROM summons_appointments
+     WHERE registration_id IN (${placeholders})
+       AND violation_type_id IS NULL`,
+    registrationIds
+  );
+  if (globalReset && globalReset.latest_reset_at && globalReset.latest_reset_at > latestResetAt) {
+    latestResetAt = globalReset.latest_reset_at;
+  }
+
+  return latestResetAt;
+}
+
 // GET /violations
 router.get('/', async (req, res) => {
   let conn;
@@ -223,7 +271,10 @@ router.get('/:id', async (req, res) => {
               DATE_FORMAT(v.recorded_at, '%Y-%m-%dT%H:%i') AS recorded_at_input,
               CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(v.id, 6, '0')) AS incident_code,
               r.motorcycle_photo, r.plate_photo, r.id_card_photo,
-              ru.rule_name, ru.description as rule_desc, ru.max_violations, ru.penalty,
+              ru.rule_name, ru.description as rule_desc,
+              COALESCE(vt.max_violations, ru.max_violations) AS max_violations,
+              ru.penalty,
+              ru.violation_type_id AS rule_violation_type_id,
               a.full_name as recorded_by_name
        FROM violations v
        JOIN registrations r ON v.registration_id = r.id
@@ -241,10 +292,42 @@ router.get('/:id', async (req, res) => {
       return res.redirect('/violations');
     }
 
-    // Count how many times this person violated this rule
+    const relatedRegistrationIds = await getRelatedRegistrationIdsForOwner(
+      conn,
+      violation.user_type,
+      violation.id_number,
+      violation.registration_id
+    );
+    const relatedRegistrationPlaceholders = sqlPlaceholders(relatedRegistrationIds);
+    let latestResetAt = '1000-01-01 00:00:00';
+    try {
+      latestResetAt = await getLatestOwnerResetAt(conn, relatedRegistrationIds, violation.rule_violation_type_id);
+    } catch (e) {
+      latestResetAt = '1000-01-01 00:00:00';
+    }
+
+    const ruleViolationTypeId = violation.rule_violation_type_id || null;
+
+    // Count how many times this owner violated this violation group across every registered vehicle.
     const [vioCount] = await conn.query(
-      'SELECT COUNT(*) as cnt FROM violations WHERE registration_id = ? AND rule_id = ? AND deleted_at IS NULL',
-      [violation.registration_id, violation.rule_id]
+      `SELECT COUNT(*) as cnt
+       FROM violations v
+       JOIN rules counted_rule ON v.rule_id = counted_rule.id
+       WHERE v.registration_id IN (${relatedRegistrationPlaceholders})
+         AND v.recorded_at > ?
+         AND v.deleted_at IS NULL
+         AND (
+           (? IS NOT NULL AND counted_rule.violation_type_id = ?)
+           OR (? IS NULL AND v.rule_id = ?)
+         )`,
+      [
+        ...relatedRegistrationIds,
+        latestResetAt,
+        ruleViolationTypeId,
+        ruleViolationTypeId,
+        ruleViolationTypeId,
+        violation.rule_id,
+      ]
     );
 
     const rules = await conn.query(
