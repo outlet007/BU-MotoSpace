@@ -555,14 +555,28 @@
         <div class="bg-gradient-to-r from-brand-50 to-emerald-50 rounded-2xl p-5 border border-brand-100">
           <div class="flex items-center gap-2 mb-3">
             <i data-lucide="shield-check" class="w-5 h-5 text-brand-500 flex-shrink-0"></i>
-            <h4 class="font-semibold text-slate-800 text-sm" data-i18n-html="pdpa.title">ข้อตกลงการยินยอมข้อมูลส่วนบุคคล (PDPA) <span class="required-mark">*</span></h4>
+            <h4 class="font-semibold text-slate-800 text-sm" data-i18n-html="pdpa.disclosureTitle">การยินยอมเปิดเผยข้อมูล <span class="required-mark">*</span></h4>
           </div>
-          <div class="text-sm text-slate-600 leading-relaxed bg-white/70 rounded-xl p-4 border border-brand-100 mb-4" data-i18n="pdpa.description">
-            ข้าพเจ้ายินยอมให้มีการเก็บรวบรวม ใช้ และเปิดเผยข้อมูลส่วนบุคคลที่ได้ให้ไว้ในระบบนี้ เพื่อวัตถุประสงค์ในการลงทะเบียนและบริหารจัดการข้อมูลรถจักรยานยนต์ รวมถึงการตรวจสอบสิทธิ์และการติดต่อประสานงานที่เกี่ยวข้อง ทั้งนี้ ข้อมูลจะถูกเก็บรักษาอย่างเหมาะสมตามมาตรการความปลอดภัยของหน่วยงาน และจะไม่นำไปใช้เพื่อวัตถุประสงค์อื่นนอกเหนือจากที่กำหนดโดยไม่ได้รับความยินยอมจากข้าพเจ้า
+          <div class="text-sm text-slate-600 leading-relaxed mb-4">
+            <p data-i18n="pdpa.disclosureDescription">ข้าพเจ้าตกลงและยินยอมให้มหาวิทยาลัยเก็บรวบรวม ใช้ ประมวลผล และเปิดเผยข้อมูลส่วนบุคคลของข้าพเจ้าที่ปรากฏในเอกสารฉบับนี้ เพื่อวัตถุประสงค์ในการขออนุญาตนำยานพาหนะเข้าจอดในลานจอดรถของมหาวิทยาลัย หรือเพื่อใช้ประโยชน์ในกิจการของมหาวิทยาลัย ทั้งนี้ ข้าพเจ้ารับทราบ ตกลง และยินยอมว่า มหาวิทยาลัยมีสิทธิเก็บรวบรวม ใช้ ประมวลผล และเปิดเผยข้อมูลส่วนบุคคลของข้าพเจ้าตามนโยบายการคุ้มครองข้อมูลส่วนบุคคลของมหาวิทยาลัยที่ประกาศใช้ในปัจจุบันหรือที่อาจเปลี่ยนแปลงแก้ไขในภายหลัง</p>
           </div>
           <label class="flex items-start gap-3 cursor-pointer group">
-            <input type="checkbox" id="pdpa_consent" name="pdpa_consent" class="mt-0.5 w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer" required>
-            <span class="text-sm text-slate-700 group-hover:text-slate-900 transition-colors" data-i18n="pdpa.accept">ข้าพเจ้าได้อ่านและยอมรับเงื่อนไขการใช้ข้อมูลส่วนบุคคลแล้ว</span>
+            <input type="checkbox" id="pdpa_disclosure_consent" name="pdpa_disclosure_consent" class="mt-0.5 w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer" required>
+            <span class="text-sm text-slate-700 group-hover:text-slate-900 transition-colors" data-i18n="pdpa.disclosureAccept">ข้าพเจ้าได้อ่านและยอมรับการยินยอมเปิดเผยข้อมูลแล้ว</span>
+          </label>
+        </div>
+
+        <div class="bg-gradient-to-r from-brand-50 to-emerald-50 rounded-2xl p-5 border border-brand-100">
+          <div class="flex items-center gap-2 mb-3">
+            <i data-lucide="badge-check" class="w-5 h-5 text-brand-500 flex-shrink-0"></i>
+            <h4 class="font-semibold text-slate-800 text-sm" data-i18n-html="pdpa.verificationTitle">การรับรองข้อมูล <span class="required-mark">*</span></h4>
+          </div>
+          <div class="text-sm text-slate-600 leading-relaxed mb-4">
+            <p data-i18n="pdpa.verificationDescription">ข้าพเจ้าขอรับรองว่ายานพาหนะหมายเลขทะเบียนดังกล่าวเป็นของข้าพเจ้า/ผู้ปกครอง หรือเจ้าของรถยินยอมให้ใช้และครอบครองโดยถูกต้องตามกฎหมาย และข้าพเจ้ายินดีจะปฏิบัติตามกฎระเบียบเกี่ยวกับการจราจรที่มหาวิทยาลัยกำหนดอย่างเคร่งครัด โดยหากฝ่าฝืนจะต้องถูกดำเนินการตามข้อบังคับฯ ว่าด้วยมารยาท ความประพฤติและวินัยนักศึกษา</p>
+          </div>
+          <label class="flex items-start gap-3 cursor-pointer group">
+            <input type="checkbox" id="pdpa_verification_consent" name="pdpa_verification_consent" class="mt-0.5 w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer" required>
+            <span class="text-sm text-slate-700 group-hover:text-slate-900 transition-colors" data-i18n="pdpa.verificationAccept">ข้าพเจ้าได้อ่านและรับรองข้อมูลดังกล่าวแล้ว</span>
           </label>
         </div>
 
@@ -734,9 +748,12 @@
         'vehicle2.toggleDescription': 'เปิดเพื่อกรอกข้อมูลรถจักรยานยนต์อีกคันในคำขอลงทะเบียนเดียวกัน',
         'vehicle2.title': 'ข้อมูลรถคันที่ 2',
         'vehicle2.description': 'ทะเบียนรถต้องไม่ซ้ำกับคันที่ 1 หรือข้อมูลที่มีอยู่ในระบบ',
-        'pdpa.title': 'ข้อตกลงการยินยอมข้อมูลส่วนบุคคล (PDPA) <span class="required-mark">*</span>',
-        'pdpa.description': 'ข้าพเจ้ายินยอมให้มีการเก็บรวบรวม ใช้ และเปิดเผยข้อมูลส่วนบุคคลที่ได้ให้ไว้ในระบบนี้ เพื่อวัตถุประสงค์ในการลงทะเบียนและบริหารจัดการข้อมูลรถจักรยานยนต์ รวมถึงการตรวจสอบสิทธิ์และการติดต่อประสานงานที่เกี่ยวข้อง ทั้งนี้ ข้อมูลจะถูกเก็บรักษาอย่างเหมาะสมตามมาตรการความปลอดภัยของหน่วยงาน และจะไม่นำไปใช้เพื่อวัตถุประสงค์อื่นนอกเหนือจากที่กำหนดโดยไม่ได้รับความยินยอมจากข้าพเจ้า',
-        'pdpa.accept': 'ข้าพเจ้าได้อ่านและยอมรับเงื่อนไขการใช้ข้อมูลส่วนบุคคลแล้ว',
+        'pdpa.disclosureTitle': 'การยินยอมเปิดเผยข้อมูล <span class="required-mark">*</span>',
+        'pdpa.disclosureDescription': 'ข้าพเจ้าตกลงและยินยอมให้มหาวิทยาลัยเก็บรวบรวม ใช้ ประมวลผล และเปิดเผยข้อมูลส่วนบุคคลของข้าพเจ้าที่ปรากฏในเอกสารฉบับนี้ เพื่อวัตถุประสงค์ในการขออนุญาตนำยานพาหนะเข้าจอดในลานจอดรถของมหาวิทยาลัย หรือเพื่อใช้ประโยชน์ในกิจการของมหาวิทยาลัย ทั้งนี้ ข้าพเจ้ารับทราบ ตกลง และยินยอมว่า มหาวิทยาลัยมีสิทธิเก็บรวบรวม ใช้ ประมวลผล และเปิดเผยข้อมูลส่วนบุคคลของข้าพเจ้าตามนโยบายการคุ้มครองข้อมูลส่วนบุคคลของมหาวิทยาลัยที่ประกาศใช้ในปัจจุบันหรือที่อาจเปลี่ยนแปลงแก้ไขในภายหลัง',
+        'pdpa.disclosureAccept': 'ข้าพเจ้าได้อ่านและยอมรับการยินยอมเปิดเผยข้อมูลแล้ว',
+        'pdpa.verificationTitle': 'การรับรองข้อมูล <span class="required-mark">*</span>',
+        'pdpa.verificationDescription': 'ข้าพเจ้าขอรับรองว่ายานพาหนะหมายเลขทะเบียนดังกล่าวเป็นของข้าพเจ้า/ผู้ปกครอง หรือเจ้าของรถยินยอมให้ใช้และครอบครองโดยถูกต้องตามกฎหมาย และข้าพเจ้ายินดีจะปฏิบัติตามกฎระเบียบเกี่ยวกับการจราจรที่มหาวิทยาลัยกำหนดอย่างเคร่งครัด โดยหากฝ่าฝืนจะต้องถูกดำเนินการตามข้อบังคับฯ ว่าด้วยมารยาท ความประพฤติและวินัยนักศึกษา',
+        'pdpa.verificationAccept': 'ข้าพเจ้าได้อ่านและรับรองข้อมูลดังกล่าวแล้ว',
         'submit.default': 'ลงทะเบียน',
         'submit.checking': 'กำลังตรวจสอบ...',
         'submit.sending': 'กำลังส่งข้อมูล...',
@@ -821,9 +838,12 @@
         'vehicle2.toggleDescription': 'Turn on to add another motorcycle in this registration request.',
         'vehicle2.title': 'Vehicle 2 information',
         'vehicle2.description': 'The license plate must not duplicate vehicle 1 or existing records.',
-        'pdpa.title': 'Personal Data Consent Agreement (PDPA) <span class="required-mark">*</span>',
-        'pdpa.description': 'I consent to the collection, use, and disclosure of the personal data provided in this system for motorcycle registration and management, including eligibility verification and related communication. The data will be protected using appropriate security measures and will not be used for other purposes without my consent.',
-        'pdpa.accept': 'I have read and agree to the personal data terms.',
+        'pdpa.disclosureTitle': 'Consent for Information Disclosure <span class="required-mark">*</span>',
+        'pdpa.disclosureDescription': 'I hereby agree and give consent to the University to collect, process and disclose my personal data for the purpose relating to a permission for parking at the University Parking Lot or for the University’s related business. In addition, I also acknowledge, agree and give consent to the University to collect, process and disclose my personal data in accordance with the Personal Data Protection policies currently announced on the website or which may be amended at a later date.',
+        'pdpa.disclosureAccept': 'I have read and agree to the consent for information disclosure.',
+        'pdpa.verificationTitle': 'Information Verification <span class="required-mark">*</span>',
+        'pdpa.verificationDescription': 'I hereby confirm that the registered vehicle with the license plate number belongs to me/my parent or I receive a permission to use from the vehicle’s legal owner. I agree to strictly adhere to the traffic rules and regulations as set by the University. In case of any violation of the traffic rules and regulations, the University shall take disciplinary action against me (the student) in accordance with the Student Code of Conduct.',
+        'pdpa.verificationAccept': 'I have read and confirm the information above.',
         'submit.default': 'Register',
         'submit.checking': 'Verifying...',
         'submit.sending': 'Submitting...',
@@ -1098,9 +1118,14 @@
 
     // ─── PDPA: sync ปุ่ม submit ทุกครั้งที่ checkbox เปลี่ยน และ sync ตอน load ───
     (function() {
-      const pdpa = document.getElementById('pdpa_consent');
-      if (!pdpa) return;
-      pdpa.addEventListener('change', toggleSubmitBtn);
+      const consentCheckboxes = [
+        document.getElementById('pdpa_disclosure_consent'),
+        document.getElementById('pdpa_verification_consent'),
+      ].filter(Boolean);
+      if (consentCheckboxes.length === 0) return;
+      consentCheckboxes.forEach(function(checkbox) {
+        checkbox.addEventListener('change', toggleSubmitBtn);
+      });
       // sync ตอน page load (รองรับ browser autofill / re-render หลัง error)
       toggleSubmitBtn();
     })();
@@ -1162,9 +1187,10 @@
 
     // PDPA consent toggle
     function toggleSubmitBtn() {
-      const checkbox = document.getElementById('pdpa_consent');
+      const disclosureConsent = document.getElementById('pdpa_disclosure_consent');
+      const verificationConsent = document.getElementById('pdpa_verification_consent');
       const btn = document.getElementById('submit-btn');
-      btn.disabled = !checkbox.checked;
+      btn.disabled = !(disclosureConsent && disclosureConsent.checked && verificationConsent && verificationConsent.checked);
     }
 
     // ─── reCAPTCHA v3 + Form Submit ─────────────────────────────────────────
