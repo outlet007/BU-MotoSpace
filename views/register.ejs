@@ -26,6 +26,7 @@
     }
     .fade-in { animation: fadeIn 0.5s ease-out; }
     @keyframes fadeIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes modalSlideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
     .tab-btn { cursor: pointer; }
     .tab-btn.active { border-color: #16a34a; color: #16a34a; background: #f0fdf4; }
     .upload-zone { border: 2px dashed #cbd5e1; transition: all 0.2s; position: relative; overflow: hidden; }
@@ -194,13 +195,13 @@
           </svg>
         </div>
         <!-- Title -->
-        <h2 id="success-modal-title" style="font-size:1.3rem;font-weight:700;color:#0f172a;margin-bottom:.5rem;">ลงทะเบียนสำเร็จ!</h2>
+        <h2 id="success-modal-title" style="font-size:1.3rem;font-weight:700;color:#0f172a;margin-bottom:.5rem;" data-i18n="success.title">ลงทะเบียนสำเร็จ!</h2>
         <!-- Divider -->
         <div style="width:48px;height:3px;background:linear-gradient(90deg,#16a34a,#22c55e);border-radius:99px;margin:0 auto 1.75rem;"></div>
         <!-- Button -->
         <button type="button" id="successModalClose"
           style="width:100%;padding:.875rem;background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;font-size:.975rem;font-weight:600;border:none;border-radius:12px;cursor:pointer;box-shadow:0 4px 14px rgba(22,163,74,.4);transition:opacity .15s,transform .15s;">
-          ตกลง
+          <span data-i18n="success.ok">ตกลง</span>
         </button>
       </div>
     </div>
@@ -237,11 +238,11 @@
                 <i data-lucide="alert-triangle" class="w-5 h-5"></i>
               </div>
               <div>
-                <h3 id="duplicate-plate-title" class="text-base font-bold text-slate-800">พบทะเบียนรถซ้ำ</h3>
-                <p class="text-sm text-slate-500 mt-1">ไม่สามารถลงทะเบียนด้วยทะเบียนนี้ได้</p>
+                <h3 id="duplicate-plate-title" class="text-base font-bold text-slate-800" data-i18n="duplicate.title">พบทะเบียนรถซ้ำ</h3>
+                <p class="text-sm text-slate-500 mt-1" data-i18n="duplicate.description">ไม่สามารถลงทะเบียนด้วยทะเบียนนี้ได้</p>
               </div>
             </div>
-            <button type="button" data-duplicate-plate-close class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label="ปิด">
+            <button type="button" data-duplicate-plate-close class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label="ปิด" data-i18n-aria-label="aria.close">
               <i data-lucide="x" class="w-4 h-4"></i>
             </button>
           </div>
@@ -252,7 +253,7 @@
           </div>
         </div>
         <div style="display:flex;justify-content:flex-end;padding:0 24px 22px;">
-          <button type="button" data-duplicate-plate-close class="btn btn-primary justify-center">รับทราบ</button>
+          <button type="button" data-duplicate-plate-close class="btn btn-primary justify-center" data-i18n="duplicate.ok">รับทราบ</button>
         </div>
       </div>
     </div>
@@ -316,7 +317,7 @@
             <label class="label" id="id_number_label">รหัสนักศึกษา <span class="required-mark">*</span></label>
             <div class="relative">
               <i data-lucide="hash" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-              <input type="text" name="id_number" id="id_number" class="input uppercase" style="padding-left:2.75rem" placeholder="กรอกรหัส" autocomplete="off" required>
+              <input type="text" name="id_number" id="id_number" class="input" style="padding-left:2.75rem" placeholder="กรอกรหัส" autocomplete="off" required>
             </div>
           </div>
           <div>
@@ -584,88 +585,88 @@
     <div id="registrationConfirmModal"
          class="hidden fixed inset-0 z-[10000] items-center justify-center px-4 py-6"
          aria-modal="true" role="dialog" aria-labelledby="registration-confirm-title">
-      <div class="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" data-confirm-edit></div>
-      <div class="relative w-full max-w-2xl max-h-[92vh] overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div class="absolute inset-0" style="background:rgba(15,23,42,.45);backdrop-filter:blur(4px);" data-confirm-edit></div>
+      <div class="relative w-full max-w-2xl max-h-[92vh] overflow-hidden bg-white" style="border-radius:16px;box-shadow:0 25px 60px rgba(15,23,42,.28);animation:modalSlideUp .25s cubic-bezier(.16,1,.3,1);">
         <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
           <div class="flex items-start gap-3">
             <div class="w-10 h-10 rounded-xl bg-brand-100 text-brand-600 flex items-center justify-center flex-shrink-0">
               <i data-lucide="clipboard-check" class="w-5 h-5"></i>
             </div>
             <div>
-              <h2 id="registration-confirm-title" class="text-lg font-bold text-slate-800">ยืนยันข้อมูลลงทะเบียน</h2>
-              <p class="text-sm text-slate-500 mt-1">กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนกดยืนยัน</p>
+              <h2 id="registration-confirm-title" class="text-lg font-bold text-slate-800" data-i18n="confirm.title">ยืนยันข้อมูลลงทะเบียน</h2>
+              <p class="text-sm text-slate-500 mt-1" data-i18n="confirm.description">กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนกดยืนยัน</p>
             </div>
           </div>
-          <button type="button" data-confirm-edit class="w-9 h-9 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center" aria-label="ปิด">
+          <button type="button" data-confirm-edit class="w-9 h-9 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center" aria-label="ปิด" data-i18n-aria-label="aria.close">
             <i data-lucide="x" class="w-5 h-5"></i>
           </button>
         </div>
 
         <div class="overflow-y-auto px-5 py-5 space-y-5" style="max-height:calc(92vh - 156px);">
           <section>
-            <h3 class="text-sm font-bold text-slate-700 mb-3">ข้อมูลผู้ลงทะเบียน</h3>
+            <h3 class="text-sm font-bold text-slate-700 mb-3" data-i18n="confirm.personInfo">ข้อมูลผู้ลงทะเบียน</h3>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div class="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
-                <dt class="text-xs text-slate-400 mb-1">ประเภท</dt>
+                <dt class="text-xs text-slate-400 mb-1" data-i18n="confirm.type">ประเภท</dt>
                 <dd id="confirm-user-type" class="font-semibold text-slate-800"></dd>
               </div>
               <div class="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
-                <dt class="text-xs text-slate-400 mb-1">รหัส</dt>
+                <dt class="text-xs text-slate-400 mb-1" data-i18n="confirm.id">รหัส</dt>
                 <dd id="confirm-id-number" class="font-semibold text-slate-800 break-words"></dd>
               </div>
               <div class="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
-                <dt class="text-xs text-slate-400 mb-1">ชื่อ</dt>
+                <dt class="text-xs text-slate-400 mb-1" data-i18n="confirm.firstName">ชื่อ</dt>
                 <dd id="confirm-first-name" class="font-semibold text-slate-800 break-words"></dd>
               </div>
               <div class="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
-                <dt class="text-xs text-slate-400 mb-1">นามสกุล</dt>
+                <dt class="text-xs text-slate-400 mb-1" data-i18n="confirm.lastName">นามสกุล</dt>
                 <dd id="confirm-last-name" class="font-semibold text-slate-800 break-words"></dd>
               </div>
               <div class="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 sm:col-span-2">
-                <dt class="text-xs text-slate-400 mb-1">เบอร์โทรศัพท์</dt>
+                <dt class="text-xs text-slate-400 mb-1" data-i18n="confirm.phone">เบอร์โทรศัพท์</dt>
                 <dd id="confirm-phone" class="font-semibold text-slate-800 break-words"></dd>
               </div>
             </dl>
             <div class="mt-4">
-              <p class="text-xs font-bold text-slate-500 mb-2">รูปบัตรประจำตัว</p>
+              <p class="text-xs font-bold text-slate-500 mb-2" data-i18n="confirm.idCardPhoto">รูปบัตรประจำตัว</p>
               <div id="confirm-person-files" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
             </div>
           </section>
 
           <section>
-            <h3 class="text-sm font-bold text-slate-700 mb-3">ข้อมูลรถ</h3>
+            <h3 class="text-sm font-bold text-slate-700 mb-3" data-i18n="confirm.vehicleInfo">ข้อมูลรถ</h3>
             <div class="space-y-3">
               <div class="rounded-xl border border-slate-200 p-4">
-                <p class="text-sm font-bold text-brand-600 mb-3">รถคันที่ 1</p>
+                <p class="text-sm font-bold text-brand-600 mb-3" data-i18n="confirm.vehicle1">รถคันที่ 1</p>
                 <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                   <div>
-                    <dt class="text-xs text-slate-400 mb-1">ป้ายทะเบียน</dt>
+                    <dt class="text-xs text-slate-400 mb-1" data-i18n="confirm.licensePlate">ป้ายทะเบียน</dt>
                     <dd id="confirm-license-plate" class="font-semibold text-slate-800 break-words"></dd>
                   </div>
                   <div>
-                    <dt class="text-xs text-slate-400 mb-1">จังหวัด</dt>
+                    <dt class="text-xs text-slate-400 mb-1" data-i18n="confirm.province">จังหวัด</dt>
                     <dd id="confirm-province" class="font-semibold text-slate-800 break-words"></dd>
                   </div>
                 </dl>
                 <div class="mt-4">
-                  <p class="text-xs font-bold text-slate-500 mb-2">รูปประกอบรถคันที่ 1</p>
+                  <p class="text-xs font-bold text-slate-500 mb-2" data-i18n="confirm.vehicle1Photos">รูปประกอบรถคันที่ 1</p>
                   <div id="confirm-vehicle-1-files" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
                 </div>
               </div>
               <div id="confirm-second-vehicle" class="hidden rounded-xl border border-slate-200 p-4">
-                <p class="text-sm font-bold text-brand-600 mb-3">รถคันที่ 2</p>
+                <p class="text-sm font-bold text-brand-600 mb-3" data-i18n="confirm.vehicle2">รถคันที่ 2</p>
                 <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                   <div>
-                    <dt class="text-xs text-slate-400 mb-1">ป้ายทะเบียน</dt>
+                    <dt class="text-xs text-slate-400 mb-1" data-i18n="confirm.licensePlate">ป้ายทะเบียน</dt>
                     <dd id="confirm-license-plate-2" class="font-semibold text-slate-800 break-words"></dd>
                   </div>
                   <div>
-                    <dt class="text-xs text-slate-400 mb-1">จังหวัด</dt>
+                    <dt class="text-xs text-slate-400 mb-1" data-i18n="confirm.province">จังหวัด</dt>
                     <dd id="confirm-province-2" class="font-semibold text-slate-800 break-words"></dd>
                   </div>
                 </dl>
                 <div class="mt-4">
-                  <p class="text-xs font-bold text-slate-500 mb-2">รูปประกอบรถคันที่ 2</p>
+                  <p class="text-xs font-bold text-slate-500 mb-2" data-i18n="confirm.vehicle2Photos">รูปประกอบรถคันที่ 2</p>
                   <div id="confirm-vehicle-2-files" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
                 </div>
               </div>
@@ -677,11 +678,11 @@
         <div class="flex flex-col sm:flex-row gap-3 border-t border-slate-200 px-5 py-4 bg-slate-50">
           <button type="button" id="confirm-edit-btn" class="btn btn-secondary flex-1 justify-center">
             <i data-lucide="pencil" class="w-4 h-4"></i>
-            แก้ไขข้อมูล
+            <span data-i18n="confirm.edit">แก้ไขข้อมูล</span>
           </button>
           <button type="button" id="confirm-submit-btn" class="btn btn-primary flex-1 justify-center">
             <i data-lucide="check-circle" class="w-4 h-4"></i>
-            ยืนยันข้อมูล
+            <span data-i18n="confirm.submit">ยืนยันข้อมูล</span>
           </button>
         </div>
       </div>
@@ -723,8 +724,8 @@
         'form.platePhoto': 'รูปป้ายทะเบียน <span class="required-mark">*</span>',
         'placeholder.firstName': 'กรอกชื่อ',
         'placeholder.lastName': 'กรอกนามสกุล',
-        'placeholder.studentId': 'ตัวเลข 10 ตัว',
-        'placeholder.staffId': 'ตัวอักษร/ตัวเลข 6 ตัว',
+        'placeholder.studentId': 'กรอกรหัสนักศึกษา',
+        'placeholder.staffId': 'กรอกรหัสอาจารย์/บุคลากร',
         'upload.studentCard': 'คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตรนักศึกษา',
         'upload.staffCard': 'คลิกเพื่อถ่ายรูปหรือเลือกภาพบัตรอาจารย์/บุคลากร',
         'upload.supported': 'รองรับไฟล์ JPG, PNG, WEBP, HEIC',
@@ -741,12 +742,46 @@
         'submit.default': 'ลงทะเบียน',
         'submit.checking': 'กำลังตรวจสอบ...',
         'submit.sending': 'กำลังส่งข้อมูล...',
+        'duplicate.title': 'พบทะเบียนรถซ้ำ',
+        'duplicate.description': 'ไม่สามารถลงทะเบียนด้วยทะเบียนนี้ได้',
+        'duplicate.ok': 'รับทราบ',
+        'success.title': 'ลงทะเบียนสำเร็จ!',
+        'success.ok': 'ตกลง',
+        'confirm.title': 'ยืนยันข้อมูลลงทะเบียน',
+        'confirm.description': 'กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนกดยืนยัน',
+        'confirm.personInfo': 'ข้อมูลผู้ลงทะเบียน',
+        'confirm.type': 'ประเภท',
+        'confirm.id': 'รหัส',
+        'confirm.firstName': 'ชื่อ',
+        'confirm.lastName': 'นามสกุล',
+        'confirm.phone': 'เบอร์โทรศัพท์',
+        'confirm.idCardPhoto': 'รูปบัตรประจำตัว',
+        'confirm.vehicleInfo': 'ข้อมูลรถ',
+        'confirm.vehicle1': 'รถคันที่ 1',
+        'confirm.vehicle2': 'รถคันที่ 2',
+        'confirm.licensePlate': 'ป้ายทะเบียน',
+        'confirm.province': 'จังหวัด',
+        'confirm.vehicle1Photos': 'รูปประกอบรถคันที่ 1',
+        'confirm.vehicle2Photos': 'รูปประกอบรถคันที่ 2',
+        'confirm.edit': 'แก้ไขข้อมูล',
+        'confirm.submit': 'ยืนยันข้อมูล',
+        'confirm.userTypeStudent': 'นักศึกษา',
+        'confirm.userTypeStaff': 'อาจารย์/บุคลากร',
+        'confirm.studentCardPhoto': 'รูปบัตรนักศึกษา',
+        'confirm.staffCardPhoto': 'รูปบัตรอาจารย์/บุคลากร',
+        'confirm.motorcyclePhoto1': 'รูปรถคันที่ 1',
+        'confirm.platePhoto1': 'รูปป้ายทะเบียนคันที่ 1',
+        'confirm.motorcyclePhoto2': 'รูปรถคันที่ 2',
+        'confirm.platePhoto2': 'รูปป้ายทะเบียนคันที่ 2',
+        'validation.studentId': 'กรุณากรอกรหัสนักศึกษาเป็นตัวเลข 10 ตัว และห้ามมีช่องว่าง',
+        'validation.staffId': 'กรุณากรอกรหัสอาจารย์/บุคลากรเป็นตัวอักษรหรือตัวเลขรวม 6 ตัว และห้ามมีช่องว่าง',
         'recaptcha.prefix': 'เว็บไซต์นี้ได้รับการป้องกันโดย reCAPTCHA และนโยบาย',
         'recaptcha.privacy': 'ความเป็นส่วนตัว',
         'recaptcha.and': 'และ',
         'recaptcha.terms': 'ข้อกำหนดการใช้งาน',
         'recaptcha.suffix': 'ของ Google มีผลบังคับใช้',
         'footer.adminLogin': 'เข้าสู่ระบบสำหรับเจ้าหน้าที่',
+        'aria.close': 'ปิด',
         'aria.languageToggle': 'สลับภาษา ไทย/อังกฤษ',
         'aria.studentCard': 'เลือกรูปถ่ายบัตรนักศึกษา',
         'aria.staffCard': 'เลือกรูปถ่ายบัตรอาจารย์หรือบุคลากร',
@@ -776,8 +811,8 @@
         'form.platePhoto': 'License plate photo <span class="required-mark">*</span>',
         'placeholder.firstName': 'Enter first name',
         'placeholder.lastName': 'Enter last name',
-        'placeholder.studentId': '10 digits',
-        'placeholder.staffId': '6 letters/numbers',
+        'placeholder.studentId': 'Enter student ID',
+        'placeholder.staffId': 'Enter lecturer / staff ID',
         'upload.studentCard': 'Click to take or choose a student ID card photo',
         'upload.staffCard': 'Click to take or choose a lecturer / staff ID card photo',
         'upload.supported': 'Supports JPG, PNG, WEBP, and HEIC files',
@@ -794,12 +829,46 @@
         'submit.default': 'Register',
         'submit.checking': 'Verifying...',
         'submit.sending': 'Submitting...',
+        'duplicate.title': 'Duplicate license plate found',
+        'duplicate.description': 'This license plate cannot be used for registration.',
+        'duplicate.ok': 'OK',
+        'success.title': 'Registration successful!',
+        'success.ok': 'OK',
+        'confirm.title': 'Confirm registration details',
+        'confirm.description': 'Please check your information before confirming.',
+        'confirm.personInfo': 'Registrant information',
+        'confirm.type': 'Type',
+        'confirm.id': 'ID',
+        'confirm.firstName': 'First name',
+        'confirm.lastName': 'Last name',
+        'confirm.phone': 'Phone number',
+        'confirm.idCardPhoto': 'ID card photo',
+        'confirm.vehicleInfo': 'Vehicle information',
+        'confirm.vehicle1': 'Vehicle 1',
+        'confirm.vehicle2': 'Vehicle 2',
+        'confirm.licensePlate': 'License plate',
+        'confirm.province': 'Province',
+        'confirm.vehicle1Photos': 'Vehicle 1 photos',
+        'confirm.vehicle2Photos': 'Vehicle 2 photos',
+        'confirm.edit': 'Edit details',
+        'confirm.submit': 'Confirm details',
+        'confirm.userTypeStudent': 'Student',
+        'confirm.userTypeStaff': 'Lecturer / Staff',
+        'confirm.studentCardPhoto': 'Student ID card photo',
+        'confirm.staffCardPhoto': 'Lecturer / Staff ID card photo',
+        'confirm.motorcyclePhoto1': 'Vehicle 1 photo',
+        'confirm.platePhoto1': 'Vehicle 1 license plate photo',
+        'confirm.motorcyclePhoto2': 'Vehicle 2 photo',
+        'confirm.platePhoto2': 'Vehicle 2 license plate photo',
+        'validation.studentId': 'Please enter a 10-digit student ID with no spaces.',
+        'validation.staffId': 'Please enter a 6-character lecturer / staff ID using letters or numbers only, with no spaces.',
         'recaptcha.prefix': 'This site is protected by reCAPTCHA and the Google',
         'recaptcha.privacy': 'Privacy Policy',
         'recaptcha.and': 'and',
         'recaptcha.terms': 'Terms of Service',
         'recaptcha.suffix': 'apply',
         'footer.adminLogin': 'Staff login',
+        'aria.close': 'Close',
         'aria.languageToggle': 'Switch language Thai / English',
         'aria.studentCard': 'Choose student ID card photo',
         'aria.staffCard': 'Choose lecturer or staff ID card photo',
@@ -900,9 +969,7 @@
       idNumberInput.maxLength = type === 'student' ? 10 : 6;
       idNumberInput.pattern = type === 'student' ? '[0-9]{10}' : '[A-Za-z0-9]{6}';
       idNumberInput.inputMode = type === 'student' ? 'numeric' : 'text';
-      idNumberInput.title = type === 'student'
-        ? 'กรุณากรอกรหัสนักศึกษาเป็นตัวเลข 10 ตัว และห้ามมีช่องว่าง'
-        : 'กรุณากรอกรหัสอาจารย์/บุคลากรเป็นตัวอักษรหรือตัวเลขรวม 6 ตัว และห้ามมีช่องว่าง';
+      idNumberInput.title = type === 'student' ? t('validation.studentId') : t('validation.staffId');
       idNumberInput.setCustomValidity('');
       // Toggle ID card sections
       document.getElementById('student-card-section').classList.toggle('active', type === 'student');
@@ -1014,10 +1081,20 @@
     (function() {
       const languageToggle = document.getElementById('language-toggle');
       if (!languageToggle) return;
-      languageToggle.checked = false;
-      applyLanguage('th');
+      let savedLanguage = 'th';
+      try {
+        savedLanguage = localStorage.getItem('registerLanguage') || 'th';
+      } catch (err) {
+        savedLanguage = 'th';
+      }
+      languageToggle.checked = savedLanguage === 'en';
+      applyLanguage(savedLanguage);
       languageToggle.addEventListener('change', function() {
-        applyLanguage(languageToggle.checked ? 'en' : 'th');
+        const nextLanguage = languageToggle.checked ? 'en' : 'th';
+        try {
+          localStorage.setItem('registerLanguage', nextLanguage);
+        } catch (err) {}
+        applyLanguage(nextLanguage);
       });
     })();
 
@@ -1145,7 +1222,7 @@
         if (el) el.innerHTML = '';
       });
 
-      setConfirmText('confirm-user-type', userType === 'student' ? 'นักศึกษา' : 'อาจารย์/บุคลากร');
+      setConfirmText('confirm-user-type', userType === 'student' ? t('confirm.userTypeStudent') : t('confirm.userTypeStaff'));
       setConfirmText('confirm-id-number', document.getElementById('id_number').value.trim());
       setConfirmText('confirm-first-name', document.getElementById('first_name').value.trim());
       setConfirmText('confirm-last-name', document.getElementById('last_name').value.trim());
@@ -1157,12 +1234,12 @@
 
       document.getElementById('confirm-second-vehicle').classList.toggle('hidden', !hasSecondVehicle);
 
-      addConfirmFile('confirm-person-files', userType === 'student' ? 'รูปบัตรนักศึกษา' : 'รูปบัตรอาจารย์/บุคลากร', userType === 'student' ? 'student_card_input' : 'staff_card_input', userType === 'student' ? 'student-card-preview' : 'staff-card-preview');
-      addConfirmFile('confirm-vehicle-1-files', 'รูปรถคันที่ 1', 'motorcycle_photo_input', 'moto-preview');
-      addConfirmFile('confirm-vehicle-1-files', 'รูปป้ายทะเบียนคันที่ 1', 'plate_photo_input', 'plate-preview');
+      addConfirmFile('confirm-person-files', userType === 'student' ? t('confirm.studentCardPhoto') : t('confirm.staffCardPhoto'), userType === 'student' ? 'student_card_input' : 'staff_card_input', userType === 'student' ? 'student-card-preview' : 'staff-card-preview');
+      addConfirmFile('confirm-vehicle-1-files', t('confirm.motorcyclePhoto1'), 'motorcycle_photo_input', 'moto-preview');
+      addConfirmFile('confirm-vehicle-1-files', t('confirm.platePhoto1'), 'plate_photo_input', 'plate-preview');
       if (hasSecondVehicle) {
-        addConfirmFile('confirm-vehicle-2-files', 'รูปรถคันที่ 2', 'motorcycle_photo_input_2', 'moto-preview-2');
-        addConfirmFile('confirm-vehicle-2-files', 'รูปป้ายทะเบียนคันที่ 2', 'plate_photo_input_2', 'plate-preview-2');
+        addConfirmFile('confirm-vehicle-2-files', t('confirm.motorcyclePhoto2'), 'motorcycle_photo_input_2', 'moto-preview-2');
+        addConfirmFile('confirm-vehicle-2-files', t('confirm.platePhoto2'), 'plate_photo_input_2', 'plate-preview-2');
       }
     }
 
@@ -1192,9 +1269,7 @@
         ? /^[0-9]{10}$/.test(value)
         : /^[A-Za-z0-9]{6}$/.test(value);
 
-      idInput.setCustomValidity(isValid ? '' : (userType === 'student'
-        ? 'กรุณากรอกรหัสนักศึกษาเป็นตัวเลข 10 ตัว และห้ามมีช่องว่าง'
-        : 'กรุณากรอกรหัสอาจารย์/บุคลากรเป็นตัวอักษรหรือตัวเลขรวม 6 ตัว และห้ามมีช่องว่าง'));
+      idInput.setCustomValidity(isValid ? '' : (userType === 'student' ? t('validation.studentId') : t('validation.staffId')));
       return isValid;
     }
 
