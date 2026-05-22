@@ -624,7 +624,13 @@ router.post('/:id/confirm', isHead, async (req, res) => {
    POST /violation-reports/:id/reject  —  reject report
    ───────────────────────────────────────────────────────────────────────────── */
 router.post('/:id/reject', isHead, async (req, res) => {
-  const { review_note } = req.body;
+  const reviewNote = (req.body.review_note || '').trim();
+
+  if (!reviewNote) {
+    req.flash('error', 'กรุณากรอกหมายเหตุก่อนยืนยัน');
+    return res.redirect(`/violation-reports/${req.params.id}`);
+  }
+
   let conn;
   let transactionStarted = false;
   try {
@@ -650,7 +656,7 @@ router.post('/:id/reject', isHead, async (req, res) => {
         `UPDATE violations
          SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
          WHERE id = ? AND deleted_at IS NULL`,
-        [req.session.admin.id, review_note || 'ปฏิเสธรายการแจ้งหลังจากยืนยันแล้ว', report.violation_id]
+        [req.session.admin.id, reviewNote, report.violation_id]
       );
     }
 
@@ -658,7 +664,7 @@ router.post('/:id/reject', isHead, async (req, res) => {
       `UPDATE violation_reports
        SET status = 'rejected', reviewed_by = ?, reviewed_at = NOW(), review_note = ?, violation_id = NULL
        WHERE id = ?`,
-      [req.session.admin.id, review_note || null, req.params.id]
+      [req.session.admin.id, reviewNote, req.params.id]
     );
 
     await conn.commit();

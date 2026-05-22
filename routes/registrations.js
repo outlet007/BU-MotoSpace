@@ -1119,6 +1119,13 @@ router.post('/:id/approve', isHead, async (req, res) => {
 
 // POST /registrations/:id/reject
 router.post('/:id/reject', isHead, async (req, res) => {
+  const rejectionNote = (req.body.notes || '').trim();
+
+  if (!rejectionNote) {
+    req.flash('error', 'กรุณากรอกหมายเหตุก่อนยืนยัน');
+    return res.redirect('/registrations/' + req.params.id);
+  }
+
   let conn;
   try {
     conn = await pool.getConnection();
@@ -1134,11 +1141,11 @@ router.post('/:id/reject', isHead, async (req, res) => {
              owner_registration_id = ?
              AND source_registration_id IS NULL
              AND created_by IS NULL
-           )
-         )`,
-      [req.body.notes || '', req.session.admin.id, req.params.id, req.params.id]
+         )
+       )`,
+      [rejectionNote, req.session.admin.id, req.params.id, req.params.id]
     );
-    await syncRegistrationStatusFromPublicVehicles(conn, Number(req.params.id), req.session.admin.id, req.body.notes || '');
+    await syncRegistrationStatusFromPublicVehicles(conn, Number(req.params.id), req.session.admin.id, rejectionNote);
     await conn.commit();
     req.flash('success', 'ปฏิเสธเรียบร้อยแล้ว');
   } catch (err) {

@@ -328,21 +328,24 @@
 <div id="reject-modal" class="modal-overlay">
   <div class="modal-box">
     <div class="flex items-center justify-between mb-5">
-      <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
-        <i data-lucide="x-circle" class="w-4 h-4 text-red-500"></i> ปฏิเสธรายการ
+        <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+          <i data-lucide="x-circle" class="w-4 h-4 text-red-500"></i> ปฏิเสธการกระทำผิดกฏ
       </h3>
       <button id="btn-close-reject"
               class="text-slate-400 hover:text-slate-700 transition-colors">
         <i data-lucide="x" class="w-5 h-5"></i>
       </button>
     </div>
-    <p class="text-sm text-slate-600 mb-4">กรุณาระบุเหตุผลในการปฏิเสธรายการนี้ (ถ้ามี)</p>
-    <form method="POST" action="/violation-reports/<%= r.id %>/reject" class="space-y-4">
+    <p class="text-sm text-slate-600 mb-4">กรุณาระบุเหตุผลในการปฏิเสธรายการนี้</p>
+    <form id="reject-form" method="POST" action="/violation-reports/<%= r.id %>/reject" class="space-y-4" novalidate>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div>
-        <label class="label">เหตุผล (ไม่บังคับ)</label>
-        <textarea name="review_note" rows="3" class="input" style="resize:vertical;"
-                  placeholder="เช่น ข้อมูลไม่ถูกต้อง, ไม่มีหลักฐานเพียงพอ..."></textarea>
+        <label class="label">เหตุผล <span class="text-red-500">*</span></label>
+        <textarea id="reject-review-note" name="review_note" rows="3" class="input" style="resize:vertical;"
+                  placeholder="เช่น ข้อมูลไม่ถูกต้อง, ไม่มีหลักฐานเพียงพอ..." required></textarea>
+        <p id="reject-review-note-error" style="display:none; font-size:14px; color:#dc2626; margin:6px 0 0;">
+          กรุณากรอกหมายเหตุก่อนยืนยัน
+        </p>
       </div>
       <div class="flex gap-3 justify-end pt-2">
         <button type="button" id="btn-cancel-reject" class="btn btn-secondary">ยกเลิก</button>
@@ -413,9 +416,18 @@
 
   // ── Reject button ────────────────────────────────────────────────
   var btnReject = document.getElementById('btn-reject-<%= r.id %>');
+  var rejectForm = document.getElementById('reject-form');
+  var rejectReviewNote = document.getElementById('reject-review-note');
+  var rejectNoteError = document.getElementById('reject-review-note-error');
+
+  function hideRejectNoteError() {
+    if (rejectNoteError) rejectNoteError.style.display = 'none';
+  }
+
   if (btnReject) {
     btnReject.addEventListener('click', function(e) {
       e.stopPropagation();
+      hideRejectNoteError();
       openModal('reject-modal');
     });
   }
@@ -428,10 +440,30 @@
   if (btnCancelEdit) btnCancelEdit.addEventListener('click', function() { closeModal('edit-modal'); });
 
   var btnCloseReject = document.getElementById('btn-close-reject');
-  if (btnCloseReject) btnCloseReject.addEventListener('click', function() { closeModal('reject-modal'); });
+  if (btnCloseReject) btnCloseReject.addEventListener('click', function() {
+    hideRejectNoteError();
+    closeModal('reject-modal');
+  });
 
   var btnCancelReject = document.getElementById('btn-cancel-reject');
-  if (btnCancelReject) btnCancelReject.addEventListener('click', function() { closeModal('reject-modal'); });
+  if (btnCancelReject) btnCancelReject.addEventListener('click', function() {
+    hideRejectNoteError();
+    closeModal('reject-modal');
+  });
+
+  if (rejectForm && rejectReviewNote && rejectNoteError) {
+    rejectForm.addEventListener('submit', function(e) {
+      if (!rejectReviewNote.value.trim()) {
+        e.preventDefault();
+        rejectNoteError.style.display = 'block';
+        rejectReviewNote.focus();
+      }
+    });
+
+    rejectReviewNote.addEventListener('input', function() {
+      rejectNoteError.style.display = 'none';
+    });
+  }
 
   // ── Lightbox ─────────────────────────────────────────────────────
   <% if (r.evidence_photo) { %>

@@ -356,11 +356,23 @@ router.get('/:id', async (req, res) => {
 router.post('/', upload.single('evidence_photo'), verifyCsrf, async (req, res) => {
   const registrationId = parseInt(req.body.registration_id, 10);
   const ruleId = parseInt(req.body.rule_id, 10);
-  const { description } = req.body;
+  const description = (req.body.description || '').trim();
 
   if (!Number.isFinite(registrationId) || registrationId <= 0 || !Number.isFinite(ruleId) || ruleId <= 0) {
     upload.cleanupUploadedFiles(req);
     req.flash('error', 'กรุณาเลือกผู้ลงทะเบียนและกฎที่กระทำผิดให้ถูกต้อง');
+    return res.redirect('/violations/create?reg_id=' + (req.body.registration_id || ''));
+  }
+
+  if (!description) {
+    upload.cleanupUploadedFiles(req);
+    req.flash('error', 'กรุณากรอกรายละเอียดการกระทำผิด');
+    return res.redirect('/violations/create?reg_id=' + (req.body.registration_id || ''));
+  }
+
+  if (!req.file) {
+    upload.cleanupUploadedFiles(req);
+    req.flash('error', 'กรุณาอัปโหลดหลักฐานภาพถ่าย');
     return res.redirect('/violations/create?reg_id=' + (req.body.registration_id || ''));
   }
 
@@ -392,14 +404,14 @@ router.post('/', upload.single('evidence_photo'), verifyCsrf, async (req, res) =
       ) ENGINE=InnoDB
     `);
 
-    const evidencePhoto = req.file ? '/uploads/evidence/' + req.file.filename : null;
+    const evidencePhoto = '/uploads/evidence/' + req.file.filename;
 
     // Save as pending report — NOT into violations table yet
     await conn.query(
       `INSERT INTO violation_reports
          (registration_id, rule_id, description, evidence_photo, reported_by, status)
        VALUES (?, ?, ?, ?, ?, 'pending')`,
-      [registrationId, ruleId, description || null, evidencePhoto, req.session.admin.id]
+      [registrationId, ruleId, description, evidencePhoto, req.session.admin.id]
     );
 
     req.flash('success', '📋 แจ้งรายการกระทำผิดเรียบร้อยแล้ว — รอการตรวจสอบและยืนยันจากผู้ดูแลระบบก่อนจึงจะบันทึกลงประวัติ');

@@ -106,7 +106,7 @@
 
 
               <div>
-                <label class="label">กฎที่ฝ่าฝืน</label>
+                <label class="label">กฎที่ฝ่าฝืน <span class="text-red-500">*</span></label>
                 <select name="rule_id" class="input" required>
                   <option value="">-- เลือกกฎ --</option>
                   <% rules.forEach(function(r) { %>
@@ -116,22 +116,22 @@
               </div>
 
               <div>
-                <label class="label">รายละเอียด</label>
-                <textarea name="description" class="input h-24 resize-none" placeholder="อธิบายเหตุการณ์โดยย่อ..."></textarea>
+                <label class="label">รายละเอียด <span class="text-red-500">*</span></label>
+                <textarea name="description" class="input h-24 resize-none" placeholder="อธิบายเหตุการณ์โดยย่อ..." required></textarea>
               </div>
 
               <div>
-                <label class="label">หลักฐาน (ภาพถ่าย)</label>
-                <label id="evidence-upload-zone" class="upload-zone p-6 text-center cursor-pointer block">
+                <label class="label">หลักฐาน (ภาพถ่าย) <span class="text-red-500">*</span></label>
+                <label id="evidence-upload-zone" class="upload-zone p-6 text-center cursor-pointer block relative overflow-hidden">
                   <i data-lucide="camera" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
                   <p class="text-sm text-slate-500">คลิกเพื่อถ่ายรูปหรือเลือกภาพ</p>
-                  <input id="evidence-photo-input" type="file" name="evidence_photo" accept="image/*" capture="environment" class="hidden">
+                  <input id="evidence-photo-input" type="file" name="evidence_photo" accept="image/*" capture="environment" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" required>
                   <img id="evidence-preview" class="evidence-preview hidden" alt="ตัวอย่างภาพหลักฐาน">
                 </label>
               </div>
 
               <button type="submit" class="btn w-full justify-center" style="background:#ea580c;color:#fff;gap:8px;">
-                <i data-lucide="send" class="w-4 h-4"></i> ส่งแจ้งการกระทำผิด (รอการตรวจสอบ)
+                <i data-lucide="send" class="w-4 h-4"></i> ส่งแจ้งการกระทำผิด
               </button>
             </form>
           </div>

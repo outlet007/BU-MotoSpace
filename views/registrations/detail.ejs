@@ -763,7 +763,7 @@
         <div style="display:flex;gap:.75rem;justify-content:flex-end;padding:0 24px 22px;">
           <button type="button" data-vehicle-reject-close class="btn btn-secondary justify-center">ยกเลิก</button>
           <button type="submit" class="btn btn-secondary justify-center text-red-500 hover:bg-red-50">
-            <i data-lucide="x-circle" class="w-4 h-4"></i> ยืนยันปฏิเสธ
+            <i data-lucide="x-circle" class="lucide lucide-x-circle w-4 h-4"></i> ยืนยันปฏิเสธ
           </button>
         </div>
       </form>
@@ -1286,9 +1286,7 @@
       <div style="padding:20px 24px 14px;border-bottom:1px solid #f1f5f9;">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center">
-              <i data-lucide="x-circle" class="w-5 h-5"></i>
-            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="x-circle" aria-hidden="true" class="lucide lucide-x-circle w-4 h-4 text-red-500"><circle cx="12" cy="12" r="10"></circle><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path></svg>
             <div>
               <h3 class="text-base font-bold text-slate-800">ปฏิเสธการลงทะเบียน</h3>
               <p class="text-sm text-slate-500"><%= reg.first_name %> <%= reg.last_name %></p>
@@ -1299,16 +1297,19 @@
           </button>
         </div>
       </div>
-      <form method="POST" action="/registrations/<%= reg.id %>/reject" class="p-6 space-y-4">
+      <form id="registration-reject-form" method="POST" action="/registrations/<%= reg.id %>/reject" class="p-6 space-y-4" novalidate>
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div>
           <label class="label">สาเหตุของการปฏิเสธ <span class="text-red-500">*</span></label>
-          <textarea name="notes" class="input h-28 resize-none" required placeholder="ระบุสาเหตุของการปฏิเสธ เช่น เอกสารไม่ครบ, ข้อมูลไม่ถูกต้อง..."></textarea>
+          <textarea id="registration-reject-notes" name="notes" class="input h-28 resize-none" required placeholder="ระบุสาเหตุของการปฏิเสธ เช่น เอกสารไม่ครบ, ข้อมูลไม่ถูกต้อง..."></textarea>
+          <p id="registration-reject-notes-error" style="display:none; font-size:14px; color:#dc2626; margin:6px 0 0;">
+            กรุณากรอกหมายเหตุก่อนยืนยัน
+          </p>
         </div>
-        <div class="flex gap-3">
-          <button type="button" id="cancel-reject-modal" class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
-          <button type="submit" class="btn btn-danger flex-1 justify-center">
-            <i data-lucide="x-circle" class="w-4 h-4"></i> ยืนยันปฏิเสธ
+        <div class="flex gap-3 justify-end pt-2">
+          <button type="button" id="cancel-reject-modal" class="btn btn-secondary">ยกเลิก</button>
+          <button type="submit" class="btn" style="background:#dc2626;color:#fff;">
+            <i data-lucide="x-circle" class="lucide lucide-x-circle w-4 h-4"></i> ยืนยันปฏิเสธ
           </button>
         </div>
       </form>
@@ -1322,14 +1323,41 @@
       var closeBtn = document.getElementById('close-reject-modal');
       var cancelBtn = document.getElementById('cancel-reject-modal');
       var backdrop = document.getElementById('reject-modal-backdrop');
+      var registrationRejectForm = document.getElementById('registration-reject-form');
+      var registrationRejectNotes = document.getElementById('registration-reject-notes');
+      var registrationRejectNotesError = document.getElementById('registration-reject-notes-error');
 
-      function openModal() { modal.style.display = 'flex'; }
-      function closeModal() { modal.style.display = 'none'; }
+      function hideRegistrationRejectNotesError() {
+        if (registrationRejectNotesError) registrationRejectNotesError.style.display = 'none';
+      }
+
+      function openModal() {
+        hideRegistrationRejectNotesError();
+        modal.style.display = 'flex';
+      }
+
+      function closeModal() {
+        hideRegistrationRejectNotesError();
+        modal.style.display = 'none';
+      }
 
       if (openBtn) openBtn.addEventListener('click', openModal);
       if (closeBtn) closeBtn.addEventListener('click', closeModal);
       if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
       if (backdrop) backdrop.addEventListener('click', closeModal);
+      if (registrationRejectForm && registrationRejectNotes && registrationRejectNotesError) {
+        registrationRejectForm.addEventListener('submit', function(e) {
+          if (!registrationRejectNotes.value.trim()) {
+            e.preventDefault();
+            registrationRejectNotesError.style.display = 'block';
+            registrationRejectNotes.focus();
+          }
+        });
+
+        registrationRejectNotes.addEventListener('input', function() {
+          registrationRejectNotesError.style.display = 'none';
+        });
+      }
       document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && modal.style.display === 'flex') closeModal();
       });
