@@ -32,6 +32,7 @@
     .status-pending   { background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; }
     .status-confirmed { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
     .status-rejected  { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
+    .status-deleted   { background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; }
     .row-hover:hover { background:#f8fafc; }
     .violation-reports-table th,
     .violation-reports-table td {
@@ -59,7 +60,7 @@
         </div>
 
         <!-- Summary Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <a href="/violation-reports?status_filter=pending" class="stat-card metric-card warning <%= status_filter === 'pending' ? 'active' : '' %>">
             <div class="mc-icon-wrap bg-orange-100 text-orange-600">
               <i data-lucide="clock" class="w-6 h-6"></i>
@@ -85,6 +86,15 @@
             <div>
               <p class="text-sm text-slate-500">ปฏิเสธแล้ว</p>
               <p class="text-3xl font-bold text-slate-800"><%= countMap.rejected.toLocaleString('th-TH') %></p>
+            </div>
+          </a>
+          <a href="/violation-reports?status_filter=deleted" class="stat-card metric-card <%= status_filter === 'deleted' ? 'active' : '' %>">
+            <div class="mc-icon-wrap bg-slate-100 text-slate-600">
+              <i data-lucide="archive-x" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">ถูกลบชั่วคราว</p>
+              <p class="text-3xl font-bold text-slate-800"><%= countMap.deleted.toLocaleString('th-TH') %></p>
             </div>
           </a>
         </div>
@@ -122,6 +132,7 @@
                 <option value="pending"  <%= status_filter === 'pending'   ? 'selected' : '' %>>รอตรวจสอบ</option>
                 <option value="confirmed"<%= status_filter === 'confirmed' ? 'selected' : '' %>>ยืนยันแล้ว</option>
                 <option value="rejected" <%= status_filter === 'rejected'  ? 'selected' : '' %>>ปฏิเสธแล้ว</option>
+                <option value="deleted"  <%= status_filter === 'deleted'   ? 'selected' : '' %>>ถูกลบชั่วคราว</option>
               </select>
             </div>
             <button type="submit" class="btn btn-primary" id="filter-btn">
@@ -137,10 +148,10 @@
 
         <!-- Mobile Cards -->
         <div class="sm:hidden space-y-3">
-          <% if (reports && reports.length > 0) { %>
-            <% reports.forEach(function(rpt) { %>
-              <% const reportCode = rpt.report_code || ('IR-GEN-' + String(rpt.id).padStart(6, '0')); %>
-              <a href="/violation-reports/<%= rpt.id %>" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm active:bg-slate-50">
+              <% if (reports && reports.length > 0) { %>
+                <% reports.forEach(function(rpt) { %>
+                  <% const reportCode = rpt.report_code || ('IR-GEN-' + String(rpt.id).padStart(6, '0')); %>
+                  <a href="<%= viewingDeleted ? '#' : '/violation-reports/' + rpt.id %>" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm active:bg-slate-50">
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
                     <p class="text-xs font-mono font-semibold text-brand-700 break-words"><%= reportCode %></p>
@@ -153,6 +164,10 @@
                   <% } else if (rpt.status === 'confirmed') { %>
                     <span class="status-confirmed inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0">
                       <i data-lucide="check-circle" class="w-3 h-3"></i> ยืนยันแล้ว
+                    </span>
+                  <% } else if (rpt.status === 'deleted') { %>
+                    <span class="status-deleted inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0">
+                      <i data-lucide="archive-x" class="w-3 h-3"></i> ถูกลบชั่วคราว
                     </span>
                   <% } else { %>
                     <span class="status-rejected inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0">
@@ -185,14 +200,20 @@
                     <span class="badge <%= rpt.user_type === 'student' ? 'badge-success' : 'badge-info' %> mt-1"><%= rpt.user_type === 'student' ? 'นักศึกษา' : 'บุคลากร' %></span>
                   </div>
                   <div class="min-w-0" style="grid-column:1/-1;">
-                    <p class="text-xs font-medium text-slate-400">แจ้งโดย</p>
+                    <p class="text-xs font-medium text-slate-400"><%= viewingDeleted ? 'ลบโดย' : 'แจ้งโดย' %></p>
                     <p class="text-sm text-slate-600 break-words"><%= rpt.reported_by_name %></p>
+                    <% if (viewingDeleted) { %>
+                      <p class="text-xs text-slate-500 mt-1">ลบโดย <%= rpt.deleted_by_name || '-' %></p>
+                      <p class="text-xs text-red-500 mt-1">เหตุผล: <%= rpt.delete_reason || '-' %></p>
+                    <% } %>
                   </div>
                 </div>
-                <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end text-sm font-semibold text-brand-600">
-                  ดูรายละเอียด
-                  <i data-lucide="chevron-right" class="w-4 h-4 ml-1"></i>
-                </div>
+                <% if (!viewingDeleted) { %>
+                  <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end text-sm font-semibold text-brand-600">
+                    ดูรายละเอียด
+                    <i data-lucide="chevron-right" class="w-4 h-4 ml-1"></i>
+                  </div>
+                <% } %>
               </a>
             <% }); %>
           <% } else { %>
@@ -217,15 +238,17 @@
                 <th>ป้ายทะเบียน</th>
                 <th>ประเภทผู้ใช้</th>
                 <th>กฎที่ฝ่าฝืน</th>
-                <th>แจ้งโดย</th>
+                <th><%= viewingDeleted ? 'สถานะ' : 'แจ้งโดย' %></th>
+                <% if (!viewingDeleted) { %>
                 <th>สถานะ</th>
+                <% } %>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               <% if (reports && reports.length > 0) { %>
                 <% reports.forEach(function(rpt, idx) { %>
-                <tr class="row-hover cursor-pointer" data-href="/violation-reports/<%= rpt.id %>">
+                <tr class="row-hover <%= viewingDeleted ? '' : 'cursor-pointer' %>" <%= viewingDeleted ? '' : 'data-href="/violation-reports/' + rpt.id + '"' %>>
                   <td class="text-xs text-slate-400"><%= ((currentPage || 1) - 1) * 20 + idx + 1 %></td>
                   <!-- รายการแจ้งเลขที่ -->
                   <td class="text-xs font-mono font-semibold text-brand-700 whitespace-nowrap">
@@ -263,8 +286,16 @@
                       <%= rpt.rule_name %>
                     </span>
                   </td>
-                  <!-- บันทึกโดย -->
-                  <td class="text-xs text-slate-500"><%= rpt.reported_by_name %></td>
+                  <!-- สถานะ / บันทึกโดย -->
+                  <td class="text-xs text-slate-500">
+                    <% if (viewingDeleted) { %>
+                      <span class="badge badge-danger">ถูกลบชั่วคราว</span>
+                      <div class="text-xs text-slate-500 mt-1">ลบโดย <%= rpt.deleted_by_name || '-' %></div>
+                    <% } else { %>
+                      <%= rpt.reported_by_name %>
+                    <% } %>
+                  </td>
+                  <% if (!viewingDeleted) { %>
                   <!-- สถานะ -->
                   <td>
                     <% if (rpt.status === 'pending') { %>
@@ -275,26 +306,55 @@
                       <span class="status-confirmed inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full">
                         <i data-lucide="check-circle" class="w-3 h-3"></i> ยืนยันแล้ว
                       </span>
+                    <% } else if (rpt.status === 'deleted') { %>
+                      <span class="status-deleted inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full">
+                        <i data-lucide="archive-x" class="w-3 h-3"></i> ถูกลบชั่วคราว
+                      </span>
                     <% } else { %>
                       <span class="status-rejected inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full">
                         <i data-lucide="x-circle" class="w-3 h-3"></i> ปฏิเสธแล้ว
                       </span>
                     <% } %>
                   </td>
+                  <% } %>
                   <!-- ปุ่มดูรายละเอียด -->
                   <td class="text-right" data-no-nav>
-                    <a href="/violation-reports/<%= rpt.id %>"
-                       class="btn btn-secondary btn-sm inline-flex items-center gap-1"
-                       id="view-report-<%= rpt.id %>">
-                      <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-                      ดูรายละเอียด
-                    </a>
+                    <% if (viewingDeleted) { %>
+                      <div style="display:flex; gap:6px; justify-content:flex-end;">
+                        <a href="/violations/<%= rpt.id %>"
+                           class="btn btn-secondary btn-sm inline-flex items-center gap-1"
+                           id="view-deleted-violation-<%= rpt.id %>">
+                          <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                          ดูรายละเอียด
+                        </a>
+                        <form method="POST" action="/violations/<%= rpt.id %>/restore"
+                              data-delete-confirm
+                              data-delete-title="ยืนยันการกู้คืนข้อมูล"
+                              data-delete-lead="คุณกำลังจะกู้คืน:"
+                              data-delete-item="รายการแจ้ง <%= rpt.report_code || ('IR-GEN-' + String(rpt.id).padStart(6, '0')) %>: <%= rpt.rule_name %>"
+                              data-delete-warning="ระบบจะนำรายการกระทำผิดกลับมาใช้งานอีกครั้ง"
+                              data-delete-confirm-text="กู้คืนข้อมูล">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                          <button type="submit" class="btn btn-primary btn-sm inline-flex items-center gap-1">
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                            กู้คืนข้อมูล
+                          </button>
+                        </form>
+                      </div>
+                    <% } else { %>
+                      <a href="/violation-reports/<%= rpt.id %>"
+                         class="btn btn-secondary btn-sm inline-flex items-center gap-1"
+                         id="view-report-<%= rpt.id %>">
+                        <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                        ดูรายละเอียด
+                      </a>
+                    <% } %>
                   </td>
                 </tr>
                 <% }); %>
               <% } else { %>
               <tr>
-                <td colspan="12" class="text-center py-14">
+                <td colspan="<%= viewingDeleted ? 11 : 12 %>" class="text-center py-14">
                   <div class="flex flex-col items-center gap-3 text-slate-400">
                     <i data-lucide="clipboard-x" class="w-12 h-12 text-slate-300"></i>
                     <p class="text-sm font-medium">ไม่พบรายการ</p>

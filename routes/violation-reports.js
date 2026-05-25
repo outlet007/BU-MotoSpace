@@ -247,15 +247,18 @@ router.get('/', isHead, async (req, res) => {
     } = req.query;
     const limit = 20;
     const requestedPage = parsePositiveInt(req.query.page, 1);
+    const isDeletedView = status_filter === 'deleted';
     const requestedViolationType = String(violation_type_filter || 'all').trim();
     const selectedViolationType = requestedViolationType === 'all' || /^\d+$/.test(requestedViolationType)
       ? requestedViolationType
       : 'all';
 
-    let where = 'WHERE vr.deleted_at IS NULL AND r.deleted_at IS NULL';
+    let where = isDeletedView
+      ? 'WHERE v.deleted_at IS NOT NULL'
+      : 'WHERE vr.deleted_at IS NULL AND r.deleted_at IS NULL';
     const params = [];
 
-    if (status_filter && status_filter !== 'all') {
+    if (!isDeletedView && status_filter && status_filter !== 'all') {
       where += ' AND vr.status = ?';
       params.push(status_filter);
     }
@@ -268,7 +271,7 @@ router.get('/', isHead, async (req, res) => {
     if (search) {
       const s = `%${search.trim()}%`;
       where += ` AND (
-        CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(vr.id, 6, '0')) LIKE ? OR
+        CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(${isDeletedView ? 'v' : 'vr'}.id, 6, '0')) LIKE ? OR
         r.id_number LIKE ? OR
         r.first_name LIKE ? OR
         r.last_name LIKE ? OR
@@ -279,36 +282,67 @@ router.get('/', isHead, async (req, res) => {
       params.push(s, s, s, s, s, s, s);
     }
 
-    const [countRow] = await conn.query(
-      `SELECT COUNT(*) as cnt
-       FROM violation_reports vr
-       JOIN registrations r ON vr.registration_id = r.id
-       JOIN rules ru ON vr.rule_id = ru.id
-       LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
-       ${where}`,
-      params
-    );
+    const [countRow] = isDeletedView
+      ? await conn.query(
+        `SELECT COUNT(*) as cnt
+         FROM violations v
+         JOIN registrations r ON v.registration_id = r.id
+         JOIN rules ru ON v.rule_id = ru.id
+         LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
+         ${where}`,
+        params
+      )
+      : await conn.query(
+        `SELECT COUNT(*) as cnt
+         FROM violation_reports vr
+         JOIN registrations r ON vr.registration_id = r.id
+         JOIN rules ru ON vr.rule_id = ru.id
+         LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
+         ${where}`,
+        params
+      );
     const total = parseInt(countRow.cnt, 10);
     const totalPages = Math.ceil(total / limit);
     const currentPage = clampPage(requestedPage, totalPages);
     const offset = (currentPage - 1) * limit;
 
-    const reports = await conn.query(
-      `SELECT vr.id, vr.status, vr.reported_at, vr.description,
-              CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(vr.id, 6, '0')) AS report_code,
-              r.id_number, r.first_name, r.last_name, r.phone, r.license_plate, r.province, r.user_type,
-              ru.rule_name,
-              a.full_name AS reported_by_name
-       FROM violation_reports vr
-       JOIN registrations r  ON vr.registration_id = r.id
-       JOIN rules ru          ON vr.rule_id          = ru.id
-       LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
-       JOIN admins a          ON vr.reported_by       = a.id
-       ${where}
-       ORDER BY vr.reported_at DESC
-       LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
-    );
+    const reports = isDeletedView
+      ? await conn.query(
+        `SELECT v.id, 'deleted' AS status, v.recorded_at AS reported_at, v.description,
+                CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(v.id, 6, '0')) AS report_code,
+                r.id_number, r.first_name, r.last_name, r.phone, r.license_plate, r.province, r.user_type,
+                ru.rule_name,
+                a.full_name AS reported_by_name,
+                da.full_name AS deleted_by_name,
+                v.deleted_at,
+                v.delete_reason
+         FROM violations v
+         JOIN registrations r  ON v.registration_id = r.id
+         JOIN rules ru          ON v.rule_id          = ru.id
+         LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
+         JOIN admins a          ON v.recorded_by       = a.id
+         LEFT JOIN admins da    ON v.deleted_by        = da.id
+         ${where}
+         ORDER BY v.deleted_at DESC
+         LIMIT ? OFFSET ?`,
+        [...params, limit, offset]
+      )
+      : await conn.query(
+        `SELECT vr.id, vr.status, vr.reported_at, vr.description,
+                CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(vr.id, 6, '0')) AS report_code,
+                r.id_number, r.first_name, r.last_name, r.phone, r.license_plate, r.province, r.user_type,
+                ru.rule_name,
+                a.full_name AS reported_by_name
+         FROM violation_reports vr
+         JOIN registrations r  ON vr.registration_id = r.id
+         JOIN rules ru          ON vr.rule_id          = ru.id
+         LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
+         JOIN admins a          ON vr.reported_by       = a.id
+         ${where}
+         ORDER BY vr.reported_at DESC
+         LIMIT ? OFFSET ?`,
+        [...params, limit, offset]
+      );
 
     // Pending count badge
     const [pendingRow] = await conn.query(
@@ -324,7 +358,10 @@ router.get('/', isHead, async (req, res) => {
     const statusCounts = await conn.query(
       `SELECT status, COUNT(*) as cnt FROM violation_reports WHERE deleted_at IS NULL GROUP BY status`
     );
-    const countMap = { pending: 0, confirmed: 0, rejected: 0 };
+    const [deletedRow] = await conn.query(
+      `SELECT COUNT(*) as cnt FROM violations v WHERE v.deleted_at IS NOT NULL`
+    );
+    const countMap = { pending: 0, confirmed: 0, rejected: 0, deleted: parseInt(deletedRow.cnt, 10) || 0 };
     statusCounts.forEach(r => { countMap[r.status] = parseInt(r.cnt); });
 
     res.render('violation-reports/index', {
@@ -340,6 +377,7 @@ router.get('/', isHead, async (req, res) => {
       violationTypes,
       pendingReportsCount: parseInt(pendingRow.cnt),
       countMap,
+      viewingDeleted: isDeletedView,
     });
   } catch (err) {
     console.error('GET /violation-reports error:', err);
@@ -356,7 +394,8 @@ router.get('/', isHead, async (req, res) => {
       violation_type_filter: 'all',
       violationTypes: [],
       pendingReportsCount: 0,
-      countMap: { pending: 0, confirmed: 0, rejected: 0 },
+      countMap: { pending: 0, confirmed: 0, rejected: 0, deleted: 0 },
+      viewingDeleted: false,
     });
   } finally {
     if (conn) conn.release();
@@ -687,7 +726,19 @@ router.post('/:id/reject', isHead, async (req, res) => {
    POST /violation-reports/:id/edit  —  edit a pending report then re-confirm
    ───────────────────────────────────────────────────────────────────────────── */
 router.post('/:id/edit', isHead, async (req, res) => {
-  const { description, rule_id } = req.body;
+  const description = (req.body.description || '').trim();
+  const ruleId = parseInt(req.body.rule_id, 10);
+
+  if (!Number.isFinite(ruleId) || ruleId <= 0) {
+    req.flash('error', 'กรุณาเลือกกฎที่ฝ่าฝืนให้ถูกต้อง');
+    return res.redirect(`/violation-reports/${req.params.id}`);
+  }
+
+  if (!description) {
+    req.flash('error', 'กรุณากรอกรายละเอียดก่อนบันทึก');
+    return res.redirect(`/violation-reports/${req.params.id}`);
+  }
+
   let conn;
   let transactionStarted = false;
   try {
@@ -715,7 +766,7 @@ router.post('/:id/edit', isHead, async (req, res) => {
       `UPDATE violation_reports
        SET description = ?, rule_id = ?
        WHERE id = ? AND status IN ('pending', 'confirmed', 'rejected') AND deleted_at IS NULL`,
-      [description || null, rule_id, req.params.id]
+      [description, ruleId, req.params.id]
     );
 
     if (report.status === 'confirmed' && report.violation_id) {
@@ -723,7 +774,7 @@ router.post('/:id/edit', isHead, async (req, res) => {
         `UPDATE violations
          SET description = ?, rule_id = ?
          WHERE id = ? AND deleted_at IS NULL`,
-        [description || null, rule_id, report.violation_id]
+        [description, ruleId, report.violation_id]
       );
     }
 

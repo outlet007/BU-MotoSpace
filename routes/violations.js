@@ -275,15 +275,15 @@ router.get('/:id', async (req, res) => {
               COALESCE(vt.max_violations, ru.max_violations) AS max_violations,
               ru.penalty,
               ru.violation_type_id AS rule_violation_type_id,
-              a.full_name as recorded_by_name
+              a.full_name as recorded_by_name,
+              da.full_name as deleted_by_name
        FROM violations v
        JOIN registrations r ON v.registration_id = r.id
        JOIN rules ru ON v.rule_id = ru.id
        LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
        JOIN admins a ON v.recorded_by = a.id
-       WHERE v.id = ?
-         AND v.deleted_at IS NULL
-         AND r.deleted_at IS NULL`,
+       LEFT JOIN admins da ON v.deleted_by = da.id
+       WHERE v.id = ?`,
       [req.params.id]
     );
 
@@ -526,10 +526,16 @@ router.post('/:id/edit', isHead, upload.single('evidence_photo'), verifyCsrf, as
 // POST /violations/:id/delete
 router.post('/:id/delete', isHead, verifyCsrf, async (req, res) => {
   const violationId = parseInt(req.params.id, 10);
+  const deleteReason = (req.body.delete_reason || '').trim();
 
   if (!Number.isFinite(violationId) || violationId <= 0) {
     req.flash('error', 'ข้อมูลรายการแจ้งไม่ถูกต้อง');
     return res.redirect('/violations');
+  }
+
+  if (!deleteReason) {
+    req.flash('error', 'กรุณากรอกเหตุผลก่อนลบรายการแจ้ง');
+    return res.redirect(`/violations/${violationId}`);
   }
 
   let conn;
@@ -558,7 +564,12 @@ router.post('/:id/delete', isHead, verifyCsrf, async (req, res) => {
       if (!['ER_NO_SUCH_TABLE', 'ER_BAD_FIELD_ERROR'].includes(updateReportErr.code)) throw updateReportErr;
     }
 
-    await conn.query('DELETE FROM violations WHERE id = ?', [violationId]);
+    await conn.query(
+      `UPDATE violations
+       SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+       WHERE id = ?`,
+      [req.session.admin.id, deleteReason, violationId]
+    );
 
     req.flash('success', 'ลบรายการแจ้งเรียบร้อยแล้ว');
     return res.redirect(`/registrations/${violation.registration_id}#violations`);
@@ -569,6 +580,49 @@ router.post('/:id/delete', isHead, verifyCsrf, async (req, res) => {
   } finally {
     if (conn) conn.release();
   }
+});
+
+// POST /violations/:id/restore
+router.post('/:id/restore', isHead, verifyCsrf, async (req, res) => {
+  const violationId = parseInt(req.params.id, 10);
+
+  if (!Number.isFinite(violationId) || violationId <= 0) {
+    req.flash('error', 'ข้อมูลรายการแจ้งไม่ถูกต้อง');
+    return res.redirect('/violation-reports?status_filter=deleted');
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    const [violation] = await conn.query(
+      `SELECT id FROM violations
+       WHERE id = ?
+         AND deleted_at IS NOT NULL`,
+      [violationId]
+    );
+
+    if (!violation) {
+      req.flash('error', 'ไม่พบข้อมูลที่ถูกลบชั่วคราว');
+      return res.redirect('/violation-reports?status_filter=deleted');
+    }
+
+    await conn.query(
+      `UPDATE violations
+       SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL
+       WHERE id = ?`,
+      [violationId]
+    );
+
+    req.flash('success', 'กู้คืนรายการกระทำผิดเรียบร้อยแล้ว');
+  } catch (err) {
+    console.error('POST /violations/:id/restore error:', err);
+    req.flash('error', 'ไม่สามารถกู้คืนข้อมูลได้');
+  } finally {
+    if (conn) conn.release();
+  }
+
+  res.redirect('/violation-reports?status_filter=deleted');
 });
 
 module.exports = router;

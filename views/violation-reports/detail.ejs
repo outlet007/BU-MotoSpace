@@ -300,23 +300,23 @@
         <i data-lucide="x" class="w-5 h-5"></i>
       </button>
     </div>
-    <form method="POST" action="/violation-reports/<%= r.id %>/edit" class="space-y-4">
+    <form id="edit-form" method="POST" action="/violation-reports/<%= r.id %>/edit" class="space-y-4">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div>
-        <label class="label">กฎที่ฝ่าฝืน</label>
-        <select name="rule_id" class="input" id="edit-rule-id">
+        <label class="label">กฎที่ฝ่าฝืน <span class="text-red-500">*</span></label>
+        <select id="edit-rule-id" name="rule_id" class="input" required>
           <option value="<%= r.rule_id %>" selected><%= r.rule_name %></option>
         </select>
         <p class="text-xs text-slate-400 mt-1">หากต้องการเปลี่ยนกฎ ให้เลือกจากรายการ (โหลดเมื่อเปิด)</p>
       </div>
       <div>
-        <label class="label">รายละเอียด</label>
-        <textarea name="description" rows="4" class="input" style="resize:vertical;"
+        <label class="label">รายละเอียด <span class="text-red-500">*</span></label>
+        <textarea id="edit-description" name="description" rows="4" class="input" style="resize:vertical;" required
                   placeholder="รายละเอียดการกระทำผิด..."><%= r.description || '' %></textarea>
       </div>
       <div class="flex gap-3 justify-end pt-2">
         <button type="button" id="btn-cancel-edit" class="btn btn-secondary">ยกเลิก</button>
-        <button type="submit" class="btn btn-primary">
+        <button id="edit-submit-button" type="submit" class="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed" disabled>
           <i data-lucide="save" class="w-4 h-4"></i> บันทึก
         </button>
       </div>
@@ -389,12 +389,22 @@
 
   // ── Edit button ─────────────────────────────────────────────────
   var btnEdit = document.getElementById('btn-edit-<%= r.id %>');
+  var editForm = document.getElementById('edit-form');
+  var editRuleSelect = document.getElementById('edit-rule-id');
+  var editDescription = document.getElementById('edit-description');
+  var editSubmitButton = document.getElementById('edit-submit-button');
+
+  function updateEditSubmitState() {
+    if (!editSubmitButton || !editRuleSelect || !editDescription) return;
+    editSubmitButton.disabled = !(editRuleSelect.value && editDescription.value.trim());
+  }
+
   if (btnEdit) {
     btnEdit.addEventListener('click', function(e) {
       e.stopPropagation();
       openModal('edit-modal');
       // Load rules into select if not yet loaded
-      var sel = document.getElementById('edit-rule-id');
+      var sel = editRuleSelect;
       if (sel && sel.options.length <= 1) {
         fetch('/rules?format=json')
           .then(function(res) { return res.ok ? res.json() : []; })
@@ -408,8 +418,34 @@
               if (rule.id === <%= r.rule_id %>) opt.selected = true;
               sel.appendChild(opt);
             });
+            updateEditSubmitState();
           })
           .catch(function() { /* keep current option */ });
+      }
+      updateEditSubmitState();
+    });
+  }
+
+  if (editRuleSelect) {
+    editRuleSelect.addEventListener('change', updateEditSubmitState);
+    editRuleSelect.addEventListener('input', updateEditSubmitState);
+  }
+
+  if (editDescription) {
+    editDescription.addEventListener('input', updateEditSubmitState);
+  }
+
+  if (editForm) {
+    editForm.addEventListener('submit', function(e) {
+      updateEditSubmitState();
+      if (editSubmitButton && editSubmitButton.disabled) {
+        e.preventDefault();
+        if (editForm.reportValidity) editForm.reportValidity();
+        if (editRuleSelect && !editRuleSelect.value) {
+          editRuleSelect.focus();
+        } else if (editDescription) {
+          editDescription.focus();
+        }
       }
     });
   }

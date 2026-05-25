@@ -35,9 +35,21 @@
         <%- include('../partials/flash') %>
 
         <!-- Back Button -->
-        <a href="/violations" class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600 mb-5 transition-colors">
+        <a href="<%= v.deleted_at ? '/violation-reports?status_filter=deleted' : '/violations' %>" class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600 mb-5 transition-colors">
           <i data-lucide="arrow-left" class="w-4 h-4"></i> กลับไปรายการ
         </a>
+
+        <% if (v.deleted_at) { %>
+        <div class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 flex flex-col sm:flex-row sm:items-center gap-2">
+          <div class="flex items-center gap-2 font-semibold">
+            <i data-lucide="archive-x" class="w-4 h-4"></i>
+            ถูกลบชั่วคราว
+          </div>
+          <div class="text-red-600">
+            ลบโดย <%= v.deleted_by_name || '-' %> · เหตุผล: <%= v.delete_reason || '-' %>
+          </div>
+        </div>
+        <% } %>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <!-- Left Column: Main Info -->
@@ -156,7 +168,27 @@
               </a>
             </div>
 
-            <% if (admin && ['head', 'superadmin'].includes(admin.role)) { %>
+            <% if (admin && ['head', 'superadmin'].includes(admin.role) && v.deleted_at) { %>
+            <div class="card p-5 space-y-3">
+              <h3 style="font-size:0.9rem; font-weight:700; color:#1e293b; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+                <i data-lucide="archive-restore" class="w-4 h-4 text-brand-500"></i> จัดการรายการที่ถูกลบ
+              </h3>
+              <form method="POST"
+                    action="/violations/<%= v.id %>/restore"
+                    data-delete-confirm
+                    data-delete-title="ยืนยันการกู้คืนข้อมูล"
+                    data-delete-lead="คุณกำลังจะกู้คืน:"
+                    data-delete-item="รายการแจ้ง <%= v.incident_code || ('IR-GEN-' + String(v.id).padStart(6, '0')) %>: <%= v.rule_name %>"
+                    data-delete-warning="ระบบจะนำรายการกระทำผิดกลับมาใช้งานอีกครั้ง"
+                    data-delete-confirm-text="กู้คืนข้อมูล">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="btn btn-primary w-full justify-center">
+                  <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                  กู้คืนข้อมูล
+                </button>
+              </form>
+            </div>
+            <% } else if (admin && ['head', 'superadmin'].includes(admin.role)) { %>
             <div class="card p-5 space-y-3">
               <h3 style="font-size:0.9rem; font-weight:700; color:#1e293b; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
                 <i data-lucide="settings" class="w-4 h-4 text-brand-500"></i> จัดการรายการแจ้ง
@@ -168,6 +200,8 @@
               <form method="POST"
                     action="/violations/<%= v.id %>/delete"
                     data-delete-confirm
+                    data-delete-reason-required="true"
+                    data-delete-reason-placeholder="ระบุเหตุผลในการลบรายการแจ้ง"
                     data-delete-item="รายการแจ้ง <%= v.incident_code || ('IR-GEN-' + String(v.id).padStart(6, '0')) %>: <%= v.rule_name %>"
                     data-delete-detail="<%= v.first_name %> <%= v.last_name %> · <%= new Date(v.recorded_at).toLocaleDateString('th-TH') %>"
                     data-delete-warning="เมื่อลบแล้ว รายการแจ้งนี้จะหายไปจากประวัติการกระทำผิด และอาจส่งผลต่อจำนวนครั้งที่ใช้คำนวณการเรียกพบ"

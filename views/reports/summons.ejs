@@ -180,7 +180,7 @@
           }
           .metric-card .mc-body { display: flex; flex-direction: column; gap: 0.15rem; }
           .metric-card .mc-label { font-size: 0.875rem; font-weight: 500; color: #64748b; }
-          .metric-card .mc-value { font-size: 1.5rem; font-weight: 700; color: #1e293b; line-height: 1.2; }
+    .metric-card .mc-value { font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1.2; }
         </style>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -506,7 +506,7 @@
                 <% const scheduledAtText = item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-'; %>
                 <% const createdAtText = item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-'; %>
                 <% const writtenDocumentUrl = item.written_document ? signedUrl(item.written_document) : ''; %>
-                <% const writtenDocumentName = item.written_document_original_name || 'เอกสารที่เป็นลายลักษณ์อักษร'; %>
+                <% const writtenDocumentName = item.written_document_original_name || 'เอกสารแนบ'; %>
                 <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm active:bg-slate-50 cursor-pointer"
                      data-summons-detail-row
                      data-appointment-code="<%= item.appointment_code %>"
@@ -608,7 +608,7 @@
                   <th>ป้ายทะเบียน</th>
                   <th>วันเวลานัดหมาย</th>
                   <th>หมายเหตุ</th>
-                  <th>เอกสารที่เป็นลายลักษณ์อักษร</th>
+                  <th>เอกสารแนบ</th>
                   <th>บันทึกโดย</th>
                   <th></th>
                 </tr>
@@ -629,7 +629,7 @@
                       data-summoned-by="<%= item.summoned_by_name || '-' %>"
                       data-created-at="<%= item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>"
                       data-document-url="<%= item.written_document ? signedUrl(item.written_document) : '' %>"
-                      data-document-name="<%= item.written_document_original_name || 'เอกสารที่เป็นลายลักษณ์อักษร' %>">
+                      data-document-name="<%= item.written_document_original_name || 'เอกสารแนบ' %>">
                     <td class="text-xs text-slate-400"><%= idx + 1 %></td>
                     <td class="text-xs font-mono font-semibold text-brand-700 whitespace-nowrap"><%= item.appointment_code || '-' %></td>
                     <td class="text-xs font-mono text-slate-600"><%= item.id_number %></td>
@@ -678,7 +678,7 @@
                                 data-scheduled-at="<%= item.scheduled_at_input || '' %>"
                                 data-note="<%= encodeURIComponent(item.note || '') %>"
                                 data-document-url="<%= item.written_document ? signedUrl(item.written_document) : '' %>"
-                                data-document-name="<%= item.written_document_original_name || 'เอกสารที่เป็นลายลักษณ์อักษร' %>">
+                                data-document-name="<%= item.written_document_original_name || 'เอกสารแนบ' %>">
                           <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
                           แก้ไข
                         </button>
@@ -731,15 +731,15 @@
               <input id="summons-violation-group-label" type="hidden" name="violation_group_label" value="">
               <div style="padding:20px 24px;" class="space-y-4">
                 <div>
-                  <label class="label" for="summons-scheduled-at">วันเวลานัดหมาย</label>
+                  <label class="label" for="summons-scheduled-at">วันเวลานัดหมาย <span class="text-red-500">*</span></label>
                   <input id="summons-scheduled-at" type="datetime-local" name="scheduled_at" class="input" required>
                 </div>
                 <div>
-                  <label class="label" for="summons-note">หมายเหตุ</label>
-                  <textarea id="summons-note" name="note" class="input h-24 resize-none" placeholder="เช่น สถานที่นัดหมาย หรือรายละเอียดเพิ่มเติม"></textarea>
+                  <label class="label" for="summons-note">หมายเหตุ <span class="text-red-500">*</span></label>
+                  <textarea id="summons-note" name="note" class="input h-24 resize-none" required placeholder="เช่น สถานที่นัดหมาย หรือรายละเอียดเพิ่มเติม"></textarea>
                 </div>
                 <div>
-                  <label class="label" for="summons-written-document">เอกสารที่เป็นลายลักษณ์อักษร</label>
+                  <label class="label" for="summons-written-document">เอกสารแนบ</label>
                   <input id="summons-written-document"
                          type="file"
                          name="written_document"
@@ -760,7 +760,7 @@
                        target="_blank"
                        rel="noopener"
                        class="font-semibold text-brand-600 hover:text-brand-700 underline">
-                      เอกสารที่เป็นลายลักษณ์อักษร
+                      เอกสารแนบ
                     </a>
                   </div>
                 </div>
@@ -770,7 +770,7 @@
               </div>
               <div style="display:flex;gap:10px;padding:0 24px 22px;">
                 <button type="button" data-summons-close class="btn btn-secondary flex-1 justify-center">ยกเลิก</button>
-                <button type="submit" class="btn btn-primary flex-1 justify-center">
+                <button id="summons-submit-button" type="submit" class="btn btn-primary flex-1 justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                   <i data-lucide="check" class="w-4 h-4"></i>
                   บันทึกการเรียกพบ
                 </button>
@@ -830,7 +830,7 @@
                 <p id="summons-detail-note" class="text-sm text-slate-700 whitespace-pre-wrap">-</p>
               </div>
               <div class="p-3 bg-slate-50 rounded-xl">
-                <p class="text-xs text-slate-400 mb-1">เอกสารที่เป็นลายลักษณ์อักษร</p>
+                <p class="text-xs text-slate-400 mb-1">เอกสารแนบ</p>
                 <a id="summons-detail-document"
                    class="inline-flex items-center gap-1 text-sm text-slate-700">
                   ไม่มี
@@ -872,6 +872,7 @@
       var nameEl = document.getElementById('summons-person-name');
       var scheduledInput = document.getElementById('summons-scheduled-at');
       var noteInput = document.getElementById('summons-note');
+      var submitButton = document.getElementById('summons-submit-button');
       var returnToInput = document.getElementById('summons-return-to');
       var appointmentCodeInput = document.getElementById('summons-appointment-code');
       var documentInput = document.getElementById('summons-written-document');
@@ -943,16 +944,21 @@
         if (existingDocumentLink) {
           existingDocumentLink.removeAttribute('href');
           existingDocumentLink.removeAttribute('download');
-          existingDocumentLink.textContent = 'เอกสารที่เป็นลายลักษณ์อักษร';
+          existingDocumentLink.textContent = 'เอกสารแนบ';
         }
       }
 
       function showExistingDocument(url, name) {
         if (!existingDocument || !existingDocumentLink || !url) return;
         existingDocumentLink.href = url;
-        existingDocumentLink.textContent = name || 'เอกสารที่เป็นลายลักษณ์อักษร';
+        existingDocumentLink.textContent = name || 'เอกสารแนบ';
         existingDocumentLink.setAttribute('download', name || 'written-document');
         existingDocument.style.display = 'block';
+      }
+
+      function updateSummonsSubmitState() {
+        if (!submitButton || !scheduledInput || !noteInput) return;
+        submitButton.disabled = !(scheduledInput.value && noteInput.value.trim());
       }
 
       function openSummonsModal(button) {
@@ -983,6 +989,7 @@
           defaultDate.setMinutes(0, 0, 0);
           scheduledInput.value = toDatetimeLocalValue(defaultDate);
         }
+        updateSummonsSubmitState();
         modal.style.display = 'flex';
         if (scheduledInput) scheduledInput.focus();
       }
@@ -1000,6 +1007,7 @@
         resetDocumentInput();
         showExistingDocument(button.dataset.documentUrl || '', button.dataset.documentName || '');
         if (returnToInput) returnToInput.value = buildReturnTo('completed', '#summoned-history');
+        updateSummonsSubmitState();
         modal.style.display = 'flex';
         if (scheduledInput) scheduledInput.focus();
       }
@@ -1029,7 +1037,7 @@
 
         if (detailDocument) {
           var documentUrl = row.dataset.documentUrl || '';
-          var documentNameText = row.dataset.documentName || 'เอกสารที่เป็นลายลักษณ์อักษร';
+          var documentNameText = row.dataset.documentName || 'เอกสารแนบ';
           if (documentUrl) {
             detailDocument.href = documentUrl;
             detailDocument.textContent = documentNameText;
@@ -1070,6 +1078,30 @@
         documentInput.addEventListener('change', function() {
           var file = documentInput.files && documentInput.files[0];
           documentName.textContent = file ? file.name : 'ยังไม่ได้เลือกไฟล์';
+        });
+      }
+
+      if (scheduledInput) {
+        scheduledInput.addEventListener('input', updateSummonsSubmitState);
+        scheduledInput.addEventListener('change', updateSummonsSubmitState);
+      }
+
+      if (noteInput) {
+        noteInput.addEventListener('input', updateSummonsSubmitState);
+      }
+
+      if (form) {
+        form.addEventListener('submit', function(e) {
+          updateSummonsSubmitState();
+          if (submitButton && submitButton.disabled) {
+            e.preventDefault();
+            if (form.reportValidity) form.reportValidity();
+            if (scheduledInput && !scheduledInput.value) {
+              scheduledInput.focus();
+            } else if (noteInput) {
+              noteInput.focus();
+            }
+          }
         });
       }
 

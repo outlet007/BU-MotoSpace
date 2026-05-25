@@ -763,7 +763,7 @@ router.get('/summons/export', async (req, res) => {
 router.post('/summons/:registrationId/confirm', upload.single('written_document'), verifyCsrf, async (req, res) => {
   const registrationId = parseInt(req.params.registrationId, 10);
   const scheduledAtRaw = (req.body.scheduled_at || '').trim();
-  const note = (req.body.note || '').trim() || null;
+  const note = (req.body.note || '').trim();
   const violationTypeIdRaw = req.body.violation_type_id;
   const violationTypeId = violationTypeIdRaw ? parseInt(violationTypeIdRaw, 10) : null;
   const violationGroupLabel = (req.body.violation_group_label || '').trim() || null;
@@ -781,6 +781,12 @@ router.post('/summons/:registrationId/confirm', upload.single('written_document'
   if (!isValidDatetimeLocal(scheduledAtRaw)) {
     upload.cleanupUploadedFiles(req);
     req.flash('error', 'กรุณาระบุวันและเวลานัดหมายให้ถูกต้อง');
+    return res.redirect(returnTo);
+  }
+
+  if (!note) {
+    upload.cleanupUploadedFiles(req);
+    req.flash('error', 'กรุณากรอกหมายเหตุก่อนบันทึกการเรียกพบ');
     return res.redirect(returnTo);
   }
 
