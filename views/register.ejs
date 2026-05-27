@@ -566,7 +566,7 @@
           </label>
         </div>
 
-        <div class="bg-gradient-to-r from-brand-50 to-emerald-50 rounded-2xl p-5 border border-brand-100">
+        <div id="pdpa-verification-section" class="bg-gradient-to-r from-brand-50 to-emerald-50 rounded-2xl p-5 border border-brand-100">
           <div class="flex items-center gap-2 mb-3">
             <i data-lucide="badge-check" class="w-5 h-5 text-brand-500 flex-shrink-0"></i>
             <h4 class="font-semibold text-slate-800 text-base" data-i18n-html="pdpa.verificationTitle">การรับรองข้อมูล <span class="required-mark">*</span></h4>
@@ -969,6 +969,7 @@
 
     // Tab switching
     function switchTab(type) {
+      const isStudent = type === 'student';
       document.getElementById('user_type').value = type;
       document.querySelectorAll('.tab-btn').forEach((btn) => {
         btn.classList.toggle('active', btn.dataset.tab === type);
@@ -990,14 +991,27 @@
       idNumberInput.title = type === 'student' ? t('validation.studentId') : t('validation.staffId');
       idNumberInput.setCustomValidity('');
       // Toggle ID card sections
-      document.getElementById('student-card-section').classList.toggle('active', type === 'student');
+      document.getElementById('student-card-section').classList.toggle('active', isStudent);
       document.getElementById('staff-card-section').classList.toggle('active', type === 'staff');
 
       // Only submit the visible ID-card input.
-      document.getElementById('student_card_input').disabled = type !== 'student';
+      document.getElementById('student_card_input').disabled = !isStudent;
       document.getElementById('staff_card_input').disabled = type !== 'staff';
-      document.getElementById('student_card_input').required = type === 'student';
+      document.getElementById('student_card_input').required = isStudent;
       document.getElementById('staff_card_input').required = type === 'staff';
+
+      const verificationSection = document.getElementById('pdpa-verification-section');
+      const verificationConsent = document.getElementById('pdpa_verification_consent');
+      if (verificationSection) {
+        verificationSection.classList.toggle('hidden', !isStudent);
+        verificationSection.setAttribute('aria-hidden', isStudent ? 'false' : 'true');
+      }
+      if (verificationConsent) {
+        verificationConsent.disabled = !isStudent;
+        verificationConsent.required = isStudent;
+        if (!isStudent) verificationConsent.checked = false;
+      }
+      toggleSubmitBtn();
     }
 
     window.switchTab = switchTab;
@@ -1189,8 +1203,12 @@
     function toggleSubmitBtn() {
       const disclosureConsent = document.getElementById('pdpa_disclosure_consent');
       const verificationConsent = document.getElementById('pdpa_verification_consent');
+      const userTypeInput = document.getElementById('user_type');
       const btn = document.getElementById('submit-btn');
-      btn.disabled = !(disclosureConsent && disclosureConsent.checked && verificationConsent && verificationConsent.checked);
+      if (!btn) return;
+      const needsVerification = !userTypeInput || userTypeInput.value === 'student';
+      const verificationAccepted = !needsVerification || (verificationConsent && verificationConsent.checked);
+      btn.disabled = !(disclosureConsent && disclosureConsent.checked && verificationAccepted);
     }
 
     // ─── reCAPTCHA v3 + Form Submit ─────────────────────────────────────────

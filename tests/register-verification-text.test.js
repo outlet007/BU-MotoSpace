@@ -33,3 +33,38 @@ test('registration verification copy uses the updated student discipline regulat
     'English verification copy should no longer use the old generic student code wording'
   );
 });
+
+test('registration verification consent is only required for student registrations', () => {
+  const template = readProjectFile('views/register.ejs');
+
+  assert.match(
+    template,
+    /<div id="pdpa-verification-section" class="bg-gradient-to-r from-brand-50 to-emerald-50 rounded-2xl p-5 border border-brand-100">\s*<div class="flex items-center gap-2 mb-3">\s*<i data-lucide="badge-check"/,
+    'verification consent section should have a stable id on the verification block'
+  );
+  assert.match(
+    template,
+    /const verificationSection = document\.getElementById\('pdpa-verification-section'\);/,
+    'tab switching should find the verification consent section'
+  );
+  assert.match(
+    template,
+    /verificationSection\.classList\.toggle\('hidden', !isStudent\);/,
+    'staff tab should hide the verification consent section'
+  );
+  assert.match(
+    template,
+    /verificationConsent\.disabled = !isStudent;/,
+    'staff tab should disable the hidden verification checkbox so it is not submitted'
+  );
+  assert.match(
+    template,
+    /verificationConsent\.required = isStudent;/,
+    'verification checkbox should only be required for student registrations'
+  );
+  assert.match(
+    template,
+    /const needsVerification = !userTypeInput \|\| userTypeInput\.value === 'student';/,
+    'submit button logic should require verification only for student registrations'
+  );
+});
