@@ -152,6 +152,98 @@
       color: #64748b;
       font-weight: 500;
     }
+    .registration-trend-card {
+      margin-bottom: 24px;
+      padding: 18px;
+      border: 1px solid #dbeafe;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #f8fafc 0%, #f0fdf4 100%);
+      overflow: hidden;
+    }
+    .registration-trend-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .registration-trend-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #1e293b;
+      font-size: 0.95rem;
+      font-weight: 800;
+    }
+    .registration-trend-subtitle {
+      margin-top: 4px;
+      color: #64748b;
+      font-size: 0.8rem;
+    }
+    .registration-trend-meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .registration-trend-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border: 1px solid #d1fae5;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.78);
+      color: #475569;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .registration-trend-chip strong {
+      color: var(--color-brand-700);
+      font-size: 0.85rem;
+    }
+    .registration-trend-svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      min-height: 220px;
+    }
+    .trend-grid-line { stroke: #dbeafe; stroke-width: 1; }
+    .trend-axis-label {
+      fill: #94a3b8;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .trend-area { fill: rgba(34,197,94,0.12); }
+    .trend-line {
+      fill: none;
+      stroke: var(--color-brand-600);
+      stroke-width: 4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .trend-point {
+      fill: #fff;
+      stroke: var(--color-brand-600);
+      stroke-width: 3;
+    }
+    .registration-trend-empty {
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #94a3b8;
+      text-align: center;
+      border: 1px dashed #cbd5e1;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.72);
+    }
+    @media (max-width: 640px) {
+      .registration-trend-card { padding: 14px; }
+      .registration-trend-meta { justify-content: flex-start; }
+      .registration-trend-svg { min-height: 190px; }
+    }
   </style>
 </head>
 <body class="min-h-screen bg-slate-50">
@@ -221,6 +313,84 @@
                 <p class="stat-label" style="color:#dc2626;">กระทำผิดกฎ</p>
                 <p class="stat-value" style="color:#b91c1c;"><%= totalVio %></p>
               </div>
+            </div>
+
+            <%
+              const registrationTrend = Array.isArray(summaryData.registrationTrend) ? summaryData.registrationTrend : [];
+              const trendTotal = registrationTrend.reduce((total, item) => total + (Number(item.count) || 0), 0);
+              const trendLatest = registrationTrend.length ? Number(registrationTrend[registrationTrend.length - 1].count) || 0 : 0;
+              const trendAverage = registrationTrend.length ? Math.round(trendTotal / registrationTrend.length) : 0;
+              const trendMax = Math.max(...registrationTrend.map(item => Number(item.count) || 0), 1);
+              const chartWidth = 720;
+              const chartHeight = 220;
+              const chartPad = { top: 18, right: 18, bottom: 34, left: 42 };
+              const innerWidth = chartWidth - chartPad.left - chartPad.right;
+              const innerHeight = chartHeight - chartPad.top - chartPad.bottom;
+              const baselineY = chartHeight - chartPad.bottom;
+              const trendPoints = registrationTrend.map((item, index) => {
+                const count = Number(item.count) || 0;
+                const x = chartPad.left + (registrationTrend.length > 1 ? (index / (registrationTrend.length - 1)) * innerWidth : innerWidth / 2);
+                const y = chartPad.top + innerHeight - ((count / trendMax) * innerHeight);
+                return { x, y, count, label: item.label || item.date || '-' };
+              });
+              const trendPolyline = trendPoints.map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
+              const trendArea = trendPoints.length
+                ? `${chartPad.left},${baselineY} ${trendPoints.map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ')} ${trendPoints[trendPoints.length - 1].x.toFixed(1)},${baselineY}`
+                : '';
+              const yTicks = Array.from(new Set([trendMax, Math.round(trendMax / 2), 0]));
+              const xTickIndexes = registrationTrend.length
+                ? Array.from(new Set([0, Math.floor((registrationTrend.length - 1) / 2), registrationTrend.length - 1]))
+                : [];
+            %>
+            <div class="registration-trend-card">
+              <div class="registration-trend-header">
+                <div>
+                  <div class="registration-trend-title">
+                    <i data-lucide="line-chart" class="w-4 h-4" style="color:var(--color-brand-600);"></i>
+                    กราฟการลงทะเบียนย้อนหลัง 1 เดือน
+                  </div>
+                  <p class="registration-trend-subtitle">จำนวนการลงทะเบียนรายวันในช่วง 30 วันล่าสุด</p>
+                </div>
+                <div class="registration-trend-meta" aria-label="สรุปข้อมูลกราฟการลงทะเบียน">
+                  <span class="registration-trend-chip">รวม <strong><%= trendTotal.toLocaleString('th-TH') %></strong> รายการ</span>
+                  <span class="registration-trend-chip">วันนี้ <strong><%= trendLatest.toLocaleString('th-TH') %></strong></span>
+                  <span class="registration-trend-chip">เฉลี่ย <strong><%= trendAverage.toLocaleString('th-TH') %></strong>/วัน</span>
+                </div>
+              </div>
+
+              <% if(registrationTrend.length > 0) { %>
+                <svg class="registration-trend-svg" viewBox="0 0 <%= chartWidth %> <%= chartHeight %>" role="img" aria-label="กราฟเส้นการลงทะเบียนย้อนหลัง 1 เดือน" preserveAspectRatio="none">
+                  <title>กราฟเส้นการลงทะเบียนย้อนหลัง 1 เดือน</title>
+                  <desc>แสดงจำนวนการลงทะเบียนรายวันในช่วง 30 วันล่าสุด</desc>
+                  <% yTicks.forEach(tick => { %>
+                    <% const y = chartPad.top + innerHeight - ((tick / trendMax) * innerHeight); %>
+                    <line class="trend-grid-line" x1="<%= chartPad.left %>" y1="<%= y.toFixed(1) %>" x2="<%= chartWidth - chartPad.right %>" y2="<%= y.toFixed(1) %>"></line>
+                    <text class="trend-axis-label" x="<%= chartPad.left - 10 %>" y="<%= (y + 4).toFixed(1) %>" text-anchor="end"><%= tick %></text>
+                  <% }) %>
+                  <% if(trendArea) { %>
+                    <polygon class="trend-area" points="<%= trendArea %>"></polygon>
+                  <% } %>
+                  <polyline class="trend-line" points="<%= trendPolyline %>"></polyline>
+                  <% trendPoints.forEach((point, index) => { %>
+                    <% if(point.count > 0 || index === trendPoints.length - 1) { %>
+                      <circle class="trend-point" cx="<%= point.x.toFixed(1) %>" cy="<%= point.y.toFixed(1) %>" r="4.5">
+                        <title><%= point.label %>: <%= point.count.toLocaleString('th-TH') %> รายการ</title>
+                      </circle>
+                    <% } %>
+                  <% }) %>
+                  <% xTickIndexes.forEach(index => { %>
+                    <% const point = trendPoints[index]; %>
+                    <% if(point) { %>
+                      <text class="trend-axis-label" x="<%= point.x.toFixed(1) %>" y="<%= chartHeight - 10 %>" text-anchor="<%= index === 0 ? 'start' : index === registrationTrend.length - 1 ? 'end' : 'middle' %>"><%= point.label %></text>
+                    <% } %>
+                  <% }) %>
+                </svg>
+              <% } else { %>
+                <div class="registration-trend-empty">
+                  <i data-lucide="line-chart" class="w-10 h-10" style="margin-bottom:8px; color:#22c55e;"></i>
+                  <p style="font-weight:600; color:#64748b;">ยังไม่มีข้อมูลการลงทะเบียนย้อนหลัง 1 เดือน</p>
+                </div>
+              <% } %>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">

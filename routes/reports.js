@@ -414,6 +414,54 @@ const REPORT_TYPES = {
   summary:       { label: 'สรุปภาพรวมระบบ', icon: 'pie-chart' }
 };
 
+function formatDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function buildRegistrationTrend(rows, today = new Date()) {
+  const countsByDate = new Map(
+    (rows || []).map(row => [String(row.date_key), Number(row.cnt) || 0])
+  );
+  const start = new Date(today);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - 29);
+
+  return Array.from({ length: 30 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    const dateKey = formatDateKey(date);
+
+    return {
+      date: dateKey,
+      label: date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }),
+      count: countsByDate.get(dateKey) || 0,
+    };
+  });
+}
+
+async function fetchRegistrationTrend(conn, today = new Date()) {
+  const start = new Date(today);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - 29);
+
+  const end = new Date(today);
+  end.setHours(0, 0, 0, 0);
+
+  const rows = await conn.query(
+    `SELECT DATE_FORMAT(registered_at, '%Y-%m-%d') AS date_key, COUNT(*) AS cnt
+     FROM registrations
+     WHERE registered_at >= ? AND registered_at < DATE_ADD(?, INTERVAL 1 DAY)
+     GROUP BY DATE(registered_at)
+     ORDER BY date_key ASC`,
+    [formatDateKey(start), formatDateKey(end)]
+  );
+
+  return buildRegistrationTrend(rows, today);
+}
+
 // Helper: build query + fields for a report type
 async function fetchReport(conn, type, startDate, endDate, options = {}) {
   const page = parsePositiveInt(options.page, 1);
@@ -534,6 +582,7 @@ async function fetchReport(conn, type, startDate, endDate, options = {}) {
     const regCounts = await conn.query(
       `SELECT user_type, status, COUNT(*) as cnt FROM registrations WHERE 1=1 ${dateFilter} GROUP BY user_type, status`, params
     );
+    const registrationTrend = await fetchRegistrationTrend(conn);
     const violationDateFilter = dateFilter.replace(/registered_at/g, 'v.recorded_at');
     const vioCounts = await conn.query(
       `SELECT ru.rule_name, COUNT(v.id) as cnt FROM violations v JOIN rules ru ON v.rule_id = ru.id WHERE 1=1 ${violationDateFilter} GROUP BY ru.id, ru.rule_name ORDER BY cnt DESC`, params
@@ -541,7 +590,7 @@ async function fetchReport(conn, type, startDate, endDate, options = {}) {
     const topProv = await conn.query(
       `SELECT province, COUNT(*) as cnt FROM registrations WHERE status='approved' ${dateFilter} GROUP BY province ORDER BY cnt DESC LIMIT 5`, params
     );
-    return { isSummary: true, regCounts, vioCounts, topProv };
+    return { isSummary: true, regCounts, vioCounts, topProv, registrationTrend };
   }
 
   return { fields: [], rows: [] };
