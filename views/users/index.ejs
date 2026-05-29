@@ -188,24 +188,6 @@
                       </button>
                     </form>
                     <% } %>
-                    <form method="POST"
-                          action="/users/<%= u.id %>/delete"
-                          class="inline"
-                          data-no-nav
-                          data-delete-confirm
-                          data-delete-title="ยืนยันการลบผู้ใช้ถาวร"
-                          data-delete-lead="คุณกำลังจะลบผู้ใช้ออกจากระบบจริง:"
-                          data-delete-item="<%= u.full_name %> (@<%= u.username %>)"
-                          data-delete-detail="บทบาท: <%= u.role === 'superadmin' ? 'ผู้ดูแลระบบ' : u.role === 'head' ? 'หัวหน้า' : 'เจ้าหน้าที่' %> · สถานะ: <%= u.is_active ? 'ใช้งาน' : 'ระงับ' %>"
-                          data-delete-warning="คำเตือน: การลบถาวรจะลบบัญชีผู้ใช้ออกจากฐานข้อมูลจริง และอาจส่งผลต่อประวัติการกระทำที่ผู้ใช้นี้เคยบันทึกหรือรายงานไว้"
-                          data-delete-confirm-text="ลบผู้ใช้ถาวร">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                      <button type="submit"
-                              class="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all"
-                              title="ลบผู้ใช้ถาวร">
-                        <i data-lucide="trash-2" class="w-4 h-4"></i>
-                      </button>
-                    </form>
                     <% } %>
                   </div>
                 </td>

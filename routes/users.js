@@ -211,34 +211,9 @@ router.post('/:id/restore', async (req, res) => {
   res.redirect('/users');
 });
 
-// POST /users/:id/delete — ลบข้อมูลถาวร
+// POST /users/:id/delete — legacy endpoint kept non-destructive
 router.post('/:id/delete', async (req, res) => {
-  if (parseInt(req.params.id, 10) === req.session.admin.id) {
-    req.flash('error', 'ไม่สามารถลบบัญชีของตัวเองได้');
-    return res.redirect('/users');
-  }
-
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    const [user] = await conn.query(
-      'SELECT id, username, full_name FROM admins WHERE id = ?',
-      [req.params.id]
-    );
-
-    if (!user) {
-      req.flash('error', 'ไม่พบผู้ใช้ที่ต้องการลบ');
-      return res.redirect('/users');
-    }
-
-    await conn.query('DELETE FROM admins WHERE id = ?', [req.params.id]);
-    req.flash('success', `ลบผู้ใช้ "${user.full_name}" ออกจากระบบถาวรเรียบร้อยแล้ว`);
-  } catch (err) {
-    console.error('POST /users/:id/delete error:', err);
-    req.flash('error', 'ไม่สามารถลบผู้ใช้ถาวรได้: ' + err.message);
-  } finally {
-    if (conn) conn.release();
-  }
+  req.flash('error', 'ไม่สามารถลบผู้ใช้ถาวรจากหน้านี้ได้ กรุณาใช้การปิดใช้งานหรือกู้คืนผู้ใช้แทน');
   res.redirect('/users');
 });
 

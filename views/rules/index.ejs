@@ -169,21 +169,29 @@
                       <i data-lucide="eye-off" class="w-4 h-4"></i>
                     </button>
                   </form>
-                  <form method="POST"
-                        action="/rules/<%= r.id %>/destroy"
-                        class="inline"
-                        data-delete-confirm
-                        data-delete-title="ยืนยันการลบกฎถาวร"
-                        data-delete-lead="คุณกำลังจะลบออกจากระบบจริง:"
-                        data-delete-item="กฎและข้อบังคับ: <%= r.rule_name %>"
-                        data-delete-detail="มีประวัติใช้งานกฎนี้แล้ว <%= r.violation_count %> ครั้ง"
-                        data-delete-warning="คำเตือน: การลบถาวรจะลบกฎออกจากฐานข้อมูลจริง และอาจทำให้ประวัติการกระทำผิดที่อ้างอิงกฎนี้ถูกลบตามความสัมพันธ์ของฐานข้อมูล"
-                        data-delete-confirm-text="ลบถาวร">
-                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                    <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all" title="ลบกฎถาวร">
+                  <% if ((r.violation_count || 0) === 0) { %>
+                    <form method="POST"
+                          action="/rules/<%= r.id %>/destroy"
+                          class="inline"
+                          data-delete-confirm
+                          data-delete-title="ยืนยันการลบกฎถาวร"
+                          data-delete-lead="คุณกำลังจะลบออกจากระบบจริง:"
+                          data-delete-item="กฎและข้อบังคับ: <%= r.rule_name %>"
+                          data-delete-detail="กฎนี้ยังไม่มีประวัติใช้งาน จึงสามารถลบออกจากระบบได้"
+                          data-delete-warning="คำเตือน: การลบถาวรจะลบกฎออกจากฐานข้อมูลจริง"
+                          data-delete-confirm-text="ลบถาวร">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all" title="ลบกฎถาวร">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                      </button>
+                    </form>
+                  <% } else { %>
+                    <button type="button"
+                            class="p-1.5 text-slate-300 rounded-lg cursor-not-allowed"
+                            title="ไม่สามารถลบกฎที่ถูกใช้งานแล้ว">
                       <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
-                  </form>
+                  <% } %>
                 </div>
               </div>
               <p class="text-sm text-slate-500 mb-3 break-words"><%= r.description || 'ไม่มีรายละเอียด' %></p>
@@ -283,21 +291,29 @@
                       <i data-lucide="<%= type.is_active ? 'eye-off' : 'play-circle' %>" class="w-4 h-4"></i>
                     </button>
                   </form>
-                  <form method="POST"
-                        action="/rules/types/<%= type.id %>/delete"
-                        class="inline"
-                        data-delete-confirm
-                        data-delete-title="ยืนยันการลบประเภทความผิด"
-                        data-delete-lead="คุณกำลังจะลบ:"
-                        data-delete-item="ประเภทความผิด: <%= type.type_name %>"
-                        data-delete-detail="หากประเภทนี้ถูกใช้งานในกฎอยู่ ระบบจะปิดใช้งานแทนการลบเพื่อรักษาข้อมูลเดิม"
-                        data-delete-warning="ตรวจสอบกฎที่ผูกกับประเภทนี้ก่อนดำเนินการ"
-                        data-delete-confirm-text="ลบประเภทนี้">
-                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                    <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all" title="ลบประเภท">
+                  <% if ((type.rule_count || 0) === 0) { %>
+                    <form method="POST"
+                          action="/rules/types/<%= type.id %>/delete"
+                          class="inline"
+                          data-delete-confirm
+                          data-delete-title="ยืนยันการลบประเภทความผิด"
+                          data-delete-lead="คุณกำลังจะลบ:"
+                          data-delete-item="ประเภทความผิด: <%= type.type_name %>"
+                          data-delete-detail="ประเภทนี้ยังไม่มีการผูกกับกฎ จึงสามารถลบออกจากระบบได้"
+                          data-delete-warning="ตรวจสอบข้อมูลให้ถูกต้องก่อนดำเนินการ"
+                          data-delete-confirm-text="ลบประเภทนี้">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all" title="ลบประเภท">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                      </button>
+                    </form>
+                  <% } else { %>
+                    <button type="button"
+                            class="p-1.5 text-slate-300 rounded-lg cursor-not-allowed"
+                            title="ไม่สามารถลบประเภทที่ถูกใช้งานในกฎแล้ว">
                       <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
-                  </form>
+                  <% } %>
                 </div>
               </div>
             </div>
@@ -362,21 +378,29 @@
                       <i data-lucide="<%= type.is_active ? 'eye-off' : 'play-circle' %>" class="w-4 h-4"></i>
                     </button>
                   </form>
-                  <form method="POST"
-                        action="/rules/penalties/<%= type.id %>/delete"
-                        class="inline"
-                        data-delete-confirm
-                        data-delete-title="ยืนยันการลบประเภทบทลงโทษ"
-                        data-delete-lead="คุณกำลังจะลบ:"
-                        data-delete-item="ประเภทบทลงโทษ: <%= type.penalty_name %>"
-                        data-delete-detail="หากประเภทนี้ถูกใช้งานในกฎอยู่ ระบบจะปิดใช้งานแทนการลบเพื่อรักษาข้อมูลเดิม"
-                        data-delete-warning="ตรวจสอบกฎที่ผูกกับประเภทนี้ก่อนดำเนินการ"
-                        data-delete-confirm-text="ลบประเภทนี้">
-                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                    <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all" title="ลบประเภทบทลงโทษ">
+                  <% if ((type.rule_count || 0) === 0) { %>
+                    <form method="POST"
+                          action="/rules/penalties/<%= type.id %>/delete"
+                          class="inline"
+                          data-delete-confirm
+                          data-delete-title="ยืนยันการลบประเภทบทลงโทษ"
+                          data-delete-lead="คุณกำลังจะลบ:"
+                          data-delete-item="ประเภทบทลงโทษ: <%= type.penalty_name %>"
+                          data-delete-detail="ประเภทนี้ยังไม่มีการผูกกับกฎ จึงสามารถลบออกจากระบบได้"
+                          data-delete-warning="ตรวจสอบข้อมูลให้ถูกต้องก่อนดำเนินการ"
+                          data-delete-confirm-text="ลบประเภทนี้">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all" title="ลบประเภทบทลงโทษ">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                      </button>
+                    </form>
+                  <% } else { %>
+                    <button type="button"
+                            class="p-1.5 text-slate-300 rounded-lg cursor-not-allowed"
+                            title="ไม่สามารถลบประเภทบทลงโทษที่ถูกใช้งานในกฎแล้ว">
                       <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
-                  </form>
+                  <% } %>
                 </div>
               </div>
             </div>

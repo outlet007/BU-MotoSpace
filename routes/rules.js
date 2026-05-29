@@ -493,12 +493,12 @@ router.post('/types/:id/delete', isHead, async (req, res) => {
     const ruleCount = parseInt(usage.cnt, 10) || 0;
 
     if (ruleCount > 0) {
-      await conn.query('UPDATE violation_types SET is_active = 0 WHERE id = ?', [req.params.id]);
-      req.flash('success', `ประเภท "${type.type_name}" ถูกใช้งานอยู่ ${ruleCount} กฎ จึงปิดใช้งานแทนการลบ`);
-    } else {
-      await conn.query('DELETE FROM violation_types WHERE id = ?', [req.params.id]);
-      req.flash('success', `ลบประเภท "${type.type_name}" เรียบร้อยแล้ว`);
+      req.flash('error', `ไม่สามารถลบประเภท "${type.type_name}" ได้ เนื่องจากถูกใช้งานอยู่ ${ruleCount} กฎ`);
+      return res.redirect('/rules?tab=types');
     }
+
+    await conn.query('DELETE FROM violation_types WHERE id = ?', [req.params.id]);
+    req.flash('success', `ลบประเภท "${type.type_name}" เรียบร้อยแล้ว`);
   } catch (err) {
     console.error('POST /rules/types/:id/delete error:', err);
     req.flash('error', 'ไม่สามารถลบประเภทความผิดได้: ' + err.message);
@@ -628,12 +628,12 @@ router.post('/penalties/:id/delete', isHead, async (req, res) => {
     const ruleCount = parseInt(usage.cnt, 10) || 0;
 
     if (ruleCount > 0) {
-      await conn.query('UPDATE penalty_types SET is_active = 0 WHERE id = ?', [req.params.id]);
-      req.flash('success', `ประเภทบทลงโทษ "${type.penalty_name}" ถูกใช้งานอยู่ ${ruleCount} กฎ จึงปิดใช้งานแทนการลบ`);
-    } else {
-      await conn.query('DELETE FROM penalty_types WHERE id = ?', [req.params.id]);
-      req.flash('success', `ลบประเภทบทลงโทษ "${type.penalty_name}" เรียบร้อยแล้ว`);
+      req.flash('error', `ไม่สามารถลบประเภทบทลงโทษ "${type.penalty_name}" ได้ เนื่องจากถูกใช้งานอยู่ ${ruleCount} กฎ`);
+      return res.redirect('/rules?tab=penalties');
     }
+
+    await conn.query('DELETE FROM penalty_types WHERE id = ?', [req.params.id]);
+    req.flash('success', `ลบประเภทบทลงโทษ "${type.penalty_name}" เรียบร้อยแล้ว`);
   } catch (err) {
     console.error('POST /rules/penalties/:id/delete error:', err);
     req.flash('error', 'ไม่สามารถลบประเภทบทลงโทษได้: ' + err.message);
@@ -805,6 +805,17 @@ router.post('/:id/destroy', isHead, async (req, res) => {
 
     if (!rule) {
       req.flash('error', 'ไม่พบกฎและข้อบังคับที่ต้องการลบถาวร');
+      return res.redirect('/rules?tab=rules');
+    }
+
+    const [usage] = await conn.query(
+      'SELECT COUNT(*) AS cnt FROM violations WHERE rule_id = ?',
+      [req.params.id]
+    );
+    const violationCount = parseInt(usage.cnt, 10) || 0;
+
+    if (violationCount > 0) {
+      req.flash('error', `ไม่สามารถลบกฎ "${rule.rule_name}" ได้ เนื่องจากมีประวัติใช้งานแล้ว ${violationCount} ครั้ง`);
       return res.redirect('/rules?tab=rules');
     }
 

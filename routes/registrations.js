@@ -1389,7 +1389,8 @@ router.post('/:id/delete', isHead, verifyCsrf, async (req, res) => {
       req.flash('error', 'ไม่พบข้อมูลทะเบียน หรือข้อมูลถูกลบชั่วคราวแล้ว');
       return res.redirect('/registrations');
     }
-    const ownerRegistrationId = await findCanonicalOwnerRegistrationId(conn, reg.user_type, reg.id_number, Number(reg.id));
+    const relatedRegistrationIds = await getRelatedRegistrationIdsForUser(conn, reg);
+    const relatedRegistrationPlaceholders = sqlPlaceholders(relatedRegistrationIds);
 
     const reason = (req.body.delete_reason || '').trim();
     if (!reason) {
@@ -1400,33 +1401,34 @@ router.post('/:id/delete', isHead, verifyCsrf, async (req, res) => {
     await conn.query(
       `UPDATE violation_reports
        SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
-       WHERE registration_id = ? AND deleted_at IS NULL`,
-      [req.session.admin.id, reason, req.params.id]
+       WHERE registration_id IN (${relatedRegistrationPlaceholders}) AND deleted_at IS NULL`,
+      [req.session.admin.id, reason, ...relatedRegistrationIds]
     );
     await conn.query(
       `UPDATE summons_appointments
        SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
-       WHERE registration_id = ? AND deleted_at IS NULL`,
-      [req.session.admin.id, reason, req.params.id]
+       WHERE registration_id IN (${relatedRegistrationPlaceholders}) AND deleted_at IS NULL`,
+      [req.session.admin.id, reason, ...relatedRegistrationIds]
     );
     await conn.query(
       `UPDATE violations
        SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
-       WHERE registration_id = ? AND deleted_at IS NULL`,
-      [req.session.admin.id, reason, req.params.id]
+       WHERE registration_id IN (${relatedRegistrationPlaceholders}) AND deleted_at IS NULL`,
+      [req.session.admin.id, reason, ...relatedRegistrationIds]
     );
     await conn.query(
       `UPDATE registrations
        SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
-       WHERE id = ? AND deleted_at IS NULL`,
-      [req.session.admin.id, reason, req.params.id]
+       WHERE id IN (${relatedRegistrationPlaceholders}) AND deleted_at IS NULL`,
+      [req.session.admin.id, reason, ...relatedRegistrationIds]
     );
     await conn.query(
       `UPDATE vehicles
        SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
-       WHERE (owner_registration_id = ? OR source_registration_id = ?)
+       WHERE (owner_registration_id IN (${relatedRegistrationPlaceholders})
+              OR source_registration_id IN (${relatedRegistrationPlaceholders}))
          AND deleted_at IS NULL`,
-      [req.session.admin.id, reason, ownerRegistrationId, req.params.id]
+      [req.session.admin.id, reason, ...relatedRegistrationIds, ...relatedRegistrationIds]
     );
 
     await conn.commit();
@@ -1455,37 +1457,39 @@ router.post('/:id/restore', isHead, verifyCsrf, async (req, res) => {
       req.flash('error', 'ไม่พบข้อมูลที่ถูกลบชั่วคราว');
       return res.redirect('/registrations?status=deleted');
     }
-    const ownerRegistrationId = await findCanonicalOwnerRegistrationId(conn, reg.user_type, reg.id_number, Number(reg.id));
+    const relatedRegistrationIds = await getRelatedRegistrationIdsForUser(conn, reg);
+    const relatedRegistrationPlaceholders = sqlPlaceholders(relatedRegistrationIds);
 
     await conn.query(
       `UPDATE registrations
        SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL
-       WHERE id = ?`,
-      [req.params.id]
+       WHERE id IN (${relatedRegistrationPlaceholders})`,
+      relatedRegistrationIds
     );
     await conn.query(
       `UPDATE violations
        SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL
-       WHERE registration_id = ?`,
-      [req.params.id]
+       WHERE registration_id IN (${relatedRegistrationPlaceholders})`,
+      relatedRegistrationIds
     );
     await conn.query(
       `UPDATE violation_reports
        SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL
-       WHERE registration_id = ?`,
-      [req.params.id]
+       WHERE registration_id IN (${relatedRegistrationPlaceholders})`,
+      relatedRegistrationIds
     );
     await conn.query(
       `UPDATE summons_appointments
        SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL
-       WHERE registration_id = ?`,
-      [req.params.id]
+       WHERE registration_id IN (${relatedRegistrationPlaceholders})`,
+      relatedRegistrationIds
     );
     await conn.query(
       `UPDATE vehicles
        SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL
-       WHERE owner_registration_id = ? OR source_registration_id = ?`,
-      [ownerRegistrationId, req.params.id]
+       WHERE owner_registration_id IN (${relatedRegistrationPlaceholders})
+          OR source_registration_id IN (${relatedRegistrationPlaceholders})`,
+      [...relatedRegistrationIds, ...relatedRegistrationIds]
     );
 
     await conn.commit();

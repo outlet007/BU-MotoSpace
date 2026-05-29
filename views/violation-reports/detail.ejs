@@ -30,12 +30,19 @@
       <%- include('../partials/flash') %>
 
       <!-- Back -->
-      <a href="/violation-reports" class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600 mb-5 transition-colors">
+      <a href="<%= r.deleted_at ? '/violation-reports?status_filter=deleted' : '/violation-reports' %>" class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600 mb-5 transition-colors">
         <i data-lucide="arrow-left" class="w-4 h-4"></i> กลับรายการ
       </a>
 
       <!-- Status banner -->
-      <% if (r.status === 'pending') { %>
+      <% if (r.deleted_at) { %>
+      <div class="flex items-center gap-3 mb-5 px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-sm font-medium">
+        <i data-lucide="archive-x" class="w-5 h-5 text-slate-500 flex-shrink-0"></i>
+        รายการนี้ <strong>ถูกลบชั่วคราว</strong>
+        <% if (r.deleted_by_name) { %><span class="ml-auto text-sm text-slate-500">ลบโดย <%= r.deleted_by_name %></span><% } %>
+        <% if (r.delete_reason) { %><span class="text-sm text-red-500">เหตุผล: <%= r.delete_reason %></span><% } %>
+      </div>
+      <% } else if (r.status === 'pending') { %>
       <div class="flex items-center gap-3 mb-5 px-4 py-3 rounded-xl bg-orange-50 border border-orange-200 text-orange-800 text-sm font-medium">
         <i data-lucide="clock" class="w-5 h-5 text-orange-500 flex-shrink-0"></i>
         รายการนี้ <strong>รอตรวจสอบ</strong> — ยังไม่ได้ดำเนินการยืนยันหรือปฏิเสธ
@@ -141,8 +148,9 @@
             </h3>
             <% if (r.evidence_photo) { %>
               <img src="<%= signedUrl(r.evidence_photo) %>" alt="Evidence"
+                   data-lightbox-src="<%= signedUrl(r.evidence_photo) %>"
+                   data-lightbox-caption="รูปหลักฐาน"
                    style="max-width:100%;max-height:400px;object-fit:contain;border-radius:12px;border:1px solid #e2e8f0;cursor:pointer;transition:transform .2s;"
-                   onclick="document.getElementById('lightbox').classList.add('active')"
                    onmouseover="this.style.transform='scale(1.01)'" onmouseout="this.style.transform='scale(1)'">
               <p style="font-size:0.75rem;color:#94a3b8;margin-top:8px;">คลิกที่ภาพเพื่อขยาย</p>
             <% } else { %>
@@ -155,8 +163,67 @@
 
         </div>
 
-        <!-- RIGHT: person info + actions -->
+        <!-- RIGHT: actions + person info -->
         <div class="space-y-6">
+
+          <!-- Actions card -->
+          <% if (!r.deleted_at && ['pending', 'confirmed', 'rejected'].includes(r.status)) { %>
+          <div data-action-group="process" class="card p-5">
+              <h3 style="font-size:0.85rem;font-weight:700;color:#1e293b;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+                <i data-lucide="clipboard-check" class="w-4 h-4 text-green-600"></i> ดำเนินการ
+              </h3>
+
+              <!-- CONFIRM -->
+              <% if (r.status === 'pending' || r.status === 'rejected') { %>
+              <form method="POST" action="/violation-reports/<%= r.id %>/confirm" onsubmit="return confirm('ยืนยันการกระทำผิดและบันทึกลงประวัติ?')">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" id="btn-confirm-<%= r.id %>" class="btn w-full justify-center mb-2"
+                        style="background:#16a34a;color:#fff;font-size:0.85rem;gap:6px;">
+                  <i data-lucide="check-circle" class="w-4 h-4"></i> ยืนยัน
+                </button>
+              </form>
+              <% } else { %>
+              <button type="button" class="btn w-full justify-center mb-2"
+                      style="background:#dcfce7;color:#15803d;font-size:0.85rem;gap:6px;cursor:default;" disabled>
+                <i data-lucide="check-circle" class="w-4 h-4"></i> ยืนยันแล้ว
+              </button>
+              <% } %>
+
+              <!-- REJECT -->
+              <button type="button" id="btn-reject-<%= r.id %>"
+                      class="btn w-full justify-center"
+                      style="background:<%= r.status === 'rejected' ? '#fee2e2' : '#dc2626' %>;color:<%= r.status === 'rejected' ? '#b91c1c' : '#fff' %>;font-size:0.85rem;gap:6px;<%= r.status === 'rejected' ? 'cursor:default;' : '' %>"
+                      <%= r.status === 'rejected' ? 'disabled' : '' %>>
+                <i data-lucide="x-circle" class="w-4 h-4"></i> <%= r.status === 'rejected' ? 'ปฏิเสธแล้ว' : 'ปฏิเสธ' %>
+              </button>
+          </div>
+
+          <div data-action-group="manage" class="card p-5">
+              <h3 style="font-size:0.85rem;font-weight:700;color:#1e293b;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+                <i data-lucide="settings" class="w-4 h-4 text-slate-500"></i> จัดการ
+              </h3>
+
+              <button type="button" id="btn-edit-<%= r.id %>"
+                      class="btn btn-secondary w-full justify-center mb-2" style="font-size:0.85rem;gap:6px;">
+                <i data-lucide="pencil" class="w-4 h-4"></i> แก้ไขรายการ
+              </button>
+
+              <form method="POST"
+                    action="/violation-reports/<%= r.id %>/delete"
+                    data-delete-confirm
+                    data-delete-reason-required="true"
+                    data-delete-reason-placeholder="ระบุเหตุผลในการลบรายการ"
+                    data-delete-item="รายการแจ้ง <%= r.report_code || ('IR-GEN-' + String(r.id).padStart(6, '0')) %>: <%= r.rule_name %>"
+                    data-delete-detail="<%= r.first_name %> <%= r.last_name %> · <%= new Date(r.reported_at).toLocaleDateString('th-TH') %>"
+                    data-delete-warning="เมื่อลบแล้ว รายการนี้จะหายจากหน้าตรวจสอบการกระทำผิดกฎ และข้อมูลที่เกี่ยวข้องจะถูกลบชั่วคราว"
+                    data-delete-confirm-text="ลบรายการ">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="btn btn-secondary w-full justify-center text-red-500 hover:bg-red-50" style="font-size:0.85rem;gap:6px;">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i> ลบรายการ
+                </button>
+              </form>
+          </div>
+          <% } %>
 
           <!-- Person info -->
           <div class="card p-5">
@@ -203,45 +270,6 @@
             </a>
           </div>
 
-          <!-- Actions card -->
-          <% if (['pending', 'confirmed', 'rejected'].includes(r.status)) { %>
-          <div class="card p-5">
-            <h3 style="font-size:0.9rem;font-weight:700;color:#1e293b;margin-bottom:14px;display:flex;align-items:center;gap:6px;">
-              <i data-lucide="settings" class="w-4 h-4 text-slate-500"></i> ดำเนินการ
-            </h3>
-
-            <!-- CONFIRM -->
-            <% if (r.status === 'pending' || r.status === 'rejected') { %>
-            <form method="POST" action="/violation-reports/<%= r.id %>/confirm" onsubmit="return confirm('ยืนยันการกระทำผิดและบันทึกลงประวัติ?')">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <button type="submit" id="btn-confirm-<%= r.id %>" class="btn w-full justify-center mb-2"
-                      style="background:#16a34a;color:#fff;font-size:0.85rem;gap:6px;">
-                <i data-lucide="check-circle" class="w-4 h-4"></i> ยืนยัน
-              </button>
-            </form>
-            <% } else { %>
-            <button type="button" class="btn w-full justify-center mb-2"
-                    style="background:#dcfce7;color:#15803d;font-size:0.85rem;gap:6px;cursor:default;" disabled>
-              <i data-lucide="check-circle" class="w-4 h-4"></i> ยืนยันแล้ว
-            </button>
-            <% } %>
-
-            <!-- EDIT -->
-            <button type="button" id="btn-edit-<%= r.id %>"
-                    class="btn btn-secondary w-full justify-center mb-2" style="font-size:0.85rem;gap:6px;">
-              <i data-lucide="pencil" class="w-4 h-4"></i> แก้ไข
-            </button>
-
-            <!-- REJECT -->
-            <button type="button" id="btn-reject-<%= r.id %>"
-                    class="btn w-full justify-center"
-                    style="background:<%= r.status === 'rejected' ? '#fee2e2' : '#dc2626' %>;color:<%= r.status === 'rejected' ? '#b91c1c' : '#fff' %>;font-size:0.85rem;gap:6px;<%= r.status === 'rejected' ? 'cursor:default;' : '' %>"
-                    <%= r.status === 'rejected' ? 'disabled' : '' %>>
-              <i data-lucide="x-circle" class="w-4 h-4"></i> <%= r.status === 'rejected' ? 'ปฏิเสธแล้ว' : 'ปฏิเสธ' %>
-            </button>
-          </div>
-          <% } %>
-
           <!-- Vehicle photos -->
           <% if (r.motorcycle_photo || r.plate_photo) { %>
           <div class="card p-5">
@@ -253,14 +281,20 @@
               <div>
                 <p style="font-size:0.7rem;color:#94a3b8;margin-bottom:4px;text-transform:uppercase;font-weight:600;letter-spacing:.03em;">รูปรถ</p>
                 <img src="<%= signedUrl(r.motorcycle_photo) %>" alt="Motorcycle"
-                     style="width:100%;height:120px;object-fit:cover;border-radius:10px;border:1px solid #e2e8f0;">
+                     data-lightbox-src="<%= signedUrl(r.motorcycle_photo) %>"
+                     data-lightbox-caption="รูปรถ"
+                     style="width:100%;height:120px;object-fit:cover;border-radius:10px;border:1px solid #e2e8f0;cursor:pointer;transition:transform .2s;"
+                     onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
               </div>
               <% } %>
               <% if (r.plate_photo) { %>
               <div>
                 <p style="font-size:0.7rem;color:#94a3b8;margin-bottom:4px;text-transform:uppercase;font-weight:600;letter-spacing:.03em;">ป้ายทะเบียน</p>
                 <img src="<%= signedUrl(r.plate_photo) %>" alt="Plate"
-                     style="width:100%;height:120px;object-fit:cover;border-radius:10px;border:1px solid #e2e8f0;">
+                     data-lightbox-src="<%= signedUrl(r.plate_photo) %>"
+                     data-lightbox-caption="รูปป้ายทะเบียน"
+                     style="width:100%;height:120px;object-fit:cover;border-radius:10px;border:1px solid #e2e8f0;cursor:pointer;transition:transform .2s;"
+                     onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
               </div>
               <% } %>
             </div>
@@ -271,17 +305,19 @@
       </div>
 
       <!-- Lightbox -->
-      <% if (r.evidence_photo) { %>
-      <div id="lightbox" onclick="this.classList.remove('active')"
-           style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.85);z-index:999;align-items:center;justify-content:center;backdrop-filter:blur(4px);"
-           class="active-check">
-        <img src="<%= signedUrl(r.evidence_photo) %>" alt="Evidence Full"
-             style="max-width:90%;max-height:90%;border-radius:12px;box-shadow:0 25px 50px rgba(0,0,0,.3);">
+      <% if (r.evidence_photo || r.motorcycle_photo || r.plate_photo) { %>
+      <div id="lightbox"
+           style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.85);z-index:9999;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:24px;"
+           role="dialog" aria-modal="true" aria-label="Image preview">
+        <button type="button" id="lightbox-close"
+                style="position:absolute;top:18px;right:18px;width:40px;height:40px;border-radius:999px;border:none;background:rgba(255,255,255,.16);color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <img id="lightbox-img" alt=""
+             style="max-width:90vw;max-height:84vh;object-fit:contain;border-radius:12px;box-shadow:0 25px 50px rgba(0,0,0,.3);">
+        <div id="lightbox-caption"
+             style="position:absolute;left:50%;bottom:22px;transform:translateX(-50%);color:white;background:rgba(15,23,42,.72);padding:6px 14px;border-radius:999px;font-size:13px;"></div>
       </div>
-      <script>
-        document.getElementById('lightbox').style.display = 'flex';
-        document.getElementById('lightbox').style.display = 'none';
-      </script>
       <% } %>
 
     </main>
@@ -369,6 +405,12 @@
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   }
+  function closeLightbox() {
+    var lightbox = document.getElementById('lightbox');
+    var lightboxImg = document.getElementById('lightbox-img');
+    if (lightbox) lightbox.style.display = 'none';
+    if (lightboxImg) lightboxImg.removeAttribute('src');
+  }
 
   // Close modal when clicking the backdrop (outside modal-box)
   ['edit-modal', 'reject-modal'].forEach(function(id) {
@@ -384,6 +426,7 @@
     if (e.key === 'Escape') {
       closeModal('edit-modal');
       closeModal('reject-modal');
+      closeLightbox();
     }
   });
 
@@ -502,18 +545,37 @@
   }
 
   // ── Lightbox ─────────────────────────────────────────────────────
-  <% if (r.evidence_photo) { %>
-  var lb = document.getElementById('lightbox');
-  if (lb) {
-    lb.addEventListener('click', function() { lb.style.display = 'none'; });
+  <% if (r.evidence_photo || r.motorcycle_photo || r.plate_photo) { %>
+  var lightbox = document.getElementById('lightbox');
+  var lightboxImg = document.getElementById('lightbox-img');
+  var lightboxCaption = document.getElementById('lightbox-caption');
+
+  function openLightbox(trigger) {
+    if (!lightbox || !lightboxImg || !trigger) return;
+    lightboxImg.src = trigger.dataset.lightboxSrc || trigger.src;
+    lightboxImg.alt = trigger.dataset.lightboxCaption || trigger.alt || 'Image preview';
+    if (lightboxCaption) lightboxCaption.textContent = trigger.dataset.lightboxCaption || trigger.alt || '';
+    lightbox.style.display = 'flex';
   }
-  var evidenceImg = document.querySelector('img[onclick*="lightbox"]');
-  if (evidenceImg) {
-    evidenceImg.removeAttribute('onclick');
-    evidenceImg.addEventListener('click', function() {
-      if (lb) lb.style.display = 'flex';
+
+  if (lightbox) {
+    lightbox.addEventListener('click', closeLightbox);
+  }
+  if (lightboxImg) {
+    lightboxImg.addEventListener('click', function(e) { e.stopPropagation(); });
+  }
+  var lightboxClose = document.getElementById('lightbox-close');
+  if (lightboxClose) {
+    lightboxClose.addEventListener('click', function(e) {
+      e.stopPropagation();
+      closeLightbox();
     });
   }
+  document.querySelectorAll('[data-lightbox-src]').forEach(function(trigger) {
+    trigger.addEventListener('click', function() {
+      openLightbox(trigger);
+    });
+  });
   <% } %>
 </script>
 </body>

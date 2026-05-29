@@ -73,6 +73,24 @@ async function ensureIndex(conn, tableName, indexName, definition) {
   }
 }
 
+async function columnExists(conn, tableName, columnName) {
+  const [row] = await conn.query(
+    `SELECT COUNT(*) AS cnt
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND COLUMN_NAME = ?`,
+    [tableName, columnName]
+  );
+  return Number(row && row.cnt) > 0;
+}
+
+async function ensureColumn(conn, tableName, columnName, definition) {
+  if (!(await columnExists(conn, tableName, columnName))) {
+    await conn.query(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
+}
+
 function suggestViolationTypeCode(typeName) {
   const name = String(typeName || '').toLowerCase();
   if (name.includes('\u0e40\u0e25\u0e47\u0e01\u0e19\u0e49\u0e2d\u0e22') || name.includes('minor') || name.includes('min')) return 'MIN';
@@ -228,6 +246,10 @@ async function ensureTable(conn) {
   await ensureIndex(conn, 'violation_reports', 'idx_vr_status_reported', 'INDEX idx_vr_status_reported (status, reported_at)');
   await ensureIndex(conn, 'violation_reports', 'idx_vr_reported_at', 'INDEX idx_vr_reported_at (reported_at)');
   await ensureIndex(conn, 'violation_reports', 'idx_vr_rule_status_reported', 'INDEX idx_vr_rule_status_reported (rule_id, status, reported_at)');
+  await ensureColumn(conn, 'violation_reports', 'deleted_at', 'TIMESTAMP NULL DEFAULT NULL');
+  await ensureColumn(conn, 'violation_reports', 'deleted_by', 'INT DEFAULT NULL');
+  await ensureColumn(conn, 'violation_reports', 'delete_reason', 'TEXT DEFAULT NULL');
+  await ensureIndex(conn, 'violation_reports', 'idx_vr_deleted_at', 'INDEX idx_vr_deleted_at (deleted_at)');
   await ensureViolationTypeMetadata(conn);
 }
 
@@ -253,8 +275,52 @@ router.get('/', isHead, async (req, res) => {
       ? requestedViolationType
       : 'all';
 
+    const deletedItemsSql = `
+      SELECT vr.id, 'report' AS source, vr.violation_id, 'deleted' AS status, vr.status AS original_status,
+             vr.reported_at, vr.description,
+             CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(vr.id, 6, '0')) AS report_code,
+             r.id_number, r.first_name, r.last_name, r.phone, r.license_plate, r.province, r.user_type,
+             ru.rule_name, ru.violation_type_id,
+             a.full_name AS reported_by_name,
+             da.full_name AS deleted_by_name,
+             vr.deleted_at,
+             vr.delete_reason
+      FROM violation_reports vr
+      JOIN registrations r  ON vr.registration_id = r.id
+      JOIN rules ru          ON vr.rule_id          = ru.id
+      LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
+      JOIN admins a          ON vr.reported_by      = a.id
+      LEFT JOIN admins da    ON vr.deleted_by       = da.id
+      WHERE vr.deleted_at IS NOT NULL
+
+      UNION ALL
+
+      SELECT v.id, 'violation' AS source, v.id AS violation_id, 'deleted' AS status, 'confirmed' AS original_status,
+             v.recorded_at AS reported_at, v.description,
+             CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(v.id, 6, '0')) AS report_code,
+             r.id_number, r.first_name, r.last_name, r.phone, r.license_plate, r.province, r.user_type,
+             ru.rule_name, ru.violation_type_id,
+             a.full_name AS reported_by_name,
+             da.full_name AS deleted_by_name,
+             v.deleted_at,
+             v.delete_reason
+      FROM violations v
+      JOIN registrations r  ON v.registration_id = r.id
+      JOIN rules ru          ON v.rule_id          = ru.id
+      LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
+      JOIN admins a          ON v.recorded_by      = a.id
+      LEFT JOIN admins da    ON v.deleted_by       = da.id
+      WHERE v.deleted_at IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM violation_reports linked_report
+          WHERE linked_report.violation_id = v.id
+            AND linked_report.deleted_at IS NOT NULL
+        )
+    `;
+
     let where = isDeletedView
-      ? 'WHERE v.deleted_at IS NOT NULL'
+      ? 'WHERE 1=1'
       : 'WHERE vr.deleted_at IS NULL AND r.deleted_at IS NULL';
     const params = [];
 
@@ -264,31 +330,40 @@ router.get('/', isHead, async (req, res) => {
     }
 
     if (selectedViolationType && selectedViolationType !== 'all') {
-      where += ' AND ru.violation_type_id = ?';
+      where += isDeletedView
+        ? ' AND deleted_items.violation_type_id = ?'
+        : ' AND ru.violation_type_id = ?';
       params.push(parseInt(selectedViolationType, 10));
     }
 
     if (search) {
       const s = `%${search.trim()}%`;
-      where += ` AND (
-        CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(${isDeletedView ? 'v' : 'vr'}.id, 6, '0')) LIKE ? OR
-        r.id_number LIKE ? OR
-        r.first_name LIKE ? OR
-        r.last_name LIKE ? OR
-        CONCAT(r.first_name,' ',r.last_name) LIKE ? OR
-        r.license_plate LIKE ? OR
-        ru.rule_name LIKE ?
-      )`;
+      where += isDeletedView
+        ? ` AND (
+            deleted_items.report_code LIKE ? OR
+            deleted_items.id_number LIKE ? OR
+            deleted_items.first_name LIKE ? OR
+            deleted_items.last_name LIKE ? OR
+            CONCAT(deleted_items.first_name,' ',deleted_items.last_name) LIKE ? OR
+            deleted_items.license_plate LIKE ? OR
+            deleted_items.rule_name LIKE ?
+          )`
+        : ` AND (
+            CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(vr.id, 6, '0')) LIKE ? OR
+            r.id_number LIKE ? OR
+            r.first_name LIKE ? OR
+            r.last_name LIKE ? OR
+            CONCAT(r.first_name,' ',r.last_name) LIKE ? OR
+            r.license_plate LIKE ? OR
+            ru.rule_name LIKE ?
+          )`;
       params.push(s, s, s, s, s, s, s);
     }
 
     const [countRow] = isDeletedView
       ? await conn.query(
         `SELECT COUNT(*) as cnt
-         FROM violations v
-         JOIN registrations r ON v.registration_id = r.id
-         JOIN rules ru ON v.rule_id = ru.id
-         LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
+         FROM (${deletedItemsSql}) deleted_items
          ${where}`,
         params
       )
@@ -308,27 +383,15 @@ router.get('/', isHead, async (req, res) => {
 
     const reports = isDeletedView
       ? await conn.query(
-        `SELECT v.id, 'deleted' AS status, v.recorded_at AS reported_at, v.description,
-                CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(v.id, 6, '0')) AS report_code,
-                r.id_number, r.first_name, r.last_name, r.phone, r.license_plate, r.province, r.user_type,
-                ru.rule_name,
-                a.full_name AS reported_by_name,
-                da.full_name AS deleted_by_name,
-                v.deleted_at,
-                v.delete_reason
-         FROM violations v
-         JOIN registrations r  ON v.registration_id = r.id
-         JOIN rules ru          ON v.rule_id          = ru.id
-         LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
-         JOIN admins a          ON v.recorded_by       = a.id
-         LEFT JOIN admins da    ON v.deleted_by        = da.id
+        `SELECT deleted_items.*
+         FROM (${deletedItemsSql}) deleted_items
          ${where}
-         ORDER BY v.deleted_at DESC
+         ORDER BY deleted_items.deleted_at DESC
          LIMIT ? OFFSET ?`,
         [...params, limit, offset]
       )
       : await conn.query(
-        `SELECT vr.id, vr.status, vr.reported_at, vr.description,
+        `SELECT vr.id, vr.status, vr.violation_id, vr.reported_at, vr.description,
                 CONCAT('IR-', COALESCE(NULLIF(vt.type_code, ''), 'GEN'), '-', LPAD(vr.id, 6, '0')) AS report_code,
                 r.id_number, r.first_name, r.last_name, r.phone, r.license_plate, r.province, r.user_type,
                 ru.rule_name,
@@ -359,7 +422,7 @@ router.get('/', isHead, async (req, res) => {
       `SELECT status, COUNT(*) as cnt FROM violation_reports WHERE deleted_at IS NULL GROUP BY status`
     );
     const [deletedRow] = await conn.query(
-      `SELECT COUNT(*) as cnt FROM violations v WHERE v.deleted_at IS NOT NULL`
+      `SELECT COUNT(*) as cnt FROM (${deletedItemsSql}) deleted_items`
     );
     const countMap = { pending: 0, confirmed: 0, rejected: 0, deleted: parseInt(deletedRow.cnt, 10) || 0 };
     statusCounts.forEach(r => { countMap[r.status] = parseInt(r.cnt); });
@@ -410,6 +473,8 @@ router.get('/:id', isHead, async (req, res) => {
   try {
     conn = await pool.getConnection();
     await ensureTable(conn);
+    const viewingDeleted = req.query.status_filter === 'deleted';
+    const deletedMode = viewingDeleted ? 1 : 0;
 
     const [report] = await conn.query(
       `SELECT vr.*,
@@ -423,22 +488,27 @@ router.get('/:id', isHead, async (req, res) => {
               a.full_name AS reported_by_name,
               a.email     AS reported_by_email,
               a.phone     AS reported_by_phone,
-              rv.full_name AS reviewed_by_name
+              rv.full_name AS reviewed_by_name,
+              da.full_name AS deleted_by_name
        FROM violation_reports vr
        JOIN registrations r  ON vr.registration_id = r.id
        JOIN rules ru          ON vr.rule_id          = ru.id
        LEFT JOIN violation_types vt ON ru.violation_type_id = vt.id
        JOIN admins a          ON vr.reported_by       = a.id
        LEFT JOIN admins rv    ON vr.reviewed_by       = rv.id
+       LEFT JOIN admins da    ON vr.deleted_by        = da.id
        WHERE vr.id = ?
-         AND vr.deleted_at IS NULL
-         AND r.deleted_at IS NULL`,
-      [req.params.id]
+         AND (
+           (? = 1 AND vr.deleted_at IS NOT NULL)
+           OR
+           (? = 0 AND vr.deleted_at IS NULL AND r.deleted_at IS NULL)
+         )`,
+      [req.params.id, deletedMode, deletedMode]
     );
 
     if (!report) {
       req.flash('error', 'ไม่พบรายการที่ต้องการ');
-      return res.redirect('/violation-reports');
+      return res.redirect(viewingDeleted ? '/violation-reports?status_filter=deleted' : '/violation-reports');
     }
 
     const ruleViolationTypeId = report.rule_violation_type_id || null;
@@ -720,6 +790,145 @@ router.post('/:id/reject', isHead, async (req, res) => {
   } finally {
     if (conn) conn.release();
   }
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   POST /violation-reports/:id/delete  —  soft delete report data
+   ───────────────────────────────────────────────────────────────────────────── */
+router.post('/:id/delete', isHead, verifyCsrf, async (req, res) => {
+  const reportId = parseInt(req.params.id, 10);
+  const deleteReason = (req.body.delete_reason || '').trim();
+
+  if (!Number.isFinite(reportId) || reportId <= 0) {
+    req.flash('error', 'ข้อมูลรายการแจ้งไม่ถูกต้อง');
+    return res.redirect('/violation-reports');
+  }
+
+  if (!deleteReason) {
+    req.flash('error', 'กรุณากรอกเหตุผลก่อนลบข้อมูล');
+    return res.redirect(`/violation-reports/${reportId}`);
+  }
+
+  let conn;
+  let transactionStarted = false;
+  try {
+    conn = await pool.getConnection();
+    await ensureTable(conn);
+    await conn.beginTransaction();
+    transactionStarted = true;
+
+    const [report] = await conn.query(
+      `SELECT id, status, violation_id
+       FROM violation_reports
+       WHERE id = ? AND deleted_at IS NULL
+       FOR UPDATE`,
+      [reportId]
+    );
+
+    if (!report) {
+      await conn.rollback();
+      transactionStarted = false;
+      req.flash('error', 'ไม่พบรายการที่ต้องการลบ');
+      return res.redirect('/violation-reports');
+    }
+
+    if (report.violation_id) {
+      await conn.query(
+        `UPDATE violations
+         SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+         WHERE id = ? AND deleted_at IS NULL`,
+        [req.session.admin.id, deleteReason, report.violation_id]
+      );
+    }
+
+    await conn.query(
+      `UPDATE violation_reports
+       SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+       WHERE id = ? AND deleted_at IS NULL`,
+      [req.session.admin.id, deleteReason, reportId]
+    );
+
+    await conn.commit();
+    transactionStarted = false;
+    req.flash('success', 'ลบข้อมูลรายการตรวจสอบเรียบร้อยแล้ว');
+    res.redirect('/violation-reports');
+  } catch (err) {
+    if (transactionStarted && conn) {
+      try { await conn.rollback(); } catch (rollbackErr) { console.error('Rollback failed:', rollbackErr); }
+    }
+    console.error('POST /violation-reports/:id/delete error:', err);
+    req.flash('error', 'ไม่สามารถลบข้อมูลได้: ' + err.message);
+    res.redirect('/violation-reports');
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   POST /violation-reports/:id/restore  —  restore soft-deleted report data
+   ───────────────────────────────────────────────────────────────────────────── */
+router.post('/:id/restore', isHead, verifyCsrf, async (req, res) => {
+  const reportId = parseInt(req.params.id, 10);
+
+  if (!Number.isFinite(reportId) || reportId <= 0) {
+    req.flash('error', 'ข้อมูลรายการแจ้งไม่ถูกต้อง');
+    return res.redirect('/violation-reports?status_filter=deleted');
+  }
+
+  let conn;
+  let transactionStarted = false;
+  try {
+    conn = await pool.getConnection();
+    await ensureTable(conn);
+    await conn.beginTransaction();
+    transactionStarted = true;
+
+    const [report] = await conn.query(
+      `SELECT id, violation_id
+       FROM violation_reports
+       WHERE id = ?
+         AND deleted_at IS NOT NULL
+       FOR UPDATE`,
+      [reportId]
+    );
+
+    if (!report) {
+      await conn.rollback();
+      transactionStarted = false;
+      req.flash('error', 'ไม่พบข้อมูลที่ถูกลบชั่วคราว');
+      return res.redirect('/violation-reports?status_filter=deleted');
+    }
+
+    if (report.violation_id) {
+      await conn.query(
+        `UPDATE violations
+         SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL
+         WHERE id = ?`,
+        [report.violation_id]
+      );
+    }
+
+    await conn.query(
+      `UPDATE violation_reports
+       SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL
+       WHERE id = ?`,
+      [reportId]
+    );
+
+    await conn.commit();
+    transactionStarted = false;
+    req.flash('success', 'กู้คืนรายการตรวจสอบเรียบร้อยแล้ว');
+  } catch (err) {
+    if (transactionStarted && conn) {
+      try { await conn.rollback(); } catch (rollbackErr) { console.error('Rollback failed:', rollbackErr); }
+    }
+    console.error('POST /violation-reports/:id/restore error:', err);
+    req.flash('error', 'ไม่สามารถกู้คืนข้อมูลได้');
+  } finally {
+    if (conn) conn.release();
+  }
+
+  res.redirect('/violation-reports?status_filter=deleted');
 });
 
 /* ─────────────────────────────────────────────────────────────────────────────

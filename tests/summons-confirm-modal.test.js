@@ -71,6 +71,16 @@ test('summons report metric card numbers use 30px text', () => {
   );
 });
 
+test('summons pending metric card does not show the explanatory note', () => {
+  const template = readProjectFile('views/reports/summons.ejs');
+
+  assert.doesNotMatch(
+    template,
+    /นับแยกตามประเภทความผิด หลังจากการเรียกพบครั้งล่าสุด หากประเภทใดครบจำนวนครั้งสูงสุดที่ตั้งไว้จะเข้าเกณฑ์/,
+    'summons pending card should not show the old explanatory note'
+  );
+});
+
 test('POST /reports/summons/:registrationId/confirm rejects empty note on the server', () => {
   const route = readProjectFile('routes/reports.js');
 

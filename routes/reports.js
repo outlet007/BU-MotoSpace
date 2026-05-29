@@ -62,8 +62,12 @@ async function ensureSummonsAppointmentsTable(conn) {
   await ensureSummonsAppointmentColumn(conn, 'written_document', 'VARCHAR(500) DEFAULT NULL');
   await ensureSummonsAppointmentColumn(conn, 'written_document_original_name', 'VARCHAR(255) DEFAULT NULL');
   await ensureSummonsAppointmentColumn(conn, 'violation_type_id', 'INT DEFAULT NULL');
+  await ensureSummonsAppointmentColumn(conn, 'deleted_at', 'TIMESTAMP NULL DEFAULT NULL');
+  await ensureSummonsAppointmentColumn(conn, 'deleted_by', 'INT DEFAULT NULL');
+  await ensureSummonsAppointmentColumn(conn, 'delete_reason', 'TEXT DEFAULT NULL');
   await backfillMissingAppointmentCodes(conn);
   await ensureSummonsAppointmentIndex(conn, 'uq_summons_appointment_code', 'UNIQUE INDEX uq_summons_appointment_code (appointment_code)');
+  await ensureSummonsAppointmentIndex(conn, 'idx_summons_deleted_at', 'INDEX idx_summons_deleted_at (deleted_at)');
 }
 
 function positiveInt(value, fallback = DEFAULT_SUMMONS_THRESHOLD) {
@@ -300,10 +304,12 @@ async function fetchSummonsAppointments(conn, options = {}) {
     search = '',
     userType = '',
     violationType = '',
+    status = 'active',
     limit = 50,
   } = options;
 
-  let where = 'WHERE 1=1';
+  const isDeletedView = status === 'deleted';
+  let where = isDeletedView ? 'WHERE sa.deleted_at IS NOT NULL' : 'WHERE sa.deleted_at IS NULL AND r.deleted_at IS NULL';
   const params = [];
 
   if (search && search.trim()) {
@@ -315,7 +321,7 @@ async function fetchSummonsAppointments(conn, options = {}) {
       FROM registrations rs
       WHERE rs.user_type = r.user_type
         AND rs.id_number = r.id_number
-        AND rs.deleted_at IS NULL
+        ${isDeletedView ? '' : 'AND rs.deleted_at IS NULL'}
         AND (
           rs.id_number LIKE ? OR
           rs.first_name LIKE ? OR
@@ -359,6 +365,8 @@ async function fetchSummonsAppointments(conn, options = {}) {
        sa.written_document,
        sa.written_document_original_name,
        sa.created_at,
+       sa.deleted_at,
+       sa.delete_reason,
        r.id_number,
        r.user_type,
        r.first_name,
@@ -368,10 +376,12 @@ async function fetchSummonsAppointments(conn, options = {}) {
        r.province,
        sa.violation_type_id,
        vt.type_name AS violation_type_name,
-       a.full_name AS summoned_by_name
+       a.full_name AS summoned_by_name,
+       da.full_name AS deleted_by_name
      FROM summons_appointments sa
      JOIN registrations r ON sa.registration_id = r.id
      JOIN admins a ON sa.summoned_by = a.id
+     LEFT JOIN admins da ON sa.deleted_by = da.id
      LEFT JOIN violation_types vt ON sa.violation_type_id = vt.id
      ${where}
      ORDER BY sa.created_at DESC, sa.id DESC
@@ -960,7 +970,14 @@ router.get('/summons', async (req, res) => {
   const completedSearch = req.query.completed_search ?? '';
   const completedUserType = req.query.completed_user_type ?? '';
   const completedViolationType = req.query.completed_violation_type ?? '';
-  const activeTab = req.query.active_tab === 'completed' ? 'completed' : 'pending';
+  const deletedSearch = req.query.deleted_search ?? '';
+  const deletedUserType = req.query.deleted_user_type ?? '';
+  const deletedViolationType = req.query.deleted_violation_type ?? '';
+  const activeTab = req.query.active_tab === 'completed'
+    ? 'completed'
+    : req.query.active_tab === 'deleted'
+      ? 'deleted'
+      : 'pending';
   const page = req.query.pending_page ?? req.query.page ?? 1;
   const limit = 20;
 
@@ -979,6 +996,12 @@ router.get('/summons', async (req, res) => {
       userType: completedUserType,
       violationType: completedViolationType,
     });
+    const deletedSummonsReport = await fetchSummonsAppointments(conn, {
+      search: deletedSearch,
+      userType: deletedUserType,
+      violationType: deletedViolationType,
+      status: 'deleted',
+    });
     const violationTypes = await conn.query(
       'SELECT id, type_name FROM violation_types WHERE is_active = 1 ORDER BY type_name ASC'
     );
@@ -987,7 +1010,9 @@ router.get('/summons', async (req, res) => {
       title: 'รายงานผู้เข้าข่ายเรียกพบ - BU MotoSpace',
       candidates: report.rows,
       summonedAppointments: summonedReport.rows,
+      deletedSummonsAppointments: deletedSummonsReport.rows,
       summonedTotal: summonedReport.total,
+      deletedSummonsTotal: deletedSummonsReport.total,
       total: report.total,
       totalPages: report.totalPages,
       currentPage: parseInt(page),
@@ -999,6 +1024,9 @@ router.get('/summons', async (req, res) => {
       completedSearch,
       completedUserType,
       completedViolationType,
+      deletedSearch,
+      deletedUserType,
+      deletedViolationType,
       violationTypes,
       activeTab,
     });
@@ -1009,7 +1037,9 @@ router.get('/summons', async (req, res) => {
       title: 'รายงานผู้เข้าข่ายเรียกพบ - BU MotoSpace',
       candidates: [],
       summonedAppointments: [],
+      deletedSummonsAppointments: [],
       summonedTotal: 0,
+      deletedSummonsTotal: 0,
       total: 0,
       totalPages: 0,
       currentPage: 1,
@@ -1021,6 +1051,9 @@ router.get('/summons', async (req, res) => {
       completedSearch,
       completedUserType,
       completedViolationType,
+      deletedSearch,
+      deletedUserType,
+      deletedViolationType,
       violationTypes: [],
       activeTab,
     });

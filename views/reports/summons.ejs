@@ -183,25 +183,19 @@
     .metric-card .mc-value { font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1.2; }
         </style>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <!-- Card: รายการรอเรียกพบ -->
           <div class="metric-card warning <%= activeTab === 'pending' ? 'active' : '' %>"
                id="mc-pending"
                data-metric-tab="pending"
                role="tab" aria-controls="panel-pending" aria-selected="<%= activeTab === 'pending' ? 'true' : 'false' %>" tabindex="0">
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <div class="mc-icon-wrap bg-orange-100">
-                  <i data-lucide="calendar-clock" class="w-6 h-6 text-orange-600"></i>
-                </div>
-                <div class="mc-body">
-                  <span class="mc-label">รายการรอเรียกพบ</span>
-                  <span class="mc-value"><%= total %></span>
-                </div>
+            <div class="flex items-center gap-3">
+              <div class="mc-icon-wrap bg-orange-100">
+                <i data-lucide="calendar-clock" class="w-6 h-6 text-orange-600"></i>
               </div>
-              <div class="text-xs text-slate-500 md:text-right border-t border-slate-100 pt-3 md:border-t-0 md:pt-0 md:border-l md:border-slate-100 md:pl-4">
-                <p class="font-semibold text-slate-600 mb-0.5">หมายเหตุ</p>
-                <p class="leading-relaxed">นับแยกตามประเภทความผิด หลังจากการเรียกพบครั้งล่าสุด หากประเภทใดครบจำนวนครั้งสูงสุดที่ตั้งไว้จะเข้าเกณฑ์</p>
+              <div class="mc-body">
+                <span class="mc-label">รายการรอเรียกพบ</span>
+                <span class="mc-value"><%= total %></span>
               </div>
             </div>
           </div>
@@ -218,6 +212,22 @@
               <div class="mc-body">
                 <span class="mc-label">รายการที่เรียกพบไปแล้ว</span>
                 <span class="mc-value"><%= typeof summonedTotal !== 'undefined' ? summonedTotal : 0 %></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card: ถูกลบชั่วคราว -->
+          <div class="metric-card <%= activeTab === 'deleted' ? 'active' : '' %>"
+               id="mc-deleted"
+               data-metric-tab="deleted"
+               role="tab" aria-controls="summoned-deleted" aria-selected="<%= activeTab === 'deleted' ? 'true' : 'false' %>" tabindex="0">
+            <div class="flex items-center gap-4">
+              <div class="mc-icon-wrap bg-slate-100">
+                <i data-lucide="archive-x" class="w-6 h-6 text-slate-600"></i>
+              </div>
+              <div class="mc-body">
+                <span class="mc-label">ถูกลบชั่วคราว</span>
+                <span class="mc-value"><%= typeof deletedSummonsTotal !== 'undefined' ? deletedSummonsTotal : 0 %></span>
               </div>
             </div>
           </div>
@@ -244,6 +254,8 @@
             <input type="hidden" name="active_tab" value="pending">
             <input type="hidden" name="completed_search" value="<%= completedSearch || '' %>">
             <input type="hidden" name="completed_violation_type" value="<%= completedViolationType || '' %>">
+            <input type="hidden" name="deleted_search" value="<%= deletedSearch || '' %>">
+            <input type="hidden" name="deleted_violation_type" value="<%= deletedViolationType || '' %>">
             <div class="flex-1 min-w-[200px]">
               <label class="label">ค้นหาในรายการรอเรียกพบ</label>
               <div class="relative">
@@ -475,6 +487,8 @@
             <input type="hidden" name="active_tab" value="completed">
             <input type="hidden" name="pending_search" value="<%= pendingSearch || '' %>">
             <input type="hidden" name="pending_violation_type" value="<%= pendingViolationType || '' %>">
+            <input type="hidden" name="deleted_search" value="<%= deletedSearch || '' %>">
+            <input type="hidden" name="deleted_violation_type" value="<%= deletedViolationType || '' %>">
             <div class="flex-1 min-w-[200px]">
               <label class="label">ค้นหาในรายการที่เรียกพบไปแล้ว</label>
               <div class="relative">
@@ -702,6 +716,213 @@
         </div>
         </section>
 
+        <section id="summoned-deleted"
+                 class="summons-tab-panel <%= activeTab === 'deleted' ? 'active' : '' %>"
+                 role="tabpanel"
+                 aria-labelledby="tab-deleted">
+        <div class="card p-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                <i data-lucide="archive-x" class="w-5 h-5 text-slate-500"></i>
+                รายการเรียกพบที่ถูกลบชั่วคราว
+              </h3>
+            </div>
+            <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-sm font-semibold self-start sm:self-auto">
+              <i data-lucide="list-checks" class="w-4 h-4"></i>
+              <%= typeof deletedSummonsTotal !== 'undefined' ? deletedSummonsTotal : 0 %> รายการ
+            </span>
+          </div>
+
+          <form method="GET" action="/reports/summons" class="flex flex-wrap items-end gap-4 mb-4">
+            <input type="hidden" name="active_tab" value="deleted">
+            <input type="hidden" name="pending_search" value="<%= pendingSearch || '' %>">
+            <input type="hidden" name="pending_violation_type" value="<%= pendingViolationType || '' %>">
+            <input type="hidden" name="completed_search" value="<%= completedSearch || '' %>">
+            <input type="hidden" name="completed_violation_type" value="<%= completedViolationType || '' %>">
+            <div class="flex-1 min-w-[200px]">
+              <label class="label">ค้นหาในรายการที่ถูกลบชั่วคราว</label>
+              <div class="relative">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" name="deleted_search" value="<%= deletedSearch || '' %>"
+                       class="input" style="padding-left:2.5rem"
+                       placeholder="ชื่อ, รหัส, ป้ายทะเบียน, เบอร์โทร">
+              </div>
+            </div>
+            <div>
+              <label class="label">ประเภทความผิด</label>
+              <select name="deleted_violation_type" class="input">
+                <option value="" <%= !deletedViolationType ? 'selected' : '' %>>ทุกประเภท</option>
+                <% (violationTypes || []).forEach(function(type) { %>
+                  <option value="<%= type.id %>" <%= String(deletedViolationType) === String(type.id) ? 'selected' : '' %>><%= type.type_name %></option>
+                <% }); %>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <i data-lucide="search" class="w-4 h-4"></i>
+              ค้นหา
+            </button>
+          </form>
+
+          <!-- Mobile Cards -->
+          <div class="sm:hidden space-y-3">
+            <% if (typeof deletedSummonsAppointments !== 'undefined' && deletedSummonsAppointments.length > 0) { %>
+              <% deletedSummonsAppointments.forEach(function(item) { %>
+                <% const scheduledAtText = item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-'; %>
+                <% const createdAtText = item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-'; %>
+                <% const deletedAtText = item.deleted_at ? new Date(item.deleted_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-'; %>
+                <% const writtenDocumentUrl = item.written_document ? signedUrl(item.written_document) : ''; %>
+                <% const writtenDocumentName = item.written_document_original_name || 'เอกสารแนบ'; %>
+                <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm active:bg-slate-50 cursor-pointer"
+                     data-summons-detail-row
+                     data-appointment-code="<%= item.appointment_code %>"
+                     data-full-name="<%= item.full_name %>"
+                     data-id-number="<%= item.id_number %>"
+                     data-user-type-label="<%= item.user_type_label %>"
+                     data-license-plate="<%= item.license_plate %>"
+                     data-province="<%= item.province || '-' %>"
+                     data-scheduled-at="<%= scheduledAtText %>"
+                     data-note="<%= encodeURIComponent(item.note || '-') %>"
+                     data-summoned-by="<%= item.summoned_by_name || '-' %>"
+                     data-created-at="<%= createdAtText %>"
+                     data-document-url="<%= writtenDocumentUrl %>"
+                     data-document-name="<%= writtenDocumentName %>">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <p class="text-xs font-mono font-semibold text-brand-700 break-words"><%= item.appointment_code || '-' %></p>
+                      <p class="font-bold text-slate-800 mt-1 break-words"><%= item.full_name %></p>
+                      <p class="text-xs text-slate-500 mt-1 break-words"><%= item.user_type_label %></p>
+                    </div>
+                    <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold flex-shrink-0">
+                      <i data-lucide="archive-x" class="w-3 h-3"></i>
+                      ถูกลบชั่วคราว
+                    </span>
+                  </div>
+                  <div class="grid grid-cols-2 gap-3 mt-4">
+                    <div class="min-w-0">
+                      <p class="text-xs font-medium text-slate-400">รหัส</p>
+                      <p class="text-sm font-mono text-slate-600 break-words"><%= item.id_number %></p>
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-xs font-medium text-slate-400">วันเวลานัดหมาย</p>
+                      <p class="text-sm text-slate-600"><%= scheduledAtText %></p>
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-xs font-medium text-slate-400">ป้ายทะเบียน</p>
+                      <p class="font-semibold text-slate-700 break-words"><%= item.license_plate %></p>
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-xs font-medium text-slate-400">ลบเมื่อ</p>
+                      <p class="text-sm text-slate-600"><%= deletedAtText %></p>
+                    </div>
+                    <div class="min-w-0" style="grid-column:1/-1;">
+                      <p class="text-xs font-medium text-slate-400">ลบโดย</p>
+                      <p class="text-sm text-slate-600 break-words"><%= item.deleted_by_name || '-' %></p>
+                    </div>
+                    <div class="min-w-0" style="grid-column:1/-1;">
+                      <p class="text-xs font-medium text-slate-400">เหตุผลการลบ</p>
+                      <p class="text-sm text-red-600 break-words line-clamp-2"><%= item.delete_reason || '-' %></p>
+                    </div>
+                  </div>
+                  <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap justify-end gap-2" data-no-nav>
+                    <button type="button" class="btn btn-secondary btn-sm" data-summons-detail-open>
+                      <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                      ดูรายละเอียด
+                    </button>
+                  </div>
+                </div>
+              <% }) %>
+            <% } else { %>
+              <div class="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">
+                <i data-lucide="archive-x" class="w-10 h-10 mx-auto text-slate-300"></i>
+                <p class="text-sm font-medium mt-3">ยังไม่มีรายการเรียกพบที่ถูกลบชั่วคราว</p>
+              </div>
+            <% } %>
+          </div>
+
+          <div class="table-container hidden sm:block">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>รหัสนัดหมาย</th>
+                  <th>รหัสประจำตัว</th>
+                  <th>ชื่อ-นามสกุล</th>
+                  <th>ป้ายทะเบียน</th>
+                  <th>วันเวลานัดหมาย</th>
+                  <th>ลบเมื่อ</th>
+                  <th>สถานะ</th>
+                  <th>ลบโดย / เหตุผล</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <% if (typeof deletedSummonsAppointments !== 'undefined' && deletedSummonsAppointments.length > 0) { %>
+                  <% deletedSummonsAppointments.forEach(function(item, idx) { %>
+                  <tr class="cursor-pointer hover:bg-brand-50/40 transition-colors"
+                      data-summons-detail-row
+                      data-appointment-code="<%= item.appointment_code %>"
+                      data-full-name="<%= item.full_name %>"
+                      data-id-number="<%= item.id_number %>"
+                      data-user-type-label="<%= item.user_type_label %>"
+                      data-license-plate="<%= item.license_plate %>"
+                      data-province="<%= item.province || '-' %>"
+                      data-scheduled-at="<%= item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>"
+                      data-note="<%= encodeURIComponent(item.note || '-') %>"
+                      data-summoned-by="<%= item.summoned_by_name || '-' %>"
+                      data-created-at="<%= item.created_at ? new Date(item.created_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>"
+                      data-document-url="<%= item.written_document ? signedUrl(item.written_document) : '' %>"
+                      data-document-name="<%= item.written_document_original_name || 'เอกสารแนบ' %>">
+                    <td class="text-xs text-slate-400"><%= idx + 1 %></td>
+                    <td class="text-xs font-mono font-semibold text-brand-700 whitespace-nowrap"><%= item.appointment_code || '-' %></td>
+                    <td class="text-xs font-mono text-slate-600"><%= item.id_number %></td>
+                    <td>
+                      <div class="font-semibold text-slate-800"><%= item.full_name %></div>
+                      <div class="text-xs text-slate-500 mt-0.5"><%= item.user_type_label %></div>
+                    </td>
+                    <td>
+                      <div class="font-semibold text-slate-700"><%= item.license_plate %></div>
+                      <div class="text-xs text-slate-500 mt-0.5"><%= item.province || '-' %></div>
+                    </td>
+                    <td class="text-xs text-slate-600 whitespace-nowrap">
+                      <%= item.scheduled_at ? new Date(item.scheduled_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>
+                    </td>
+                    <td class="text-xs text-slate-600 whitespace-nowrap">
+                      <%= item.deleted_at ? new Date(item.deleted_at).toLocaleString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '-' %>
+                    </td>
+                    <td>
+                      <span class="badge badge-danger">ถูกลบชั่วคราว</span>
+                    </td>
+                    <td class="text-xs text-slate-600 max-w-xs">
+                      <div class="font-semibold text-slate-700">ลบโดย <%= item.deleted_by_name || '-' %></div>
+                      <div class="text-red-500 mt-1 line-clamp-2">เหตุผล: <%= item.delete_reason || '-' %></div>
+                    </td>
+                    <td class="text-right" data-no-nav>
+                      <div class="flex items-center justify-end gap-2">
+                        <button type="button" class="btn btn-secondary btn-sm" data-summons-detail-open>
+                          <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                          ดูรายละเอียด
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  <% }) %>
+                <% } else { %>
+                  <tr>
+                    <td colspan="10" class="text-center py-10">
+                      <div class="flex flex-col items-center gap-2 text-slate-400">
+                        <i data-lucide="archive-x" class="w-10 h-10 text-slate-300"></i>
+                        <p class="text-sm font-medium">ยังไม่มีรายการเรียกพบที่ถูกลบชั่วคราว</p>
+                      </div>
+                    </td>
+                  </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        </section>
+
         <div id="summons-modal"
              style="display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;padding:1rem;"
              aria-modal="true" role="dialog" aria-labelledby="summons-modal-title">
@@ -864,7 +1085,8 @@
       var tabs = document.querySelectorAll('[data-summons-tab]');
       var panels = {
         pending: document.getElementById('panel-pending'),
-        completed: document.getElementById('summoned-history')
+        completed: document.getElementById('summoned-history'),
+        deleted: document.getElementById('summoned-deleted')
       };
       var modal = document.getElementById('summons-modal');
       var form = document.getElementById('summons-form');
@@ -910,8 +1132,10 @@
         // Update metric cards active state
         var mcPending = document.getElementById('mc-pending');
         var mcCompleted = document.getElementById('mc-completed');
+        var mcDeleted = document.getElementById('mc-deleted');
         if (mcPending) mcPending.classList.toggle('active', tabName === 'pending');
         if (mcCompleted) mcCompleted.classList.toggle('active', tabName === 'completed');
+        if (mcDeleted) mcDeleted.classList.toggle('active', tabName === 'deleted');
       }
 
       // Expose globally for onclick handlers on metric cards
@@ -1160,6 +1384,8 @@
 
       if (window.location.hash === '#summoned-history') {
         activateTab('completed');
+      } else if (window.location.hash === '#summoned-deleted') {
+        activateTab('deleted');
       }
 
       document.addEventListener('keydown', function(e) {
