@@ -691,11 +691,16 @@
                    name="motorcycle_photo"
                    accept="image/*"
                    class="hidden"
-                   data-file-name-target="add-vehicle-motorcycle-photo-name">
+                   data-file-name-target="add-vehicle-motorcycle-photo-name"
+                   data-preview-target="add-vehicle-motorcycle-photo-preview">
             <button type="button" class="btn btn-secondary w-full justify-center" data-file-button="add-vehicle-motorcycle-photo">
               <i data-lucide="image-plus" class="w-4 h-4"></i> เพิ่มรูป
             </button>
             <p id="add-vehicle-motorcycle-photo-name" class="text-xs text-slate-400 mt-2" data-default-text="ยังไม่ได้เลือกไฟล์">ยังไม่ได้เลือกไฟล์</p>
+            <img id="add-vehicle-motorcycle-photo-preview"
+                 class="hidden w-full h-36 object-cover rounded-xl border border-slate-200 mt-3 bg-slate-50"
+                 alt="ตัวอย่างรูปรถ"
+                 data-file-preview>
           </div>
           <div>
             <label class="label" for="add-vehicle-plate-photo">รูปป้ายทะเบียน</label>
@@ -704,11 +709,16 @@
                    name="plate_photo"
                    accept="image/*"
                    class="hidden"
-                   data-file-name-target="add-vehicle-plate-photo-name">
+                   data-file-name-target="add-vehicle-plate-photo-name"
+                   data-preview-target="add-vehicle-plate-photo-preview">
             <button type="button" class="btn btn-secondary w-full justify-center" data-file-button="add-vehicle-plate-photo">
               <i data-lucide="image-plus" class="w-4 h-4"></i> เพิ่มรูป
             </button>
             <p id="add-vehicle-plate-photo-name" class="text-xs text-slate-400 mt-2" data-default-text="ยังไม่ได้เลือกไฟล์">ยังไม่ได้เลือกไฟล์</p>
+            <img id="add-vehicle-plate-photo-preview"
+                 class="hidden w-full h-36 object-cover rounded-xl border border-slate-200 mt-3 bg-slate-50"
+                 alt="ตัวอย่างรูปป้ายทะเบียน"
+                 data-file-preview>
           </div>
         </div>
         <div style="display:flex;gap:.75rem;justify-content:flex-end;padding:0 24px 22px;">
@@ -945,6 +955,23 @@
           var fileName = document.getElementById(input.dataset.fileNameTarget);
           var file = input.files && input.files[0];
           if (fileName) fileName.textContent = file ? file.name : (fileName.dataset.defaultText || 'ยังไม่ได้เลือกไฟล์');
+          var preview = input.dataset.previewTarget ? document.getElementById(input.dataset.previewTarget) : null;
+          if (preview) {
+            if (preview.dataset.objectUrl) {
+              URL.revokeObjectURL(preview.dataset.objectUrl);
+              delete preview.dataset.objectUrl;
+            }
+            if (file) {
+              var objectUrl = URL.createObjectURL(file);
+              preview.dataset.objectUrl = objectUrl;
+              preview.src = objectUrl;
+              preview.alt = file.name;
+              preview.classList.remove('hidden');
+            } else {
+              preview.removeAttribute('src');
+              preview.classList.add('hidden');
+            }
+          }
           var panel = input.closest('[data-vehicle-panel]');
           if (panel && panel.style.maxHeight && panel.style.maxHeight !== '0px') {
             panel.style.maxHeight = panel.scrollHeight + 'px';
@@ -974,6 +1001,14 @@
           form.reset();
           form.querySelectorAll('[data-default-text]').forEach(function(label) {
             label.textContent = label.dataset.defaultText || 'ยังไม่ได้เลือกไฟล์';
+          });
+          form.querySelectorAll('img[data-file-preview]').forEach(function(preview) {
+            if (preview.dataset.objectUrl) {
+              URL.revokeObjectURL(preview.dataset.objectUrl);
+              delete preview.dataset.objectUrl;
+            }
+            preview.removeAttribute('src');
+            preview.classList.add('hidden');
           });
         }
       }

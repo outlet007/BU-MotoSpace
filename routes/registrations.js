@@ -203,6 +203,54 @@ async function syncRegistrationStatusFromPublicVehicles(conn, registrationId, ad
   }
 }
 
+async function syncSourceRegistrationAfterVehicleDelete(conn, vehicle, adminId, reason) {
+  const sourceRegistrationId = Number(vehicle && vehicle.source_registration_id);
+  if (!Number.isFinite(sourceRegistrationId) || sourceRegistrationId <= 0) return;
+
+  const [replacementVehicle] = await conn.query(
+    `SELECT license_plate, province, motorcycle_photo, plate_photo, notes
+     FROM vehicles
+     WHERE deleted_at IS NULL
+       AND (
+         source_registration_id = ?
+         OR (
+           owner_registration_id = ?
+           AND source_registration_id IS NULL
+           AND created_by IS NULL
+         )
+       )
+     ORDER BY source_registration_id IS NULL ASC, created_at ASC, id ASC
+     LIMIT 1`,
+    [sourceRegistrationId, sourceRegistrationId]
+  );
+
+  if (!replacementVehicle) {
+    await conn.query(
+      `UPDATE registrations
+       SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
+       WHERE id = ? AND deleted_at IS NULL`,
+      [adminId, reason, sourceRegistrationId]
+    );
+    return;
+  }
+
+  await conn.query(
+    `UPDATE registrations
+     SET license_plate = ?, province = ?, motorcycle_photo = ?, plate_photo = ?, notes = COALESCE(?, notes)
+     WHERE id = ? AND deleted_at IS NULL`,
+    [
+      replacementVehicle.license_plate,
+      replacementVehicle.province,
+      replacementVehicle.motorcycle_photo,
+      replacementVehicle.plate_photo,
+      replacementVehicle.notes || null,
+      sourceRegistrationId,
+    ]
+  );
+
+  await syncRegistrationStatusFromPublicVehicles(conn, Number(sourceRegistrationId), adminId);
+}
+
 function matchedVehiclePlateJoin(joinAlias, subqueryAlias) {
   return `LEFT JOIN vehicles ${joinAlias} ON ${joinAlias}.id = (
     SELECT ${subqueryAlias}.id
@@ -939,6 +987,23 @@ router.post('/:id/vehicles/:vehicleId/delete', isHead, verifyCsrf, async (req, r
       return res.redirect('/registrations/' + req.params.id);
     }
 
+    await conn.beginTransaction();
+    const [vehicle] = await conn.query(
+      `SELECT owner_registration_id, source_registration_id
+       FROM vehicles
+       WHERE id = ?
+         AND (owner_registration_id = ? OR source_registration_id = ?)
+         AND deleted_at IS NULL
+       FOR UPDATE`,
+      [req.params.vehicleId, req.params.id, req.params.id]
+    );
+
+    if (!vehicle) {
+      await conn.rollback();
+      req.flash('error', 'ไม่พบข้อมูลรถ หรือรถถูกลบชั่วคราวแล้ว');
+      return res.redirect('/registrations/' + req.params.id);
+    }
+
     await conn.query(
       `UPDATE vehicles
        SET deleted_at = NOW(), deleted_by = ?, delete_reason = ?
@@ -947,8 +1012,11 @@ router.post('/:id/vehicles/:vehicleId/delete', isHead, verifyCsrf, async (req, r
          AND deleted_at IS NULL`,
       [req.session.admin.id, reason, req.params.vehicleId, req.params.id, req.params.id]
     );
+    await syncSourceRegistrationAfterVehicleDelete(conn, vehicle, req.session.admin.id, reason);
+    await conn.commit();
     req.flash('success', 'ลบรถชั่วคราวเรียบร้อยแล้ว');
   } catch (err) {
+    if (conn) await conn.rollback().catch(() => {});
     console.error(err);
     req.flash('error', 'ไม่สามารถลบรถได้');
   } finally {
