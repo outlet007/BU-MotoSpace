@@ -216,8 +216,11 @@ async function countSoftDeletedRows(conn, filters) {
   return Number(result && result.cnt) || 0;
 }
 
-function buildSoftDeletedSelectSql(filters) {
+function buildSoftDeletedSelectSql(filters, selectedRegistrationIds = []) {
   const dateFilter = buildSoftDeletedDateClause(filters);
+  const selectedRegistrationFilter = selectedRegistrationIds.length
+    ? ` AND r.id IN (${placeholders(selectedRegistrationIds)})`
+    : '';
 
   return {
     sql: `SELECT *
@@ -229,9 +232,9 @@ function buildSoftDeletedSelectSql(filters) {
               da.full_name AS deleted_by_name
        FROM registrations r
        LEFT JOIN admins da ON r.deleted_by = da.id
-       WHERE r.deleted_at IS NOT NULL ${dateFilter.clause}
+       WHERE r.deleted_at IS NOT NULL ${dateFilter.clause}${selectedRegistrationFilter}
      ) deleted_rows`,
-    params: dateFilter.params,
+    params: [...dateFilter.params, ...selectedRegistrationIds],
   };
 }
 
@@ -246,8 +249,8 @@ async function fetchSoftDeletedRows(conn, filters, limit, offset) {
   );
 }
 
-async function fetchSoftDeletedSnapshots(conn, filters) {
-  const select = buildSoftDeletedSelectSql(filters);
+async function fetchSoftDeletedSnapshots(conn, filters, selectedRegistrationIds = []) {
+  const select = buildSoftDeletedSelectSql(filters, selectedRegistrationIds);
   return conn.query(
     `${select.sql}
      ORDER BY deleted_at DESC`,
@@ -265,13 +268,16 @@ async function logHardDeleteSoftDeletedSnapshots(conn, rows, reason, adminId) {
   }
 }
 
-async function hardDeleteSoftDeletedRows(conn, filters) {
+async function hardDeleteSoftDeletedRows(conn, filters, selectedRegistrationIds = []) {
   const dateFilter = buildSoftDeletedDateClause(filters);
+  const selectedRegistrationFilter = selectedRegistrationIds.length
+    ? ` AND r.id IN (${placeholders(selectedRegistrationIds)})`
+    : '';
   const registrationRows = await conn.query(
     `SELECT r.id
      FROM registrations r
-     WHERE r.deleted_at IS NOT NULL ${dateFilter.clause}`,
-    dateFilter.params
+     WHERE r.deleted_at IS NOT NULL ${dateFilter.clause}${selectedRegistrationFilter}`,
+    [...dateFilter.params, ...selectedRegistrationIds]
   );
   const registrationIds = registrationRows.map(row => row.id);
 
@@ -692,10 +698,16 @@ router.post('/manage/hard-delete-soft-deleted', verifyCsrf, async (req, res) => 
   let conn;
   const filters = buildRegistrationDateFilters(req.body);
   const reason = (req.body.reason || '').trim();
+  const selectedRegistrationIds = parseIds(req.body.selected_registration_ids);
   const query = new URLSearchParams({ view: 'deleted', status: 'deleted' });
   if (filters.registeredFrom) query.set('registered_from', filters.registeredFrom);
   if (filters.registeredTo) query.set('registered_to', filters.registeredTo);
   const returnUrl = `/data/manage?${query.toString()}`;
+
+  if (!selectedRegistrationIds.length) {
+    req.flash('error', 'กรุณาเลือกข้อมูลที่ต้องการลบถาวรอย่างน้อย 1 รายการ');
+    return res.redirect(returnUrl);
+  }
 
   if (req.body.confirm_hard_delete !== 'DELETE') {
     req.flash('error', 'กรุณาพิมพ์ DELETE เพื่อยืนยันการลบถาวร');
@@ -706,15 +718,15 @@ router.post('/manage/hard-delete-soft-deleted', verifyCsrf, async (req, res) => 
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    const snapshots = await fetchSoftDeletedSnapshots(conn, filters);
+    const snapshots = await fetchSoftDeletedSnapshots(conn, filters, selectedRegistrationIds);
     if (!snapshots.length) {
       await conn.rollback();
-      req.flash('error', 'ยังไม่มีข้อมูลที่ถูกลบชั่วคราวตามเงื่อนไขนี้');
+      req.flash('error', 'ไม่พบข้อมูลที่ถูกลบชั่วคราวตามรายการที่เลือก');
       return res.redirect(returnUrl);
     }
 
     await logHardDeleteSoftDeletedSnapshots(conn, snapshots, reason, req.session.admin.id);
-    const deleted = await hardDeleteSoftDeletedRows(conn, filters);
+    const deleted = await hardDeleteSoftDeletedRows(conn, filters, selectedRegistrationIds);
 
     await conn.commit();
     req.flash('success', `ลบข้อมูลถาวรสำเร็จ ${deleted.registrations} ทะเบียน พร้อมข้อมูลที่เกี่ยวข้อง`);

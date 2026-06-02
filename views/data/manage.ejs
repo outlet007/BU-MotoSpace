@@ -134,6 +134,11 @@
               <table class="data-table">
                 <thead>
                   <tr>
+                    <% if (activeView === 'deleted') { %>
+                      <th class="w-10">
+                        <input id="select-all-deleted-rows" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500" aria-label="เลือกข้อมูลที่ถูกลบชั่วคราวทั้งหมดในหน้านี้">
+                      </th>
+                    <% } %>
                     <th>#</th>
                     <% if (activeView === 'deleted') { %>
                       <th>ชื่อผู้ใช้งาน</th>
@@ -152,7 +157,7 @@
                 <tbody>
                   <% if (rows.length === 0) { %>
                     <tr>
-                      <td colspan="<%= activeView === 'deleted' ? 5 : 6 %>" class="text-center py-10 text-slate-400">
+                      <td colspan="6" class="text-center py-10 text-slate-400">
                         <%= activeView === 'deleted' ? 'ยังไม่มีข้อมูลที่ถูกลบชั่วคราว' : 'ไม่พบข้อมูลตามช่วงวันที่ที่เลือก' %>
                       </td>
                     </tr>
@@ -160,6 +165,17 @@
 
                   <% rows.forEach((row, idx) => { %>
                     <tr>
+                      <% if (activeView === 'deleted') { %>
+                        <td data-no-nav>
+                          <input type="checkbox"
+                                 name="selected_registration_ids"
+                                 value="<%= row.registration_id || row.id %>"
+                                 form="hard-delete-soft-deleted-form"
+                                 data-deleted-row-checkbox
+                                 class="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                                 aria-label="เลือก <%= row.first_name %> <%= row.last_name %>">
+                        </td>
+                      <% } %>
                       <td class="text-xs text-slate-400"><%= ((currentPage || 1) - 1) * 20 + idx + 1 %></td>
                       <% if (activeView === 'deleted') { %>
                         <td>
@@ -244,6 +260,9 @@
               <div>
                 <label class="label">รูปแบบการลบ</label>
                 <div class="input bg-red-50 border-red-200 text-red-700 font-semibold">ลบข้อมูลถาวร</div>
+                <p class="text-xs text-slate-500 mt-1">
+                  เลือกแล้ว <span id="selected-deleted-count">0</span> รายการ
+                </p>
               </div>
               <div>
                 <label class="label" for="deleted_reason">เหตุผล / หมายเหตุ</label>
@@ -253,10 +272,10 @@
                 <label class="label text-red-700" for="confirm_hard_delete">พิมพ์ DELETE เพื่อยืนยัน</label>
                 <input id="confirm_hard_delete" name="confirm_hard_delete" class="input bg-white border-red-200" placeholder="DELETE">
               </div>
-              <button id="submit-hard-delete" type="submit" class="btn btn-danger justify-center" <%= total > 0 ? '' : 'disabled' %>
+              <button id="submit-hard-delete" type="submit" class="btn btn-danger justify-center" disabled
                       data-delete-confirm
                       data-delete-title="ยืนยันการลบถาวรข้อมูลที่ลบชั่วคราว"
-                      data-delete-item="<%= `${total.toLocaleString('th-TH')} รายการ` %>"
+                      data-delete-item="0 รายการที่เลือก"
                       data-delete-warning="การลบนี้เป็นการลบข้อมูลถาวร และไม่สามารถกู้คืนจากตารางหลักได้ ระบบจะบันทึก snapshot ลง audit log ก่อนลบ"
                       data-delete-confirm-text="ยืนยันลบถาวร"
                       data-delete-final-confirm="ยืนยันอีกครั้ง: ต้องการลบข้อมูลถาวรจริงหรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้">
@@ -266,7 +285,7 @@
             </div>
             <p class="text-xs text-slate-500 mt-3">
               เงื่อนไขปัจจุบัน: <%= hasDateRange ? `${registeredFrom} ถึง ${registeredTo}` : 'ข้อมูลที่ถูกลบชั่วคราว ทั้งหมด' %>
-              · ระบบจะลบถาวรเฉพาะข้อมูลที่ถูกลบชั่วคราวแล้ว
+              · ระบบจะลบถาวรเฉพาะรายการที่เลือกและถูกลบชั่วคราวแล้ว
             </p>
           </form>
           <% } else { %>
@@ -314,6 +333,42 @@
 
   <script>
     lucide.createIcons();
+
+    (function() {
+      var selectAll = document.getElementById('select-all-deleted-rows');
+      var checkboxes = Array.from(document.querySelectorAll('[data-deleted-row-checkbox]'));
+      var submitButton = document.getElementById('submit-hard-delete');
+      var selectedCount = document.getElementById('selected-deleted-count');
+
+      if (!checkboxes.length || !submitButton || !selectedCount) return;
+
+      function updateDeletedSelectionState() {
+        var count = checkboxes.filter(function(checkbox) { return checkbox.checked; }).length;
+        selectedCount.textContent = count.toLocaleString('th-TH');
+        submitButton.disabled = count === 0;
+        submitButton.dataset.deleteItem = count.toLocaleString('th-TH') + ' รายการที่เลือก';
+
+        if (selectAll) {
+          selectAll.checked = count === checkboxes.length;
+          selectAll.indeterminate = count > 0 && count < checkboxes.length;
+        }
+      }
+
+      if (selectAll) {
+        selectAll.addEventListener('change', function() {
+          checkboxes.forEach(function(checkbox) {
+            checkbox.checked = selectAll.checked;
+          });
+          updateDeletedSelectionState();
+        });
+      }
+
+      checkboxes.forEach(function(checkbox) {
+        checkbox.addEventListener('change', updateDeletedSelectionState);
+      });
+
+      updateDeletedSelectionState();
+    })();
   </script>
 </body>
 </html>
