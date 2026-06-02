@@ -14,8 +14,13 @@ test('deleting a vehicle syncs its source registration so it does not remain pen
 
   assert.match(
     route,
-    /SELECT owner_registration_id, source_registration_id[\s\S]*FROM vehicles[\s\S]*WHERE id = \?[\s\S]*AND \(owner_registration_id = \? OR source_registration_id = \?\)[\s\S]*AND deleted_at IS NULL[\s\S]*FOR UPDATE/s,
+    /SELECT owner_registration_id, source_registration_id, created_by[\s\S]*FROM vehicles[\s\S]*WHERE id = \?[\s\S]*AND \(owner_registration_id = \? OR source_registration_id = \?\)[\s\S]*AND deleted_at IS NULL[\s\S]*FOR UPDATE/s,
     'vehicle delete route should lock and inspect the vehicle before soft-deleting it'
+  );
+  assert.match(
+    route,
+    /vehicle\.source_registration_id \|\| \(vehicle\.created_by == null \? vehicle\.owner_registration_id : null\)/,
+    'public extra vehicles without source_registration_id should still sync their owner registration when deleted'
   );
   assert.match(
     route,

@@ -204,7 +204,9 @@ async function syncRegistrationStatusFromPublicVehicles(conn, registrationId, ad
 }
 
 async function syncSourceRegistrationAfterVehicleDelete(conn, vehicle, adminId, reason) {
-  const sourceRegistrationId = Number(vehicle && vehicle.source_registration_id);
+  const sourceRegistrationId = Number(
+    vehicle && (vehicle.source_registration_id || (vehicle.created_by == null ? vehicle.owner_registration_id : null))
+  );
   if (!Number.isFinite(sourceRegistrationId) || sourceRegistrationId <= 0) return;
 
   const [replacementVehicle] = await conn.query(
@@ -989,7 +991,7 @@ router.post('/:id/vehicles/:vehicleId/delete', isHead, verifyCsrf, async (req, r
 
     await conn.beginTransaction();
     const [vehicle] = await conn.query(
-      `SELECT owner_registration_id, source_registration_id
+      `SELECT owner_registration_id, source_registration_id, created_by
        FROM vehicles
        WHERE id = ?
          AND (owner_registration_id = ? OR source_registration_id = ?)
