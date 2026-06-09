@@ -15,6 +15,7 @@ process.env.TZ = 'Asia/Bangkok';
 const pool = require('./config/database');
 const { generateSignedUrl, verifySignedUrl, resolveFilePath } = require('./utils/signedUrl');
 const { backfillVehiclesFromRegistrations } = require('./utils/vehicles');
+const thaiProvinces = require('./utils/thaiProvinces');
 
 const app = express();
 const PORT = process.env.APP_PORT || 3000;
@@ -236,6 +237,7 @@ app.use(async (req, res, next) => {
   res.locals.currentUrl = req.originalUrl;
   res.locals.csrfToken = generateCsrfToken(req);
   res.locals.signedUrl = (filePath) => filePath ? generateSignedUrl(filePath) : '';
+  res.locals.thaiProvinces = thaiProvinces;
   res.locals.pendingCount = 0;
   res.locals.pendingReportsCount = 0;
   res.locals.summonsCandidatesCount = 0;
